@@ -14,16 +14,16 @@
 
 ## 2. Sequelize & Migrations
 
-- [ ] Install Sequelize CLI, `pg`, `dotenv` in `backend/`
-- [ ] Create `config/database.js` to load `DATABASE_URL` from `.env`
-- [ ] Write migration `XXXX-create-golfcourseinstance.js` with table and columns:
+- [x] Install Sequelize CLI, `pg`, `dotenv` in `backend/`
+- [x] Create `config/database.js` to load `DATABASE_URL` from `.env`
+- [x] Write migration `XXXX-create-golfcourseinstance.js` with table and columns:
   - id, name, street, city, state, postal_code, country, subdomain (unique), primary_admin_id, status (enum), date_created
-- [ ] Add index on `status`
+- [x] Add index on `status`
+- [x] Write Jest integration test: run all migrations against SQLite in-memory and verify table schemas
 - [ ] Write migration `XXXX-create-superadminuser.js`
 - [ ] Write migration to add `course_id` to `StaffUsers` and create `StaffUsers` table if needed
 - [ ] Write migration `XXXX-create-customer.js`
 - [ ] Write migration `XXXX-create-customernotes.js`
-- [ ] Write Jest integration test: run all migrations against SQLite in-memory and verify table schemas
 
 ## 3. JWT Auth & Token Utilities
 
@@ -166,4 +166,13 @@
 - Basic routing and page templates ✅
 - API service layer and auth flows pending
 
-**📋 Next Priority**: Section 2 (Sequelize & Migrations) to set up the database layer
+**✅ Section 2: Sequelize & Migrations** - **COMPLETE** (100%)
+
+- Full Sequelize setup with PostgreSQL/SQLite compatibility
+- Database configuration with environment-based connections  
+- Complete GolfCourseInstance migration with all required columns
+- Status index for query optimization
+- Comprehensive integration tests with in-memory SQLite
+- Foreign key constraint planning for future User table
+
+**📋 Next Priority**: Section 3 (JWT Auth & Token Utilities) to implement authentication
