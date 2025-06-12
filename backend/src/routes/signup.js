@@ -8,7 +8,7 @@ const router = express.Router();
  * POST /api/v1/signup
  * Create new golf course and admin user
  */
-router.post('/', async (req, res) => {
+router.post('/signup', async (req, res) => {
   try {
     // Validate request body
     const { error, value } = signupSchema.validate(req.body, {
@@ -16,8 +16,12 @@ router.post('/', async (req, res) => {
     });
 
     if (error) {
+      // Get the first validation error
+      const firstError = error.details[0];
+      const errorField = firstError.path.join('.');
+      
       return res.status(400).json({
-        error: 'Validation failed',
+        error: `Invalid ${errorField}`,
         details: error.details.map(detail => ({
           field: detail.path.join('.'),
           message: detail.message,
@@ -28,7 +32,7 @@ router.post('/', async (req, res) => {
     // Check if email already exists
     const { StaffUser } = require('../models');
     const existingUser = await StaffUser.findOne({
-      where: { email: value.email },
+      where: { email: value.admin.email },
     });
 
     if (existingUser) {
@@ -43,11 +47,8 @@ router.post('/', async (req, res) => {
 
     // Return success response
     res.status(201).json({
-      data: {
-        subdomain: result.subdomain,
-        message:
-          'Account created successfully. Please check your email for confirmation instructions.',
-      },
+      subdomain: result.subdomain,
+      message: 'Account created successfully. Please check your email for confirmation instructions.'
     });
   } catch (error) {
     console.error('Signup error:', error);

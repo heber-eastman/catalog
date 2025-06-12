@@ -1,40 +1,47 @@
-const { Sequelize } = require('sequelize');
-require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
+const Sequelize = require('sequelize');
+const process = require('process');
+const basename = path.basename(__filename);
+const env = process.env.NODE_ENV || 'development';
+const config = require('../../config/config.js')[env];
+const db = {};
 
-// Initialize Sequelize with PostgreSQL configuration
-const sequelize = new Sequelize({
-  database: process.env.DB_NAME || 'catalog_dev',
-  username: process.env.DB_USER || 'heber',
-  password: process.env.DB_PASSWORD || '',
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  dialect: 'postgres',
-  logging: process.env.NODE_ENV === 'development' ? console.log : false,
+let sequelize;
+if (env === 'test') {
+  sequelize = new Sequelize({
+    dialect: 'sqlite',
+    storage: ':memory:',
+    logging: false
+  });
+} else if (config.use_env_variable) {
+  sequelize = new Sequelize(process.env[config.use_env_variable], config);
+} else {
+  sequelize = new Sequelize(config.database, config.username, config.password, config);
+}
+
+fs
+  .readdirSync(__dirname)
+  .filter(file => {
+    return (
+      file.indexOf('.') !== 0 &&
+      file !== basename &&
+      file.slice(-3) === '.js' &&
+      file.indexOf('.test.js') === -1
+    );
+  })
+  .forEach(file => {
+    const model = require(path.join(__dirname, file))(sequelize, Sequelize.DataTypes);
+    db[model.name] = model;
+  });
+
+Object.keys(db).forEach(modelName => {
+  if (db[modelName].associate) {
+    db[modelName].associate(db);
+  }
 });
 
-// Import models
-const GolfCourseInstance = require('./GolfCourseInstance')(
-  sequelize,
-  Sequelize.DataTypes
-);
-const StaffUser = require('./StaffUser')(sequelize, Sequelize.DataTypes);
-
-// Define associations
-GolfCourseInstance.hasMany(StaffUser, {
-  foreignKey: 'course_id',
-  as: 'staff',
-});
-
-StaffUser.belongsTo(GolfCourseInstance, {
-  foreignKey: 'course_id',
-  as: 'course',
-});
-
-const db = {
-  sequelize,
-  Sequelize,
-  GolfCourseInstance,
-  StaffUser,
-};
+db.sequelize = sequelize;
+db.Sequelize = Sequelize;
 
 module.exports = db;

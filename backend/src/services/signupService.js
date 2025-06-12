@@ -11,18 +11,27 @@ const { sendConfirmationEmail } = require('./emailService');
  * @returns {Promise<string>} Unique subdomain
  */
 async function generateUniqueSubdomain(courseName) {
+  const MAX_SUBDOMAIN_LENGTH = 63; // DNS limit
+
+  // Create initial slug
   const baseSlug = slugify(courseName, {
     lower: true,
     strict: true,
     remove: /[*+~.()'"!:@&]/g,
   });
 
-  let subdomain = baseSlug;
+  // Truncate the base slug if it's too long
+  const truncatedBaseSlug = baseSlug.slice(0, MAX_SUBDOMAIN_LENGTH);
+
+  let subdomain = truncatedBaseSlug;
   let counter = 2;
 
   // Check for collisions and append counter if needed
   while (await GolfCourseInstance.findOne({ where: { subdomain } })) {
-    subdomain = `${baseSlug}-${counter}`;
+    // Calculate the maximum length for the base part to accommodate the counter
+    const counterStr = `-${counter}`;
+    const maxBaseLength = MAX_SUBDOMAIN_LENGTH - counterStr.length;
+    subdomain = `${truncatedBaseSlug.slice(0, maxBaseLength)}${counterStr}`;
     counter++;
   }
 
@@ -35,14 +44,14 @@ async function generateUniqueSubdomain(courseName) {
  * @returns {Promise<Object>} Created course and user data
  */
 async function createCourseAndAdmin(signupData) {
-  const { email, password, course } = signupData;
+  const { admin, course } = signupData;
 
   // Generate unique subdomain
   const subdomain = await generateUniqueSubdomain(course.name);
 
   // Hash password
   const saltRounds = 12;
-  const passwordHash = await bcrypt.hash(password, saltRounds);
+  const passwordHash = await bcrypt.hash(admin.password, saltRounds);
 
   // Generate invitation token and expiry
   const invitationToken = generateTokenString();
@@ -67,8 +76,10 @@ async function createCourseAndAdmin(signupData) {
     // Create staff user (admin)
     const staffUser = await StaffUser.create({
       course_id: golfCourse.id,
-      email,
+      email: admin.email,
       password_hash: passwordHash,
+      first_name: admin.first_name,
+      last_name: admin.last_name,
       role: 'Admin',
       is_active: false,
       invitation_token: invitationToken,
@@ -77,7 +88,7 @@ async function createCourseAndAdmin(signupData) {
     });
 
     // Send confirmation email
-    await sendConfirmationEmail(email, subdomain, invitationToken);
+    await sendConfirmationEmail(admin.email, subdomain, invitationToken);
 
     return {
       course: golfCourse,

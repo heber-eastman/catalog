@@ -95,5 +95,12 @@ module.exports = (sequelize, DataTypes) => {
     }
   );
 
+  StaffUser.associate = function(models) {
+    StaffUser.belongsTo(models.GolfCourseInstance, {
+      foreignKey: 'course_id',
+      as: 'course'
+    });
+  };
+
   return StaffUser;
 };
