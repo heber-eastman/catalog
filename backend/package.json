@@ -23,7 +23,8 @@
     "morgan": "^1.10.0",
     "pg": "^8.11.1",
     "pg-hstore": "^2.3.4",
-    "sequelize": "^6.32.1"
+    "sequelize": "^6.32.1",
+    "slugify": "^1.6.6"
   },
   "devDependencies": {
     "@types/jest": "^29.5.0",

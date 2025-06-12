@@ -29,6 +29,9 @@ app.get('/health', (req, res) => {
   });
 });
 
+// API routes
+app.use('/api/v1/signup', require('./routes/signup'));
+
 // 404 handler (must come before error handler)
 app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found' });
