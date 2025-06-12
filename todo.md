@@ -169,7 +169,7 @@
 **✅ Section 2: Sequelize & Migrations** - **COMPLETE** (100%)
 
 - Full Sequelize setup with PostgreSQL/SQLite compatibility
-- Database configuration with environment-based connections  
+- Database configuration with environment-based connections
 - Complete GolfCourseInstance migration with all required columns
 - Status index for query optimization
 - Comprehensive integration tests with in-memory SQLite
