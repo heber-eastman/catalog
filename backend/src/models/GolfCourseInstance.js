@@ -61,7 +61,7 @@ module.exports = (sequelize, DataTypes) => {
       updatedAt: {
         type: DataTypes.DATE,
         allowNull: false,
-      }
+      },
     },
     {
       tableName: 'GolfCourseInstances',

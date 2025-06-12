@@ -15,10 +15,12 @@ router.get('/confirm', async (req, res) => {
     // Find staff user by invitation token
     const staffUser = await StaffUser.findOne({
       where: { invitation_token: token },
-      include: [{
-        model: GolfCourseInstance,
-        as: 'course'
-      }]
+      include: [
+        {
+          model: GolfCourseInstance,
+          as: 'course',
+        },
+      ],
     });
 
     if (!staffUser) {
@@ -35,26 +37,32 @@ router.get('/confirm', async (req, res) => {
 
     try {
       // Update staff user
-      await staffUser.update({
-        is_active: true,
-        invitation_token: null,
-        token_expires_at: null
-      }, { transaction });
+      await staffUser.update(
+        {
+          is_active: true,
+          invitation_token: null,
+          token_expires_at: null,
+        },
+        { transaction }
+      );
 
       // Update golf course instance
-      await GolfCourseInstance.update({
-        status: 'Active'
-      }, {
-        where: { id: staffUser.course_id },
-        transaction
-      });
+      await GolfCourseInstance.update(
+        {
+          status: 'Active',
+        },
+        {
+          where: { id: staffUser.course_id },
+          transaction,
+        }
+      );
 
       // Generate JWT
       const jwt = signToken({
         sub: staffUser.id,
         email: staffUser.email,
         role: staffUser.role,
-        course_id: staffUser.course_id
+        course_id: staffUser.course_id,
       });
 
       // Commit transaction
@@ -65,11 +73,13 @@ router.get('/confirm', async (req, res) => {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
       });
 
       // Redirect to dashboard
-      return res.redirect(`https://${staffUser.course.subdomain}.devstreet.co/dashboard`);
+      return res.redirect(
+        `https://${staffUser.course.subdomain}.devstreet.co/dashboard`
+      );
     } catch (error) {
       // Rollback transaction on error
       await transaction.rollback();
@@ -81,4 +91,4 @@ router.get('/confirm', async (req, res) => {
   }
 });
 
-module.exports = router; 
+module.exports = router;

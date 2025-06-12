@@ -1,6 +1,10 @@
 const request = require('supertest');
 const app = require('../../src/app');
-const { GolfCourseInstance, StaffUser, sequelize } = require('../../src/models');
+const {
+  GolfCourseInstance,
+  StaffUser,
+  sequelize,
+} = require('../../src/models');
 
 describe('POST /api/v1/signup', () => {
   beforeAll(async () => {
@@ -30,14 +34,14 @@ describe('POST /api/v1/signup', () => {
             city: 'Los Angeles',
             state: 'CA',
             postal_code: '90001',
-            country: 'USA'
+            country: 'USA',
           },
           admin: {
             email: 'admin@example.com',
             password: 'Password123!',
             first_name: 'John',
-            last_name: 'Doe'
-          }
+            last_name: 'Doe',
+          },
         });
 
       expect(response.status).toBe(201);
@@ -46,13 +50,13 @@ describe('POST /api/v1/signup', () => {
 
       // Verify database entries
       const course = await GolfCourseInstance.findOne({
-        where: { subdomain: 'sunset-golf-club' }
+        where: { subdomain: 'sunset-golf-club' },
       });
       expect(course).toBeTruthy();
       expect(course.status).toBe('Pending');
 
       const user = await StaffUser.findOne({
-        where: { email: 'admin@example.com' }
+        where: { email: 'admin@example.com' },
       });
       expect(user).toBeTruthy();
       expect(user.is_active).toBe(false);
@@ -69,18 +73,21 @@ describe('POST /api/v1/signup', () => {
             city: 'Los Angeles',
             state: 'CA',
             postal_code: '90001',
-            country: 'USA'
+            country: 'USA',
           },
           admin: {
             email: 'admin@example.com',
             password: 'Password123!',
             first_name: 'John',
-            last_name: 'Doe'
-          }
+            last_name: 'Doe',
+          },
         });
 
       expect(response.status).toBe(201);
-      expect(response.body).toHaveProperty('subdomain', 'st-marys-golf-and-country-club');
+      expect(response.body).toHaveProperty(
+        'subdomain',
+        'st-marys-golf-and-country-club'
+      );
     });
   });
 
@@ -96,14 +103,14 @@ describe('POST /api/v1/signup', () => {
             city: 'Los Angeles',
             state: 'CA',
             postal_code: '90001',
-            country: 'USA'
+            country: 'USA',
           },
           admin: {
             email: 'admin@example.com',
             password: 'Password123!',
             first_name: 'John',
-            last_name: 'Doe'
-          }
+            last_name: 'Doe',
+          },
         });
 
       // Create second course with same name
@@ -116,14 +123,14 @@ describe('POST /api/v1/signup', () => {
             city: 'Los Angeles',
             state: 'CA',
             postal_code: '90001',
-            country: 'USA'
+            country: 'USA',
           },
           admin: {
             email: 'admin2@example.com',
             password: 'Password123!',
             first_name: 'Jane',
-            last_name: 'Doe'
-          }
+            last_name: 'Doe',
+          },
         });
 
       expect(response.status).toBe(201);
@@ -137,11 +144,11 @@ describe('POST /api/v1/signup', () => {
         .post('/api/v1/signup')
         .send({
           course: {
-            name: 'Sunset Golf Club'
+            name: 'Sunset Golf Club',
           },
           admin: {
-            email: 'admin@example.com'
-          }
+            email: 'admin@example.com',
+          },
         });
 
       expect(response.status).toBe(400);
@@ -158,14 +165,14 @@ describe('POST /api/v1/signup', () => {
             city: 'Los Angeles',
             state: 'CA',
             postal_code: '90001',
-            country: 'USA'
+            country: 'USA',
           },
           admin: {
             email: 'invalid-email',
             password: 'Password123!',
             first_name: 'John',
-            last_name: 'Doe'
-          }
+            last_name: 'Doe',
+          },
         });
 
       expect(response.status).toBe(400);
@@ -182,14 +189,14 @@ describe('POST /api/v1/signup', () => {
             city: 'Los Angeles',
             state: 'CA',
             postal_code: '90001',
-            country: 'USA'
+            country: 'USA',
           },
           admin: {
             email: 'admin@example.com',
             password: 'weak',
             first_name: 'John',
-            last_name: 'Doe'
-          }
+            last_name: 'Doe',
+          },
         });
 
       expect(response.status).toBe(400);
@@ -206,14 +213,14 @@ describe('POST /api/v1/signup', () => {
             city: 'Los Angeles',
             state: 'CA',
             postal_code: '90001',
-            country: 'USA'
+            country: 'USA',
           },
           admin: {
             email: 'admin@example.com',
             password: 'Password123!',
             first_name: 'John',
-            last_name: 'Doe'
-          }
+            last_name: 'Doe',
+          },
         });
 
       expect(response.status).toBe(400);
@@ -231,14 +238,14 @@ describe('POST /api/v1/signup', () => {
             city: 'Los Angeles',
             state: 'CA',
             postal_code: '90001',
-            country: 'USA'
+            country: 'USA',
           },
           admin: {
             email: 'admin@example.com',
             password: 'Password123!',
             first_name: 'John',
-            last_name: 'Doe'
-          }
+            last_name: 'Doe',
+          },
         });
 
       // Try to create second user with same email
@@ -251,14 +258,14 @@ describe('POST /api/v1/signup', () => {
             city: 'Los Angeles',
             state: 'CA',
             postal_code: '90001',
-            country: 'USA'
+            country: 'USA',
           },
           admin: {
             email: 'admin@example.com',
             password: 'Password123!',
             first_name: 'Jane',
-            last_name: 'Doe'
-          }
+            last_name: 'Doe',
+          },
         });
 
       expect(response.status).toBe(409);
@@ -277,14 +284,14 @@ describe('POST /api/v1/signup', () => {
             city: 'Los Angeles',
             state: 'CA',
             postal_code: '90001',
-            country: 'USA'
+            country: 'USA',
           },
           admin: {
             email: 'admin@example.com',
             password: 'Password123!',
             first_name: 'John',
-            last_name: 'Doe'
-          }
+            last_name: 'Doe',
+          },
         });
 
       expect(response.status).toBe(201);
@@ -301,14 +308,14 @@ describe('POST /api/v1/signup', () => {
             city: 'Los Angeles',
             state: 'CA',
             postal_code: '90001',
-            country: 'USA'
+            country: 'USA',
           },
           admin: {
             email: 'admin@example.com',
             password: 'Password123!',
             first_name: 'John',
-            last_name: 'Doe'
-          }
+            last_name: 'Doe',
+          },
         });
 
       expect(response.status).toBe(201);

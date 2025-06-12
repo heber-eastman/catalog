@@ -19,7 +19,7 @@ router.post('/signup', async (req, res) => {
       // Get the first validation error
       const firstError = error.details[0];
       const errorField = firstError.path.join('.');
-      
+
       return res.status(400).json({
         error: `Invalid ${errorField}`,
         details: error.details.map(detail => ({
@@ -48,7 +48,8 @@ router.post('/signup', async (req, res) => {
     // Return success response
     res.status(201).json({
       subdomain: result.subdomain,
-      message: 'Account created successfully. Please check your email for confirmation instructions.'
+      message:
+        'Account created successfully. Please check your email for confirmation instructions.',
     });
   } catch (error) {
     console.error('Signup error:', error);

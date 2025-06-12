@@ -70,7 +70,7 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
-      }
+      },
     },
     {
       tableName: 'StaffUsers',
@@ -95,10 +95,10 @@ module.exports = (sequelize, DataTypes) => {
     }
   );
 
-  StaffUser.associate = function(models) {
+  StaffUser.associate = function (models) {
     StaffUser.belongsTo(models.GolfCourseInstance, {
       foreignKey: 'course_id',
-      as: 'course'
+      as: 'course',
     });
   };
 

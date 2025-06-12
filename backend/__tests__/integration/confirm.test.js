@@ -1,8 +1,11 @@
 const request = require('supertest');
 const bcrypt = require('bcrypt');
 const app = require('../../src/app');
-const { GolfCourseInstance, StaffUser, sequelize } = require('../../src/models');
-const { signToken } = require('../../src/auth/jwt');
+const {
+  GolfCourseInstance,
+  StaffUser,
+  sequelize,
+} = require('../../src/models');
 const { generateTokenString } = require('../../src/auth/tokenUtil');
 
 describe('GET /api/v1/confirm', () => {
@@ -25,7 +28,7 @@ describe('GET /api/v1/confirm', () => {
       postal_code: '12345',
       country: 'Test Country',
       subdomain: 'test-golf-course',
-      status: 'Pending'
+      status: 'Pending',
     });
 
     // Create a test staff user with invitation token
@@ -45,7 +48,7 @@ describe('GET /api/v1/confirm', () => {
       is_active: false,
       course_id: testCourse.id,
       invitation_token: invitationToken,
-      token_expires_at: tokenExpiresAt
+      token_expires_at: tokenExpiresAt,
     });
   });
 
@@ -61,19 +64,22 @@ describe('GET /api/v1/confirm', () => {
   });
 
   it('should activate user and course with valid token', async () => {
-    const response = await request(app)
-      .get(`/api/v1/confirm?token=${testUser.invitation_token}`);
+    const response = await request(app).get(
+      `/api/v1/confirm?token=${testUser.invitation_token}`
+    );
 
     // Assert response
     expect(response.status).toBe(302);
-    expect(response.headers.location).toBe(`https://test-golf-course.devstreet.co/dashboard`);
-    
+    expect(response.headers.location).toBe(
+      `https://test-golf-course.devstreet.co/dashboard`
+    );
+
     // Assert cookie is set
     const cookies = response.headers['set-cookie'];
     expect(cookies).toBeDefined();
     expect(cookies[0]).toMatch(/^jwt=/);
     expect(cookies[0]).toMatch(/HttpOnly/);
-    
+
     // Verify database updates
     const updatedUser = await StaffUser.findByPk(testUser.id);
     expect(updatedUser.is_active).toBe(true);
@@ -87,11 +93,12 @@ describe('GET /api/v1/confirm', () => {
   it('should return 400 for expired token', async () => {
     // Set token to expired
     await testUser.update({
-      token_expires_at: new Date(Date.now() - 86400000) // 24 hours ago
+      token_expires_at: new Date(Date.now() - 86400000), // 24 hours ago
     });
 
-    const response = await request(app)
-      .get(`/api/v1/confirm?token=${testUser.invitation_token}`);
+    const response = await request(app).get(
+      `/api/v1/confirm?token=${testUser.invitation_token}`
+    );
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('Invitation token has expired');
@@ -99,24 +106,24 @@ describe('GET /api/v1/confirm', () => {
     // Verify no changes were made
     const user = await StaffUser.findByPk(testUser.id);
     expect(user.is_active).toBe(false);
-    
+
     const course = await GolfCourseInstance.findByPk(testCourse.id);
     expect(course.status).toBe('Pending');
   });
 
   it('should return 400 for invalid token', async () => {
-    const response = await request(app)
-      .get('/api/v1/confirm?token=invalid-token');
+    const response = await request(app).get(
+      '/api/v1/confirm?token=invalid-token'
+    );
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('Invalid invitation token');
   });
 
   it('should return 400 when token is missing', async () => {
-    const response = await request(app)
-      .get('/api/v1/confirm');
+    const response = await request(app).get('/api/v1/confirm');
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('Token is required');
   });
-}); 
+});
