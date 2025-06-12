@@ -27,9 +27,9 @@
 
 ## 3. JWT Auth & Token Utilities
 
-- [ ] Create `backend/src/auth/jwt.js`: `signToken`, `verifyToken` using `JWT_SECRET`
-- [ ] Create `backend/src/lib/tokenUtil.js`: `generateTokenString`, `isTokenExpired`
-- [ ] Write Jest tests for JWT sign/verify and token expiry functions
+- [x] Create `backend/src/auth/jwt.js`: `signToken`, `verifyToken` using `JWT_SECRET`
+- [x] Create `backend/src/auth/tokenUtil.js`: `generateTokenString`, `isTokenExpired`
+- [x] Write Jest tests for JWT sign/verify and token expiry functions
 
 ## 4. Signup Endpoint & Subdomain Collision
 
@@ -175,4 +175,12 @@
 - Comprehensive integration tests with in-memory SQLite
 - Foreign key constraint planning for future User table
 
-**📋 Next Priority**: Section 3 (JWT Auth & Token Utilities) to implement authentication
+**✅ Section 3: JWT Auth & Token Utilities** - **COMPLETE** (100%)
+
+- JWT authentication module with sign/verify functions
+- Token utility functions for generation and expiry checking
+- Comprehensive test coverage with 13 passing tests
+- Proper error handling and environment variable validation
+- Built-in Node.js crypto module usage for secure token generation
+
+**📋 Next Priority**: Section 4 (Signup Endpoint & Subdomain Collision) to implement user registration
