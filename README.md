@@ -12,6 +12,7 @@ This monorepo consists of two main workspaces:
 ## 📦 Tech Stack
 
 ### Backend
+
 - **Express.js** - Web framework
 - **Sequelize** - ORM for PostgreSQL
 - **PostgreSQL** - Database
@@ -21,6 +22,7 @@ This monorepo consists of two main workspaces:
 - **bcrypt** - Password hashing
 
 ### Frontend
+
 - **Vue 3** - Progressive JavaScript framework
 - **Vuetify 3** - Material Design component library
 - **Vite** - Build tool and dev server
@@ -29,6 +31,7 @@ This monorepo consists of two main workspaces:
 - **Axios** - HTTP client
 
 ### Development Tools
+
 - **ESLint** - Code linting
 - **Prettier** - Code formatting
 - **Jest/Vitest** - Testing frameworks
@@ -37,24 +40,28 @@ This monorepo consists of two main workspaces:
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 18+ 
+
+- Node.js 18+
 - npm (comes with Node.js)
 - PostgreSQL (for backend development)
 
 ### Installation
 
 1. Clone the repository:
+
 ```bash
 git clone <your-repo-url>
 cd catalog-v0
 ```
 
 2. Install dependencies:
+
 ```bash
 npm install
 ```
 
 3. Set up environment variables:
+
 ```bash
 # Backend
 cp backend/env.example backend/.env
@@ -62,6 +69,7 @@ cp backend/env.example backend/.env
 ```
 
 4. Start development servers:
+
 ```bash
 # Start backend (runs on http://localhost:3000)
 npm run dev:backend
@@ -73,6 +81,7 @@ npm run dev:frontend
 ## 📋 Available Scripts
 
 ### Root Level
+
 - `npm run install:all` - Install all dependencies
 - `npm run lint` - Run ESLint on all workspaces
 - `npm run lint:fix` - Fix linting issues automatically
@@ -85,11 +94,13 @@ npm run dev:frontend
 - `npm run build:frontend` - Build frontend for production
 
 ### Backend
+
 - `npm run dev --workspace=backend` - Start development server
 - `npm run test --workspace=backend` - Run backend tests
 - `npm run test:watch --workspace=backend` - Run tests in watch mode
 
 ### Frontend
+
 - `npm run dev --workspace=frontend` - Start development server
 - `npm run build --workspace=frontend` - Build for production
 - `npm run preview --workspace=frontend` - Preview production build
@@ -104,6 +115,7 @@ The project includes comprehensive testing setup:
 - **Setup tests** that verify the monorepo configuration
 
 Run all tests:
+
 ```bash
 npm test
 ```
@@ -111,15 +123,18 @@ npm test
 ## 🔧 Configuration
 
 ### ESLint
+
 - Configured for TypeScript, Vue 3, and Node.js
 - Includes Prettier integration
 - Custom rules for code quality
 
 ### Prettier
+
 - Consistent code formatting across the monorepo
 - Integrated with ESLint
 
 ### CI/CD
+
 - GitHub Actions workflow for automated testing
 - Runs on multiple Node.js versions (18.x, 20.x)
 - Includes linting, formatting checks, and testing
@@ -182,14 +197,18 @@ catalog-v0/
 ## 🚢 Deployment
 
 ### Backend
+
 The backend can be deployed to any Node.js hosting platform:
+
 - Heroku
 - AWS EC2/ECS
 - DigitalOcean
 - Railway
 
 ### Frontend
+
 The frontend builds to static files and can be deployed to:
+
 - Netlify
 - Vercel
 - AWS S3 + CloudFront
@@ -210,4 +229,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-Built with ❤️ using modern web technologies 
+Built with ❤️ using modern web technologies
