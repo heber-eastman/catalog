@@ -3,9 +3,9 @@ module.exports = (sequelize, DataTypes) => {
     'GolfCourseInstance',
     {
       id: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.STRING,
         primaryKey: true,
-        autoIncrement: true,
+        defaultValue: DataTypes.UUIDV4,
       },
       name: {
         type: DataTypes.STRING,
@@ -13,23 +13,24 @@ module.exports = (sequelize, DataTypes) => {
       },
       street: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       city: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       state: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       postal_code: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       country: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
+        defaultValue: 'US',
       },
       subdomain: {
         type: DataTypes.STRING,
@@ -37,7 +38,7 @@ module.exports = (sequelize, DataTypes) => {
         unique: true,
       },
       primary_admin_id: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.STRING,
         allowNull: true,
       },
       status: {
@@ -53,10 +54,17 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: DataTypes.NOW,
       },
+      createdAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+      },
+      updatedAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+      }
     },
     {
       tableName: 'GolfCourseInstances',
-      timestamps: false,
       indexes: [
         {
           fields: ['status'],

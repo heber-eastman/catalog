@@ -8,8 +8,12 @@ module.exports = (sequelize, DataTypes) => {
         autoIncrement: true,
       },
       course_id: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.STRING,
         allowNull: false,
+        references: {
+          model: 'GolfCourseInstances',
+          key: 'id',
+        },
       },
       email: {
         type: DataTypes.STRING,
@@ -24,12 +28,9 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       role: {
-        type: DataTypes.STRING,
+        type: DataTypes.ENUM('Admin', 'Manager', 'Staff'),
         allowNull: false,
         defaultValue: 'Staff',
-        validate: {
-          isIn: [['Admin', 'Manager', 'Staff']],
-        },
       },
       is_active: {
         type: DataTypes.BOOLEAN,
@@ -60,6 +61,16 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      created_at: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
+      },
+      updated_at: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: sequelize.literal('CURRENT_TIMESTAMP'),
+      }
     },
     {
       tableName: 'StaffUsers',

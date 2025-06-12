@@ -1,12 +1,15 @@
 const { Sequelize } = require('sequelize');
+require('dotenv').config();
 
-// Initialize Sequelize
-const sequelize = new Sequelize(process.env.DATABASE_URL || 'sqlite::memory:', {
-  dialect: process.env.DATABASE_URL?.startsWith('postgres')
-    ? 'postgres'
-    : 'sqlite',
+// Initialize Sequelize with PostgreSQL configuration
+const sequelize = new Sequelize({
+  database: process.env.DB_NAME || 'catalog_dev',
+  username: process.env.DB_USER || 'heber',
+  password: process.env.DB_PASSWORD || '',
+  host: process.env.DB_HOST || 'localhost',
+  port: process.env.DB_PORT || 5432,
+  dialect: 'postgres',
   logging: process.env.NODE_ENV === 'development' ? console.log : false,
-  storage: process.env.NODE_ENV === 'test' ? ':memory:' : undefined,
 });
 
 // Import models

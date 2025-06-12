@@ -11,7 +11,7 @@ module.exports = {
         type: Sequelize.INTEGER,
       },
       course_id: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.STRING,
         allowNull: false,
         references: {
           model: 'GolfCourseInstances',

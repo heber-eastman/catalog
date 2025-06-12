@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const slugify = require('slugify');
+const { v4: uuidv4 } = require('uuid');
 const { GolfCourseInstance, StaffUser } = require('../models');
 const { generateTokenString } = require('../auth/tokenUtil');
 const { sendConfirmationEmail } = require('./emailService');
@@ -49,8 +50,9 @@ async function createCourseAndAdmin(signupData) {
   const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
   try {
-    // Create golf course instance
+    // Create golf course instance with UUID
     const golfCourse = await GolfCourseInstance.create({
+      id: uuidv4(),
       name: course.name,
       street: course.street,
       city: course.city,

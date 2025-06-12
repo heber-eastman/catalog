@@ -67,8 +67,11 @@ The Golf Course Management Team
     },
   };
 
-  // In test environment, return mock response
-  if (process.env.NODE_ENV === 'test') {
+  // In test or development environment, return mock response
+  if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
+    console.log('Development mode: Mocking email send');
+    console.log('Email would be sent to:', email);
+    console.log('Confirmation URL:', confirmationUrl);
     return {
       MessageId: 'mock-message-id',
       email,
