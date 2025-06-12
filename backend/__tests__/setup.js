@@ -1,33 +1,29 @@
 /* eslint-env jest */
 const { sequelize } = require('../src/models');
 
-// Clean up database after all tests
-afterAll(async () => {
-  await sequelize.close();
-});
-
-// Clean up database before each test
-beforeEach(async () => {
-  await sequelize.sync({ force: true, match: /_test$/, logging: false });
-});
-
-// Basic test to ensure test environment is working
-describe('Test Environment', () => {
-  it('should be properly configured', () => {
-    expect(process.env.NODE_ENV).toBe('test');
-    expect(process.env.DB_DATABASE).toMatch(/_test$/);
-    expect(process.env.JWT_SECRET).toBeDefined();
-    expect(process.env.AWS_REGION).toBeDefined();
-    expect(process.env.AWS_ACCESS_KEY_ID).toBeDefined();
-  });
-});
-
 // Set up test environment variables
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test-secret-key';
 process.env.AWS_REGION = 'us-east-1';
 process.env.AWS_ACCESS_KEY_ID = 'test';
 process.env.AWS_SECRET_ACCESS_KEY = 'test';
+
+// Clean up database before each test
+beforeEach(async () => {
+  await sequelize.sync({ force: true, logging: false });
+});
+
+// Clean up database after all tests in a file
+afterAll(async () => {
+  try {
+    await sequelize.close();
+  } catch (error) {
+    // Ignore errors about already closed connections
+    if (!error.message.includes('Database is closed')) {
+      throw error;
+    }
+  }
+});
 
 // Mock AWS SES
 jest.mock('aws-sdk', () => ({

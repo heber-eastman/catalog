@@ -18,7 +18,14 @@ describe('Database Migrations', () => {
     });
 
     afterEach(async () => {
-      await sequelize.close();
+      try {
+        await sequelize.close();
+      } catch (error) {
+        // Ignore errors about already closed connections
+        if (!error.message.includes('Database is closed')) {
+          throw error;
+        }
+      }
     });
 
     test('should create GolfCourseInstances table with correct structure', async () => {
