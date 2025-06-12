@@ -17,11 +17,11 @@ function isTokenExpired(expiryTimestamp) {
   if (!expiryTimestamp || isNaN(Number(expiryTimestamp))) {
     return true;
   }
-  
+
   return Date.now() >= Number(expiryTimestamp);
 }
 
 module.exports = {
   generateTokenString,
   isTokenExpired,
-}; 
+};

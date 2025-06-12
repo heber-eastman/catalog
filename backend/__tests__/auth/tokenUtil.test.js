@@ -1,4 +1,7 @@
-const { generateTokenString, isTokenExpired } = require('../../src/auth/tokenUtil');
+const {
+  generateTokenString,
+  isTokenExpired,
+} = require('../../src/auth/tokenUtil');
 
 describe('Token Utilities', () => {
   describe('generateTokenString', () => {
@@ -36,4 +39,4 @@ describe('Token Utilities', () => {
       expect(isTokenExpired('invalid')).toBe(true);
     });
   });
-}); 
+});

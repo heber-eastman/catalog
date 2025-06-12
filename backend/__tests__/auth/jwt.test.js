@@ -42,7 +42,9 @@ describe('JWT Authentication', () => {
       delete process.env.JWT_SECRET;
 
       const payload = { userId: '123' };
-      await expect(signToken(payload)).rejects.toThrow('JWT_SECRET must be set');
+      await expect(signToken(payload)).rejects.toThrow(
+        'JWT_SECRET must be set'
+      );
     });
   });
 
@@ -78,7 +80,9 @@ describe('JWT Authentication', () => {
       delete process.env.JWT_SECRET;
 
       const token = 'some.valid.token';
-      await expect(verifyToken(token)).rejects.toThrow('JWT_SECRET must be set');
+      await expect(verifyToken(token)).rejects.toThrow(
+        'JWT_SECRET must be set'
+      );
     });
   });
-}); 
+});

@@ -12,15 +12,10 @@ async function signToken(payload, options = {}) {
   }
 
   return new Promise((resolve, reject) => {
-    jwt.sign(
-      payload,
-      process.env.JWT_SECRET,
-      { ...options },
-      (err, token) => {
-        if (err) return reject(err);
-        resolve(token);
-      }
-    );
+    jwt.sign(payload, process.env.JWT_SECRET, { ...options }, (err, token) => {
+      if (err) return reject(err);
+      resolve(token);
+    });
   });
 }
 
@@ -45,4 +40,4 @@ async function verifyToken(token) {
 module.exports = {
   signToken,
   verifyToken,
-}; 
+};
