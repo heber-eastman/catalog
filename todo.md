@@ -33,17 +33,17 @@
 
 ## 4. Signup Endpoint & Subdomain Collision
 
-- [ ] Implement `POST /api/v1/signup` in Express:
-  - [ ] Validate request body with Joi
-  - [ ] Slugify course name to subdomain, handle collisions by appending `2`, `3`, …
-  - [ ] Create `GolfCourseInstance` with `status=Pending`
-  - [ ] Create `StaffUser` with `is_active=false`, hashed password, invitation token fields
-  - [ ] Send confirmation email via SES (mock in tests)
-  - [ ] Return `201 Created` with subdomain and message
-- [ ] Write supertest tests for:
-  - Successful signup
-  - Subdomain collision handling
-  - Validation errors
+- [x] Implement `POST /api/v1/signup` in Express:
+  - [x] Validate request body with Joi
+  - [x] Slugify course name to subdomain, handle collisions by appending `2`, `3`, …
+  - [x] Create `GolfCourseInstance` with `status=Pending`
+  - [x] Create `StaffUser` with `is_active=false`, hashed password, invitation token fields
+  - [x] Send confirmation email via SES (mock in tests)
+  - [x] Return `201 Created` with subdomain and message
+- [x] Write supertest tests for:
+  - [x] Successful signup
+  - [x] Subdomain collision handling
+  - [x] Validation errors
 
 ## 5. Confirmation Endpoint & Auto-Login
 
@@ -183,4 +183,15 @@
 - Proper error handling and environment variable validation
 - Built-in Node.js crypto module usage for secure token generation
 
-**📋 Next Priority**: Section 4 (Signup Endpoint & Subdomain Collision) to implement user registration
+**✅ Section 4: Signup Endpoint & Subdomain Collision** - **COMPLETE** (100%)
+
+- Complete signup endpoint with Joi validation
+- Intelligent subdomain generation with collision handling
+- StaffUser migration and model with proper relationships
+- Email service with SES integration (mocked for testing)
+- Comprehensive error handling for all edge cases
+- 10 integration tests covering all scenarios (30 total tests passing)
+- Password hashing with bcrypt and secure token generation
+- Proper database transaction handling
+
+**📋 Next Priority**: Section 5 (Confirmation Endpoint & Auto-Login) to implement account activation
