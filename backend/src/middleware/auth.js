@@ -24,7 +24,9 @@ const requireAuth = (allowedRoles = STAFF_ROLES) => {
 
       // Add user info to request
       req.user = decoded;
+      req.userId = decoded.user_id;
       req.courseId = decoded.course_id;
+      req.userRole = decoded.role;
 
       next();
     } catch (error) {

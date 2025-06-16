@@ -4,6 +4,7 @@ const cookieParser = require('cookie-parser');
 const signupRouter = require('./routes/signup');
 const confirmRouter = require('./routes/confirm');
 const customersRouter = require('./routes/customers');
+const notesRouter = require('./routes/notes');
 const authRouter = require('./routes/auth');
 
 const app = express();
@@ -27,6 +28,7 @@ app.use('/api/v1/auth', authRouter);
 app.use('/api/v1', signupRouter);
 app.use('/api/v1', confirmRouter);
 app.use('/api/v1', customersRouter);
+app.use('/api/v1', notesRouter);
 
 // 404 handler
 app.use((req, res) => {

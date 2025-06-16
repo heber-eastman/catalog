@@ -71,15 +71,15 @@
 
 ## 7. CSV Import/Export & Notes
 
-- [ ] Extend `routes/customers.js`:
-  - `POST /customers/import` for CSV import, upsert, error collection
-  - `GET /customers/export` for CSV export of `name,email,phone`
-- [ ] Scaffold `routes/notes.js`:
-  - `GET /customers/:cid/notes`
-  - `POST /customers/:cid/notes`
-  - `PUT /customers/:cid/notes/:id`
-  - `DELETE /customers/:cid/notes/:id`
-- [ ] Write integration tests for import/export and notes CRUD with permission checks
+- [x] Extend `routes/customers.js`:
+  - [x] `POST /customers/import` for CSV import, upsert, error collection
+  - [x] `GET /customers/export` for CSV export of `name,email,phone`
+- [x] Scaffold `routes/notes.js`:
+  - [x] `GET /customers/:cid/notes`
+  - [x] `POST /customers/:cid/notes`
+  - [x] `PUT /customers/:cid/notes/:id`
+  - [x] `DELETE /customers/:cid/notes/:id`
+- [x] Write integration tests for import/export and notes CRUD with permission checks
 
 ## 8. Staff & Super-Admin Backend
 
@@ -217,4 +217,17 @@
 - Proper error handling with appropriate HTTP status codes
 - Database consistency with foreign key relationships
 
-**📋 Next Priority**: Section 7 (CSV Import/Export & Notes) to implement bulk operations and customer notes
+**✅ Section 7: CSV Import/Export & Notes** - **COMPLETE** (100%)
+
+- Full CSV import/export functionality for customer management
+- Bulk customer operations with validation and error handling
+- Customer notes system with full CRUD operations
+- Role-based permissions and author restrictions for note operations
+- Comprehensive test coverage with 31 new tests (9 import/export + 22 notes)
+- Support for filtering, searching, and data validation
+- Proper CSV formatting and file handling with security validation
+- Multi-part form upload support with file type restrictions
+- Database migrations for CustomerNote model with proper indexing
+- Permission enforcement (authors can edit/delete own notes, admins can edit/delete any)
+
+**📋 Next Priority**: Section 8 (Staff & Super-Admin Backend) to implement user management features
