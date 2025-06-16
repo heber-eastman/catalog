@@ -2,6 +2,7 @@ require('dotenv').config();
 
 module.exports = {
   development: {
+    url: process.env.DATABASE_URL,
     username: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASSWORD || 'postgres',
     database: process.env.DB_NAME || 'catalog_dev',
@@ -15,6 +16,7 @@ module.exports = {
     },
   },
   test: {
+    url: process.env.DATABASE_URL,
     username: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASSWORD || 'postgres',
     database: process.env.TEST_DB_NAME || 'catalog_test',
@@ -34,6 +36,7 @@ module.exports = {
     },
   },
   production: {
+    url: process.env.DATABASE_URL,
     username: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
