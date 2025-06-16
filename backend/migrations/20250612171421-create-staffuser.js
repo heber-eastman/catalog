@@ -6,12 +6,12 @@ module.exports = {
     await queryInterface.createTable('StaffUsers', {
       id: {
         allowNull: false,
-        autoIncrement: true,
         primaryKey: true,
-        type: Sequelize.INTEGER,
+        type: Sequelize.UUID,
+        defaultValue: Sequelize.UUIDV4,
       },
       course_id: {
-        type: Sequelize.STRING,
+        type: Sequelize.UUID,
         allowNull: false,
         references: {
           model: 'GolfCourseInstances',
@@ -24,6 +24,9 @@ module.exports = {
         type: Sequelize.STRING,
         allowNull: false,
         unique: true,
+        validate: {
+          isEmail: true,
+        },
       },
       password_hash: {
         type: Sequelize.STRING,
@@ -75,14 +78,33 @@ module.exports = {
       },
     });
 
-    // Add indexes for performance
-    await queryInterface.addIndex('StaffUsers', ['course_id']);
-    await queryInterface.addIndex('StaffUsers', ['email']);
-    await queryInterface.addIndex('StaffUsers', ['invitation_token']);
-    await queryInterface.addIndex('StaffUsers', ['is_active']);
+    // Add indexes for performance with unique names
+    await queryInterface.addIndex('StaffUsers', ['course_id'], {
+      name: 'staff_users_course_id_idx'
+    });
+    await queryInterface.addIndex('StaffUsers', ['email'], {
+      name: 'staff_users_email_idx',
+      unique: true
+    });
+    await queryInterface.addIndex('StaffUsers', ['invitation_token'], {
+      name: 'staff_users_invitation_token_idx'
+    });
+    await queryInterface.addIndex('StaffUsers', ['is_active'], {
+      name: 'staff_users_is_active_idx'
+    });
   },
 
   async down(queryInterface) {
+    // Remove indexes first
+    try {
+      await queryInterface.removeIndex('StaffUsers', 'staff_users_course_id_idx');
+      await queryInterface.removeIndex('StaffUsers', 'staff_users_email_idx');
+      await queryInterface.removeIndex('StaffUsers', 'staff_users_invitation_token_idx');
+      await queryInterface.removeIndex('StaffUsers', 'staff_users_is_active_idx');
+    } catch (error) {
+      // Ignore error if indexes don't exist
+    }
+
     await queryInterface.dropTable('StaffUsers');
   },
 };

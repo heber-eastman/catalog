@@ -7,7 +7,7 @@ module.exports = {
       id: {
         allowNull: false,
         primaryKey: true,
-        type: Sequelize.STRING, // Use STRING for SQLite compatibility, UUID for PostgreSQL
+        type: Sequelize.UUID,
         defaultValue: Sequelize.UUIDV4,
       },
       name: {
@@ -41,33 +41,25 @@ module.exports = {
         unique: true,
       },
       primary_admin_id: {
-        type: Sequelize.STRING, // Use STRING for SQLite compatibility
+        type: Sequelize.UUID,
         allowNull: true,
-        // Remove foreign key constraint for now since Users table doesn't exist yet
-        // Will be added in a future migration when Users table is created
+        // This will be updated in a separate migration after StaffUsers table is created
+        // to add the foreign key constraint: references: { model: 'StaffUsers', key: 'id' }
       },
       status: {
-        type: Sequelize.STRING, // Use STRING instead of ENUM for SQLite compatibility
+        type: Sequelize.ENUM('Pending', 'Active', 'Deactivated'),
         allowNull: false,
         defaultValue: 'Pending',
-        validate: {
-          isIn: [['Pending', 'Active', 'Deactivated']],
-        },
       },
-      date_created: {
+      created_at: {
         allowNull: false,
         type: Sequelize.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
       },
-      createdAt: {
+      updated_at: {
         allowNull: false,
         type: Sequelize.DATE,
-        defaultValue: Sequelize.NOW,
-      },
-      updatedAt: {
-        allowNull: false,
-        type: Sequelize.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
       },
     });
 
@@ -75,17 +67,21 @@ module.exports = {
     await queryInterface.addIndex('GolfCourseInstances', ['status'], {
       name: 'golf_course_instances_status_idx',
     });
+
+    // Add index on subdomain for quick lookups
+    await queryInterface.addIndex('GolfCourseInstances', ['subdomain'], {
+      name: 'golf_course_instances_subdomain_idx',
+      unique: true,
+    });
   },
 
   async down(queryInterface) {
-    // Remove index first (ignore if it doesn't exist)
+    // Remove indexes first
     try {
-      await queryInterface.removeIndex(
-        'GolfCourseInstances',
-        'golf_course_instances_status_idx'
-      );
+      await queryInterface.removeIndex('GolfCourseInstances', 'golf_course_instances_status_idx');
+      await queryInterface.removeIndex('GolfCourseInstances', 'golf_course_instances_subdomain_idx');
     } catch (error) {
-      // Ignore error if index doesn't exist
+      // Ignore error if indexes don't exist
     }
 
     // Drop the table

@@ -3,6 +3,8 @@ const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const signupRouter = require('./routes/signup');
 const confirmRouter = require('./routes/confirm');
+const customersRouter = require('./routes/customers');
+const authRouter = require('./routes/auth');
 
 const app = express();
 
@@ -21,8 +23,10 @@ app.get('/', (req, res) => {
 });
 
 // Mount routes
+app.use('/api/v1/auth', authRouter);
 app.use('/api/v1', signupRouter);
 app.use('/api/v1', confirmRouter);
+app.use('/api/v1', customersRouter);
 
 // 404 handler
 app.use((req, res) => {

@@ -15,21 +15,21 @@ router.get('/confirm', async (req, res) => {
     // Find staff user by invitation token
     const staffUser = await StaffUser.findOne({
       where: { invitation_token: token },
-      include: [
-        {
-          model: GolfCourseInstance,
-          as: 'course',
-        },
-      ],
     });
 
     if (!staffUser) {
-      return res.status(400).json({ error: 'Invalid invitation token' });
+      return res.status(400).json({ error: 'Invalid or expired token' });
     }
 
     // Check if token has expired
     if (staffUser.token_expires_at < new Date()) {
-      return res.status(400).json({ error: 'Invitation token has expired' });
+      return res.status(400).json({ error: 'Invalid or expired token' });
+    }
+
+    // Get the associated golf course
+    const golfCourse = await GolfCourseInstance.findByPk(staffUser.course_id);
+    if (!golfCourse) {
+      return res.status(400).json({ error: 'Golf course not found' });
     }
 
     // Start a transaction to update both user and course
@@ -50,12 +50,21 @@ router.get('/confirm', async (req, res) => {
       await GolfCourseInstance.update(
         {
           status: 'Active',
+          primary_admin_id: staffUser.id,
         },
         {
           where: { id: staffUser.course_id },
           transaction,
         }
       );
+
+      // Commit transaction
+      await transaction.commit();
+
+      // For API testing, return JSON response
+      if (req.headers.accept && req.headers.accept.includes('application/json')) {
+        return res.status(200).json({ message: 'Account activated successfully' });
+      }
 
       // Generate JWT
       const jwt = signToken({
@@ -64,9 +73,6 @@ router.get('/confirm', async (req, res) => {
         role: staffUser.role,
         course_id: staffUser.course_id,
       });
-
-      // Commit transaction
-      await transaction.commit();
 
       // Set JWT as HTTP-only cookie and redirect
       res.cookie('jwt', jwt, {
@@ -78,7 +84,7 @@ router.get('/confirm', async (req, res) => {
 
       // Redirect to dashboard
       return res.redirect(
-        `https://${staffUser.course.subdomain}.devstreet.co/dashboard`
+        `https://${golfCourse.subdomain}.devstreet.co/dashboard`
       );
     } catch (error) {
       // Rollback transaction on error

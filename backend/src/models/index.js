@@ -4,18 +4,12 @@ const Sequelize = require('sequelize');
 const process = require('process');
 const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || 'development';
-const config = require('../../config/config.js')[env];
+const config = require('../../config/database')[env];
 const db = {};
 
 let sequelize;
-if (env === 'test') {
-  sequelize = new Sequelize({
-    dialect: 'sqlite',
-    storage: ':memory:',
-    logging: false,
-  });
-} else if (config.use_env_variable) {
-  sequelize = new Sequelize(process.env[config.use_env_variable], config);
+if (config.url) {
+  sequelize = new Sequelize(config.url, config);
 } else {
   sequelize = new Sequelize(
     config.database,
@@ -25,7 +19,8 @@ if (env === 'test') {
   );
 }
 
-fs.readdirSync(__dirname)
+fs
+  .readdirSync(__dirname)
   .filter(file => {
     return (
       file.indexOf('.') !== 0 &&
@@ -35,10 +30,7 @@ fs.readdirSync(__dirname)
     );
   })
   .forEach(file => {
-    const model = require(path.join(__dirname, file))(
-      sequelize,
-      Sequelize.DataTypes
-    );
+    const model = require(path.join(__dirname, file))(sequelize, Sequelize.DataTypes);
     db[model.name] = model;
   });
 

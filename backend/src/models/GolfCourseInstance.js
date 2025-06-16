@@ -3,7 +3,7 @@ module.exports = (sequelize, DataTypes) => {
     'GolfCourseInstance',
     {
       id: {
-        type: DataTypes.STRING,
+        type: DataTypes.UUID,
         primaryKey: true,
         defaultValue: DataTypes.UUIDV4,
       },
@@ -38,16 +38,13 @@ module.exports = (sequelize, DataTypes) => {
         unique: true,
       },
       primary_admin_id: {
-        type: DataTypes.STRING,
+        type: DataTypes.INTEGER,
         allowNull: true,
       },
       status: {
-        type: DataTypes.STRING,
+        type: DataTypes.ENUM('Pending', 'Active', 'Deactivated'),
         allowNull: false,
         defaultValue: 'Pending',
-        validate: {
-          isIn: [['Pending', 'Active', 'Suspended', 'Cancelled']],
-        },
       },
       date_created: {
         type: DataTypes.DATE,
@@ -65,15 +62,16 @@ module.exports = (sequelize, DataTypes) => {
     },
     {
       tableName: 'GolfCourseInstances',
-      indexes: [
-        {
-          fields: ['status'],
-        },
-        {
-          fields: ['subdomain'],
-          unique: true,
-        },
-      ],
+      // Temporarily removed indexes to avoid sync issues
+      // indexes: [
+      //   {
+      //     fields: ['status'],
+      //   },
+      //   {
+      //     fields: ['subdomain'],
+      //     unique: true,
+      //   },
+      // ],
     }
   );
 

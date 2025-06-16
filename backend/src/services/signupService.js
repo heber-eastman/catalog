@@ -77,7 +77,7 @@ async function createCourseAndAdmin(signupData) {
     const staffUser = await StaffUser.create({
       course_id: golfCourse.id,
       email: admin.email,
-      password_hash: passwordHash,
+      password: passwordHash,
       first_name: admin.first_name,
       last_name: admin.last_name,
       role: 'Admin',

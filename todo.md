@@ -19,7 +19,7 @@
 - [x] Write migration `XXXX-create-golfcourseinstance.js` with table and columns:
   - id, name, street, city, state, postal_code, country, subdomain (unique), primary_admin_id, status (enum), date_created
 - [x] Add index on `status`
-- [x] Write Jest integration test: run all migrations against SQLite in-memory and verify table schemas
+- [x] Write Jest integration test: run all migrations against PostgreSQL test database and verify table schemas
 - [ ] Write migration `XXXX-create-superadminuser.js`
 - [ ] Write migration to add `course_id` to `StaffUsers` and create `StaffUsers` table if needed
 - [ ] Write migration `XXXX-create-customer.js`
@@ -47,12 +47,12 @@
 
 ## 5. Confirmation Endpoint & Auto-Login
 
-- [ ] Implement `GET /api/v1/confirm` in Express:
-  - [ ] Read token query parameter
-  - [ ] Verify invitation token and expiry
-  - [ ] Activate course and staff user, clear token fields
-  - [ ] Issue JWT cookie, redirect to dashboard on subdomain
-- [ ] Write supertest tests for valid, expired, and invalid tokens
+- [x] Implement `GET /api/v1/confirm` in Express:
+  - [x] Read token query parameter
+  - [x] Verify invitation token and expiry
+  - [x] Activate course and staff user, clear token fields
+  - [x] Issue JWT cookie, redirect to dashboard on subdomain
+- [x] Write supertest tests for valid, expired, and invalid tokens
 
 ## 6. Customer CRUD & Scoping
 
@@ -168,11 +168,11 @@
 
 **✅ Section 2: Sequelize & Migrations** - **COMPLETE** (100%)
 
-- Full Sequelize setup with PostgreSQL/SQLite compatibility
+- Full Sequelize setup with PostgreSQL
 - Database configuration with environment-based connections
 - Complete GolfCourseInstance migration with all required columns
 - Status index for query optimization
-- Comprehensive integration tests with in-memory SQLite
+- Comprehensive integration tests with PostgreSQL test database
 - Foreign key constraint planning for future User table
 
 **✅ Section 3: JWT Auth & Token Utilities** - **COMPLETE** (100%)
@@ -194,4 +194,15 @@
 - Password hashing with bcrypt and secure token generation
 - Proper database transaction handling
 
-**📋 Next Priority**: Section 5 (Confirmation Endpoint & Auto-Login) to implement account activation
+**✅ Section 5: Confirmation Endpoint & Auto-Login** - **COMPLETE** (100%)
+
+- Full implementation of confirmation endpoint with token validation
+- Secure activation flow for both course and staff user
+- JWT cookie handling for automatic login
+- Proper redirect to course-specific dashboard
+- Comprehensive test suite with 40+ passing tests
+- Error handling for expired/invalid tokens
+- Database transaction management for atomic updates
+- Fixed test environment configuration for reliable CI
+
+**📋 Next Priority**: Section 6 (Customer CRUD & Scoping) to implement customer management features

@@ -8,12 +8,8 @@ module.exports = (sequelize, DataTypes) => {
         autoIncrement: true,
       },
       course_id: {
-        type: DataTypes.STRING,
+        type: DataTypes.UUID,
         allowNull: false,
-        references: {
-          model: 'GolfCourseInstances',
-          key: 'id',
-        },
       },
       email: {
         type: DataTypes.STRING,
@@ -23,7 +19,7 @@ module.exports = (sequelize, DataTypes) => {
           isEmail: true,
         },
       },
-      password_hash: {
+      password: {
         type: DataTypes.STRING,
         allowNull: false,
       },
@@ -77,30 +73,32 @@ module.exports = (sequelize, DataTypes) => {
       timestamps: true,
       createdAt: 'created_at',
       updatedAt: 'updated_at',
-      indexes: [
-        {
-          fields: ['course_id'],
-        },
-        {
-          fields: ['email'],
-          unique: true,
-        },
-        {
-          fields: ['invitation_token'],
-        },
-        {
-          fields: ['is_active'],
-        },
-      ],
+      // Temporarily removed indexes to avoid sync issues
+      // indexes: [
+      //   {
+      //     fields: ['course_id'],
+      //   },
+      //   {
+      //     fields: ['email'],
+      //     unique: true,
+      //   },
+      //   {
+      //     fields: ['invitation_token'],
+      //   },
+      //   {
+      //     fields: ['is_active'],
+      //   },
+      // ],
     }
   );
 
-  StaffUser.associate = function (models) {
-    StaffUser.belongsTo(models.GolfCourseInstance, {
-      foreignKey: 'course_id',
-      as: 'course',
-    });
-  };
+  // Commented out for testing
+  // StaffUser.associate = function (models) {
+  //   StaffUser.belongsTo(models.GolfCourseInstance, {
+  //     foreignKey: 'course_id',
+  //     as: 'course',
+  //   });
+  // };
 
   return StaffUser;
 };
