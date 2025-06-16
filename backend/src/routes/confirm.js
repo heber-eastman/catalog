@@ -62,8 +62,13 @@ router.get('/confirm', async (req, res) => {
       await transaction.commit();
 
       // For API testing, return JSON response
-      if (req.headers.accept && req.headers.accept.includes('application/json')) {
-        return res.status(200).json({ message: 'Account activated successfully' });
+      if (
+        req.headers.accept &&
+        req.headers.accept.includes('application/json')
+      ) {
+        return res
+          .status(200)
+          .json({ message: 'Account activated successfully' });
       }
 
       // Generate JWT

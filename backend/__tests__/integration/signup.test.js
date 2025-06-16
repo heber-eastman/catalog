@@ -3,7 +3,7 @@ const app = require('../../src/app');
 const {
   GolfCourseInstance,
   StaffUser,
-  sequelize
+  sequelize,
 } = require('../../src/models');
 
 describe('POST /api/v1/signup', () => {
@@ -12,12 +12,12 @@ describe('POST /api/v1/signup', () => {
       // Set up database for this test suite only
       await sequelize.authenticate();
       console.log('Database connection established for signup tests');
-      
+
       // Create tables without foreign key constraints for now
       await sequelize.getQueryInterface().dropAllTables();
       await GolfCourseInstance.sync({ force: true });
       await StaffUser.sync({ force: true });
-      
+
       console.log('Tables created for signup tests');
     } catch (error) {
       console.error('Error setting up signup tests database:', error);

@@ -78,8 +78,14 @@ module.exports = {
   async down(queryInterface) {
     // Remove indexes first
     try {
-      await queryInterface.removeIndex('GolfCourseInstances', 'golf_course_instances_status_idx');
-      await queryInterface.removeIndex('GolfCourseInstances', 'golf_course_instances_subdomain_idx');
+      await queryInterface.removeIndex(
+        'GolfCourseInstances',
+        'golf_course_instances_status_idx'
+      );
+      await queryInterface.removeIndex(
+        'GolfCourseInstances',
+        'golf_course_instances_subdomain_idx'
+      );
     } catch (error) {
       // Ignore error if indexes don't exist
     }

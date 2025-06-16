@@ -8,4 +8,4 @@ module.exports = {
   testTimeout: 10000, // Increase timeout for database operations
   detectOpenHandles: true,
   forceExit: true,
-}; 
+};

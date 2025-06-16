@@ -56,18 +56,18 @@
 
 ## 6. Customer CRUD & Scoping
 
-- [ ] Scaffold `routes/customers.js` and mount at `/api/v1/customers`
-- [ ] Middleware to verify JWT, enforce `role ∈ {Admin,Manager,Staff}`, extract `course_id`
-- [ ] Implement:
-  - `GET /customers` with search, filter, sort, pagination
-  - `POST /customers` to create new customer
-  - `GET /customers/:id` to retrieve
-  - `PUT /customers/:id` to update
-  - `DELETE /customers/:id` to soft-archive
-- [ ] Write Jest + supertest tests for:
-  - Tenant isolation
-  - Validation of fields
-  - Filtering, sorting, pagination
+- [x] Scaffold `routes/customers.js` and mount at `/api/v1/customers`
+- [x] Middleware to verify JWT, enforce `role ∈ {Admin,Manager,Staff}`, extract `course_id`
+- [x] Implement:
+  - [x] `GET /customers` with search, filter, sort, pagination
+  - [x] `POST /customers` to create new customer
+  - [x] `GET /customers/:id` to retrieve
+  - [x] `PUT /customers/:id` to update
+  - [x] `DELETE /customers/:id` to soft-archive
+- [x] Write Jest + supertest tests for:
+  - [x] Tenant isolation
+  - [x] Validation of fields
+  - [x] Filtering, sorting, pagination
 
 ## 7. CSV Import/Export & Notes
 
@@ -205,4 +205,16 @@
 - Database transaction management for atomic updates
 - Fixed test environment configuration for reliable CI
 
-**📋 Next Priority**: Section 6 (Customer CRUD & Scoping) to implement customer management features
+**✅ Section 6: Customer CRUD & Scoping** - **COMPLETE** (100%)
+
+- Complete customer management API with all CRUD operations
+- JWT authentication middleware with role-based access control
+- Advanced filtering, search, sorting, and pagination capabilities
+- Comprehensive validation using Joi schemas
+- Tenant isolation ensuring course-scoped data access
+- Soft-delete functionality for customer archiving
+- 18 comprehensive integration tests covering all scenarios
+- Proper error handling with appropriate HTTP status codes
+- Database consistency with foreign key relationships
+
+**📋 Next Priority**: Section 7 (CSV Import/Export & Notes) to implement bulk operations and customer notes

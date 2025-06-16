@@ -5,7 +5,7 @@ const {
   GolfCourseInstance,
   StaffUser,
   Customer,
-  sequelize
+  sequelize,
 } = require('../../src/models');
 
 describe('Customer Management API', () => {
@@ -18,10 +18,10 @@ describe('Customer Management API', () => {
       // Set up database for this test suite only
       await sequelize.authenticate();
       console.log('Database connection established for customer tests');
-      
+
       // Create tables without foreign key constraints using raw SQL
       await sequelize.getQueryInterface().dropAllTables();
-      
+
       // Create GolfCourseInstances table
       await sequelize.query(`
         CREATE TABLE IF NOT EXISTS "GolfCourseInstances" (
@@ -40,7 +40,7 @@ describe('Customer Management API', () => {
           "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
       `);
-      
+
       // Create StaffUsers table
       await sequelize.query(`
         CREATE TABLE IF NOT EXISTS "StaffUsers" (
@@ -60,7 +60,7 @@ describe('Customer Management API', () => {
           "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
       `);
-      
+
       // Create customers table without foreign key constraints
       await sequelize.query(`
         CREATE TABLE IF NOT EXISTS "customers" (
@@ -80,7 +80,7 @@ describe('Customer Management API', () => {
           UNIQUE("email")
         );
       `);
-      
+
       console.log('Tables created for customer tests');
 
       // Create test golf course
@@ -314,7 +314,9 @@ describe('Customer Management API', () => {
     });
 
     test('should return 401 without authentication', async () => {
-      const response = await request(app).get(`/api/v1/customers/${customerId}`);
+      const response = await request(app).get(
+        `/api/v1/customers/${customerId}`
+      );
 
       expect(response.status).toBe(401);
     });
@@ -437,9 +439,11 @@ describe('Customer Management API', () => {
     });
 
     test('should return 401 without authentication', async () => {
-      const response = await request(app).delete(`/api/v1/customers/${customerId}`);
+      const response = await request(app).delete(
+        `/api/v1/customers/${customerId}`
+      );
 
       expect(response.status).toBe(401);
     });
   });
-}); 
+});

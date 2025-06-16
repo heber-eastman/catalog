@@ -79,21 +79,21 @@ module.exports = {
 
     // Add indexes with unique names
     await queryInterface.addIndex('Customers', ['course_id'], {
-      name: 'customers_course_id_idx'
+      name: 'customers_course_id_idx',
     });
-    
+
     // Add composite unique index for email within each course
     await queryInterface.addIndex('Customers', ['course_id', 'email'], {
       name: 'customers_course_email_unique_idx',
-      unique: true
+      unique: true,
     });
-    
+
     await queryInterface.addIndex('Customers', ['is_archived'], {
-      name: 'customers_is_archived_idx'
+      name: 'customers_is_archived_idx',
     });
-    
+
     await queryInterface.addIndex('Customers', ['membership_type'], {
-      name: 'customers_membership_type_idx'
+      name: 'customers_membership_type_idx',
     });
   },
 
@@ -101,13 +101,22 @@ module.exports = {
     // Remove indexes first
     try {
       await queryInterface.removeIndex('Customers', 'customers_course_id_idx');
-      await queryInterface.removeIndex('Customers', 'customers_course_email_unique_idx');
-      await queryInterface.removeIndex('Customers', 'customers_is_archived_idx');
-      await queryInterface.removeIndex('Customers', 'customers_membership_type_idx');
+      await queryInterface.removeIndex(
+        'Customers',
+        'customers_course_email_unique_idx'
+      );
+      await queryInterface.removeIndex(
+        'Customers',
+        'customers_is_archived_idx'
+      );
+      await queryInterface.removeIndex(
+        'Customers',
+        'customers_membership_type_idx'
+      );
     } catch (error) {
       // Ignore error if indexes don't exist
     }
 
     await queryInterface.dropTable('Customers');
   },
-}; 
+};

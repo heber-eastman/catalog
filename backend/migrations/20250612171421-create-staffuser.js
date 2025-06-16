@@ -80,27 +80,36 @@ module.exports = {
 
     // Add indexes for performance with unique names
     await queryInterface.addIndex('StaffUsers', ['course_id'], {
-      name: 'staff_users_course_id_idx'
+      name: 'staff_users_course_id_idx',
     });
     await queryInterface.addIndex('StaffUsers', ['email'], {
       name: 'staff_users_email_idx',
-      unique: true
+      unique: true,
     });
     await queryInterface.addIndex('StaffUsers', ['invitation_token'], {
-      name: 'staff_users_invitation_token_idx'
+      name: 'staff_users_invitation_token_idx',
     });
     await queryInterface.addIndex('StaffUsers', ['is_active'], {
-      name: 'staff_users_is_active_idx'
+      name: 'staff_users_is_active_idx',
     });
   },
 
   async down(queryInterface) {
     // Remove indexes first
     try {
-      await queryInterface.removeIndex('StaffUsers', 'staff_users_course_id_idx');
+      await queryInterface.removeIndex(
+        'StaffUsers',
+        'staff_users_course_id_idx'
+      );
       await queryInterface.removeIndex('StaffUsers', 'staff_users_email_idx');
-      await queryInterface.removeIndex('StaffUsers', 'staff_users_invitation_token_idx');
-      await queryInterface.removeIndex('StaffUsers', 'staff_users_is_active_idx');
+      await queryInterface.removeIndex(
+        'StaffUsers',
+        'staff_users_invitation_token_idx'
+      );
+      await queryInterface.removeIndex(
+        'StaffUsers',
+        'staff_users_is_active_idx'
+      );
     } catch (error) {
       // Ignore error if indexes don't exist
     }

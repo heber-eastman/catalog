@@ -3,7 +3,10 @@ const { Op } = require('sequelize');
 const router = express.Router();
 const { Customer } = require('../models');
 const { requireAuth } = require('../middleware/auth');
-const { createCustomerSchema, updateCustomerSchema } = require('../validation/customerSchema');
+const {
+  createCustomerSchema,
+  updateCustomerSchema,
+} = require('../validation/customerSchema');
 
 // Apply auth middleware to all routes
 router.use(requireAuth());
@@ -49,7 +52,7 @@ router.get('/customers', async (req, res) => {
     const offset = (page - 1) * limit;
 
     // Get customers
-    const { count, rows } = await Customer.findAndCountAll({
+    const { rows } = await Customer.findAndCountAll({
       where,
       order: [[sort, order]],
       limit: parseInt(limit),
@@ -67,7 +70,9 @@ router.get('/customers', async (req, res) => {
 router.post('/customers', async (req, res) => {
   try {
     // Validate request body
-    const { error, value } = createCustomerSchema.validate(req.body, { abortEarly: false });
+    const { error, value } = createCustomerSchema.validate(req.body, {
+      abortEarly: false,
+    });
     if (error) {
       return res.status(400).json({
         error: 'Validation failed',
@@ -88,7 +93,9 @@ router.post('/customers', async (req, res) => {
   } catch (error) {
     console.error('Error creating customer:', error);
     if (error.name === 'SequelizeUniqueConstraintError') {
-      res.status(409).json({ error: 'A customer with this email already exists' });
+      res
+        .status(409)
+        .json({ error: 'A customer with this email already exists' });
     } else {
       res.status(500).json({ error: 'Failed to create customer' });
     }
@@ -132,7 +139,9 @@ router.put('/customers/:id', async (req, res) => {
     }
 
     // Validate request body
-    const { error, value } = updateCustomerSchema.validate(req.body, { abortEarly: false });
+    const { error, value } = updateCustomerSchema.validate(req.body, {
+      abortEarly: false,
+    });
     if (error) {
       return res.status(400).json({
         error: 'Validation failed',
@@ -150,7 +159,9 @@ router.put('/customers/:id', async (req, res) => {
   } catch (error) {
     console.error('Error updating customer:', error);
     if (error.name === 'SequelizeUniqueConstraintError') {
-      res.status(409).json({ error: 'A customer with this email already exists' });
+      res
+        .status(409)
+        .json({ error: 'A customer with this email already exists' });
     } else {
       res.status(500).json({ error: 'Failed to update customer' });
     }
@@ -180,4 +191,4 @@ router.delete('/customers/:id', async (req, res) => {
   }
 });
 
-module.exports = router; 
+module.exports = router;

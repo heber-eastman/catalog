@@ -37,4 +37,4 @@ const requireAuth = (allowedRoles = STAFF_ROLES) => {
 module.exports = {
   requireAuth,
   STAFF_ROLES,
-}; 
+};

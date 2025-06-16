@@ -1,6 +1,10 @@
 const request = require('supertest');
 const app = require('../../src/app');
-const { GolfCourseInstance, StaffUser, sequelize } = require('../../src/models');
+const {
+  GolfCourseInstance,
+  StaffUser,
+  sequelize,
+} = require('../../src/models');
 
 describe('GET /api/v1/confirm', () => {
   let testCourse;
@@ -11,10 +15,10 @@ describe('GET /api/v1/confirm', () => {
       // Set up database for this test suite only
       await sequelize.authenticate();
       console.log('Database connection established for confirm tests');
-      
+
       // Create tables without foreign key constraints using raw SQL
       await sequelize.getQueryInterface().dropAllTables();
-      
+
       // Create GolfCourseInstances table
       await sequelize.query(`
         CREATE TABLE IF NOT EXISTS "GolfCourseInstances" (
@@ -33,7 +37,7 @@ describe('GET /api/v1/confirm', () => {
           "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
       `);
-      
+
       // Create StaffUsers table
       await sequelize.query(`
         CREATE TABLE IF NOT EXISTS "StaffUsers" (
@@ -53,7 +57,7 @@ describe('GET /api/v1/confirm', () => {
           "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
       `);
-      
+
       console.log('Tables created for confirm tests');
     } catch (error) {
       console.error('Error setting up confirm tests database:', error);
@@ -65,7 +69,7 @@ describe('GET /api/v1/confirm', () => {
     // Clean up data before each test
     await sequelize.query('DELETE FROM "StaffUsers"');
     await sequelize.query('DELETE FROM "GolfCourseInstances"');
-    
+
     // Create test course
     testCourse = await GolfCourseInstance.create({
       name: 'Test Golf Course',
