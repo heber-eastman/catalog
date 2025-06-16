@@ -156,7 +156,9 @@ Bob,Johnson,bob@example.com,,Junior`;
       expect(response.body.failed_rows).toHaveLength(0);
 
       // Verify customers were created
-      const customers = await Customer.findAll({ where: { course_id: courseId } });
+      const customers = await Customer.findAll({
+        where: { course_id: courseId },
+      });
       expect(customers).toHaveLength(3);
       expect(customers.find(c => c.email === 'john@example.com')).toBeTruthy();
       expect(customers.find(c => c.email === 'jane@example.com')).toBeTruthy();
@@ -186,7 +188,9 @@ Alice,Brown,alice@example.com,+1234567892,Invalid`;
       expect(failures.find(f => f.row === 4)).toBeTruthy(); // Invalid email
 
       // Verify successful imports
-      const customers = await Customer.findAll({ where: { course_id: courseId } });
+      const customers = await Customer.findAll({
+        where: { course_id: courseId },
+      });
       expect(customers).toHaveLength(2);
       expect(customers.find(c => c.email === 'john@example.com')).toBeTruthy();
       expect(customers.find(c => c.email === 'alice@example.com')).toBeTruthy();
@@ -216,7 +220,9 @@ John,Doe,john@example.com,+1234567890,Full`;
       expect(response.body.failed_count).toBe(0);
 
       // Verify customer was updated
-      const customers = await Customer.findAll({ where: { course_id: courseId } });
+      const customers = await Customer.findAll({
+        where: { course_id: courseId },
+      });
       expect(customers).toHaveLength(1);
       const customer = customers[0];
       expect(customer.first_name).toBe('John');
@@ -284,12 +290,18 @@ John,Doe,john@example.com`;
 
       expect(response.status).toBe(200);
       expect(response.headers['content-type']).toBe('text/csv; charset=utf-8');
-      expect(response.headers['content-disposition']).toBe('attachment; filename="customers.csv"');
+      expect(response.headers['content-disposition']).toBe(
+        'attachment; filename="customers.csv"'
+      );
 
       const csvContent = response.text;
       expect(csvContent).toContain('name,email,phone');
-      expect(csvContent).toContain('"John Doe","john@example.com","+1234567890"');
-      expect(csvContent).toContain('"Jane Smith","jane@example.com","+1234567891"');
+      expect(csvContent).toContain(
+        '"John Doe","john@example.com","+1234567890"'
+      );
+      expect(csvContent).toContain(
+        '"Jane Smith","jane@example.com","+1234567891"'
+      );
       expect(csvContent).toContain('"Bob Johnson","bob@example.com",""');
     });
 
@@ -300,7 +312,9 @@ John,Doe,john@example.com`;
 
       expect(response.status).toBe(200);
       const csvContent = response.text;
-      expect(csvContent).toContain('"John Doe","john@example.com","+1234567890"');
+      expect(csvContent).toContain(
+        '"John Doe","john@example.com","+1234567890"'
+      );
       expect(csvContent).not.toContain('Jane Smith');
       expect(csvContent).not.toContain('Bob Johnson');
     });
@@ -312,7 +326,9 @@ John,Doe,john@example.com`;
 
       expect(response.status).toBe(200);
       const csvContent = response.text;
-      expect(csvContent).toContain('"John Doe","john@example.com","+1234567890"');
+      expect(csvContent).toContain(
+        '"John Doe","john@example.com","+1234567890"'
+      );
       expect(csvContent).toContain('"Bob Johnson","bob@example.com",""');
       expect(csvContent).not.toContain('Jane Smith');
     });
@@ -323,4 +339,4 @@ John,Doe,john@example.com`;
       expect(response.status).toBe(401);
     });
   });
-}); 
+});

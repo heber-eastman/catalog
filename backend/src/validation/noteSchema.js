@@ -22,4 +22,4 @@ const updateNoteSchema = Joi.object({
 module.exports = {
   createNoteSchema,
   updateNoteSchema,
-}; 
+};

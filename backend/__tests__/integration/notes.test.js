@@ -191,7 +191,7 @@ describe('Customer Notes API', () => {
   describe('GET /api/v1/customers/:cid/notes', () => {
     test('should retrieve all notes for a customer', async () => {
       // Create notes with explicit timestamps
-      const note1 = await CustomerNote.create({
+      await CustomerNote.create({
         customer_id: customerId,
         author_id: adminUserId,
         content: 'First note from admin',
@@ -201,7 +201,7 @@ describe('Customer Notes API', () => {
       // Add small delay to ensure different timestamps
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      const note2 = await CustomerNote.create({
+      await CustomerNote.create({
         customer_id: customerId,
         author_id: staffUserId,
         content: 'Second note from staff',
@@ -217,12 +217,12 @@ describe('Customer Notes API', () => {
       expect(response.body[0]).toHaveProperty('content');
       expect(response.body[0]).toHaveProperty('author');
       expect(response.body[0].author).toHaveProperty('first_name');
-      
+
       // Check that all notes are present (order may vary due to timing)
       const noteContents = response.body.map(note => note.content);
       expect(noteContents).toContain('First note from admin');
       expect(noteContents).toContain('Second note from staff');
-      
+
       // Verify the most recent note is first (should be the second one created)
       expect(response.body[0].content).toBe('Second note from staff');
       expect(response.body[1].content).toBe('First note from admin');
@@ -248,8 +248,9 @@ describe('Customer Notes API', () => {
     });
 
     test('should return 401 without authentication', async () => {
-      const response = await request(app)
-        .get(`/api/v1/customers/${customerId}/notes`);
+      const response = await request(app).get(
+        `/api/v1/customers/${customerId}/notes`
+      );
 
       expect(response.status).toBe(401);
     });
@@ -437,7 +438,7 @@ describe('Customer Notes API', () => {
       );
 
       const updateData = {
-        content: 'Trying to update someone else\'s note',
+        content: "Trying to update someone else's note",
       };
 
       const response = await request(app)
@@ -446,7 +447,10 @@ describe('Customer Notes API', () => {
         .send(updateData);
 
       expect(response.status).toBe(403);
-      expect(response.body).toHaveProperty('error', 'You can only edit your own notes');
+      expect(response.body).toHaveProperty(
+        'error',
+        'You can only edit your own notes'
+      );
     });
 
     test('should return 400 for invalid update data', async () => {
@@ -511,7 +515,10 @@ describe('Customer Notes API', () => {
         .set('Cookie', `jwt=${staffAuthToken}`);
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('message', 'Note deleted successfully');
+      expect(response.body).toHaveProperty(
+        'message',
+        'Note deleted successfully'
+      );
 
       // Verify note was deleted from database
       const deletedNote = await CustomerNote.findByPk(noteId);
@@ -524,7 +531,10 @@ describe('Customer Notes API', () => {
         .set('Cookie', `jwt=${adminAuthToken}`);
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('message', 'Note deleted successfully');
+      expect(response.body).toHaveProperty(
+        'message',
+        'Note deleted successfully'
+      );
 
       // Verify note was deleted from database
       const deletedNote = await CustomerNote.findByPk(noteId);
@@ -559,7 +569,10 @@ describe('Customer Notes API', () => {
         .set('Cookie', `jwt=${otherStaffToken}`);
 
       expect(response.status).toBe(403);
-      expect(response.body).toHaveProperty('error', 'You can only delete your own notes');
+      expect(response.body).toHaveProperty(
+        'error',
+        'You can only delete your own notes'
+      );
 
       // Verify note was not deleted
       const note = await CustomerNote.findByPk(noteId);
@@ -578,10 +591,11 @@ describe('Customer Notes API', () => {
     });
 
     test('should return 401 without authentication', async () => {
-      const response = await request(app)
-        .delete(`/api/v1/customers/${customerId}/notes/${noteId}`);
+      const response = await request(app).delete(
+        `/api/v1/customers/${customerId}/notes/${noteId}`
+      );
 
       expect(response.status).toBe(401);
     });
   });
-}); 
+});

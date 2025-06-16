@@ -1,6 +1,6 @@
 const { Model, DataTypes } = require('sequelize');
 
-module.exports = (sequelize) => {
+module.exports = sequelize => {
   class CustomerNote extends Model {
     static associate(models) {
       // CustomerNote belongs to Customer
@@ -64,4 +64,4 @@ module.exports = (sequelize) => {
   );
 
   return CustomerNote;
-}; 
+};

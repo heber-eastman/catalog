@@ -2,7 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { Customer, CustomerNote, StaffUser } = require('../models');
 const { requireAuth } = require('../middleware/auth');
-const { createNoteSchema, updateNoteSchema } = require('../validation/noteSchema');
+const {
+  createNoteSchema,
+  updateNoteSchema,
+} = require('../validation/noteSchema');
 
 // Apply auth middleware to all routes
 router.use(requireAuth());
@@ -140,7 +143,9 @@ router.put('/customers/:cid/notes/:id', async (req, res) => {
 
     // Check if user is the author or has admin role
     if (note.author_id !== req.userId && req.userRole !== 'Admin') {
-      return res.status(403).json({ error: 'You can only edit your own notes' });
+      return res
+        .status(403)
+        .json({ error: 'You can only edit your own notes' });
     }
 
     // Validate request body
@@ -198,7 +203,9 @@ router.delete('/customers/:cid/notes/:id', async (req, res) => {
 
     // Check if user is the author or has admin role
     if (note.author_id !== req.userId && req.userRole !== 'Admin') {
-      return res.status(403).json({ error: 'You can only delete your own notes' });
+      return res
+        .status(403)
+        .json({ error: 'You can only delete your own notes' });
     }
 
     // Delete note
@@ -211,4 +218,4 @@ router.delete('/customers/:cid/notes/:id', async (req, res) => {
   }
 });
 
-module.exports = router; 
+module.exports = router;

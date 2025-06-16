@@ -2,10 +2,7 @@ const express = require('express');
 const { Op } = require('sequelize');
 const multer = require('multer');
 const csv = require('csv-parser');
-const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const { Readable } = require('stream');
-const path = require('path');
-const fs = require('fs');
 const router = express.Router();
 const { Customer } = require('../models');
 const { requireAuth } = require('../middleware/auth');
@@ -35,11 +32,7 @@ router.use(requireAuth());
 // GET /customers/export - Export customers to CSV
 router.get('/customers/export', async (req, res) => {
   try {
-    const {
-      search,
-      membership_type,
-      is_archived,
-    } = req.query;
+    const { search, membership_type, is_archived } = req.query;
 
     // Build where clause (same as list endpoint)
     const where = {
@@ -68,8 +61,17 @@ router.get('/customers/export', async (req, res) => {
     // Get all customers matching criteria
     const customers = await Customer.findAll({
       where,
-      order: [['last_name', 'ASC'], ['first_name', 'ASC']],
-      attributes: ['first_name', 'last_name', 'email', 'phone', 'membership_type'],
+      order: [
+        ['last_name', 'ASC'],
+        ['first_name', 'ASC'],
+      ],
+      attributes: [
+        'first_name',
+        'last_name',
+        'email',
+        'phone',
+        'membership_type',
+      ],
     });
 
     // Format data for CSV
@@ -81,15 +83,18 @@ router.get('/customers/export', async (req, res) => {
 
     // Create CSV string
     const csvHeader = 'name,email,phone\n';
-    const csvRows = csvData.map(row => 
-      `"${row.name}","${row.email}","${row.phone}"`
-    ).join('\n');
+    const csvRows = csvData
+      .map(row => `"${row.name}","${row.email}","${row.phone}"`)
+      .join('\n');
     const csvContent = csvHeader + csvRows;
 
     // Set response headers for file download
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="customers.csv"');
-    
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="customers.csv"'
+    );
+
     res.send(csvContent);
   } catch (error) {
     console.error('Error exporting customers:', error);
@@ -127,7 +132,8 @@ router.post('/customers/import', upload.single('file'), async (req, res) => {
                 failedRows.push({
                   row: rowNumber,
                   data: row,
-                  error: 'Missing required fields: first_name, last_name, email',
+                  error:
+                    'Missing required fields: first_name, last_name, email',
                 });
                 continue;
               }
@@ -155,7 +161,9 @@ router.post('/customers/import', upload.single('file'), async (req, res) => {
 
               // Validate membership type
               const validMembershipTypes = ['Trial', 'Full', 'Junior'];
-              if (!validMembershipTypes.includes(customerData.membership_type)) {
+              if (
+                !validMembershipTypes.includes(customerData.membership_type)
+              ) {
                 customerData.membership_type = 'Trial';
               }
 
