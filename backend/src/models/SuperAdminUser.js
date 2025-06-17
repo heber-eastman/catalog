@@ -68,4 +68,4 @@ module.exports = (sequelize, DataTypes) => {
   );
 
   return SuperAdminUser;
-}; 
+};

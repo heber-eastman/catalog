@@ -103,11 +103,13 @@ describe('Super Admin Management API', () => {
 
   beforeEach(async () => {
     // Clean up any test data created during tests
-    await SuperAdminUser.destroy({ 
-      where: { email: { [sequelize.Sequelize.Op.ne]: 'superadmin@example.com' } }
+    await SuperAdminUser.destroy({
+      where: {
+        email: { [sequelize.Sequelize.Op.ne]: 'superadmin@example.com' },
+      },
     });
-    await GolfCourseInstance.destroy({ 
-      where: { id: { [sequelize.Sequelize.Op.ne]: testCourseId } }
+    await GolfCourseInstance.destroy({
+      where: { id: { [sequelize.Sequelize.Op.ne]: testCourseId } },
     });
   });
 
@@ -176,8 +178,7 @@ describe('Super Admin Management API', () => {
     });
 
     test('should return 401 without authentication', async () => {
-      const response = await request(app)
-        .get('/api/v1/super-admin/courses');
+      const response = await request(app).get('/api/v1/super-admin/courses');
 
       expect(response.status).toBe(401);
     });
@@ -308,7 +309,9 @@ describe('Super Admin Management API', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.super_admins).toHaveLength(1);
-      expect(response.body.super_admins[0].email).toBe('superadmin@example.com');
+      expect(response.body.super_admins[0].email).toBe(
+        'superadmin@example.com'
+      );
     });
 
     test('should search super admins by email', async () => {
@@ -536,7 +539,9 @@ describe('Super Admin Management API', () => {
 
     test('should return 404 for non-existent super admin', async () => {
       const response = await request(app)
-        .put('/api/v1/super-admin/super-admins/00000000-0000-0000-0000-000000000000')
+        .put(
+          '/api/v1/super-admin/super-admins/00000000-0000-0000-0000-000000000000'
+        )
         .set('Cookie', `jwt=${superAdminAuthToken}`)
         .send({ first_name: 'Updated' });
 
@@ -569,10 +574,12 @@ describe('Super Admin Management API', () => {
 
     test('should return 404 for non-existent super admin', async () => {
       const response = await request(app)
-        .delete('/api/v1/super-admin/super-admins/00000000-0000-0000-0000-000000000000')
+        .delete(
+          '/api/v1/super-admin/super-admins/00000000-0000-0000-0000-000000000000'
+        )
         .set('Cookie', `jwt=${superAdminAuthToken}`);
 
       expect(response.status).toBe(404);
     });
   });
-}); 
+});

@@ -109,7 +109,11 @@ describe('Staff Management API', () => {
     try {
       await StaffUser.destroy({
         where: {
-          email: ['test.staff@example.com', 'invited@example.com', 'updated@example.com'],
+          email: [
+            'test.staff@example.com',
+            'invited@example.com',
+            'updated@example.com',
+          ],
         },
       });
     } catch (error) {
@@ -273,7 +277,10 @@ describe('Staff Management API', () => {
         .send(registerData);
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('message', 'Registration successful');
+      expect(response.body).toHaveProperty(
+        'message',
+        'Registration successful'
+      );
 
       // Verify user was activated
       const registeredUser = await StaffUser.findByPk(invitedUser.id);
@@ -383,7 +390,10 @@ describe('Staff Management API', () => {
         .set('Cookie', `jwt=${adminAuthToken}`);
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('message', 'Staff member deactivated');
+      expect(response.body).toHaveProperty(
+        'message',
+        'Staff member deactivated'
+      );
 
       // Verify user was deactivated
       const deactivatedUser = await StaffUser.findByPk(testStaffUser.id);
@@ -478,7 +488,10 @@ describe('Staff Management API', () => {
         .send({ staff_id: testStaffUser.id });
 
       expect(response.status).toBe(400);
-      expect(response.body).toHaveProperty('error', 'Cannot revoke active user');
+      expect(response.body).toHaveProperty(
+        'error',
+        'Cannot revoke active user'
+      );
     });
   });
-}); 
+});

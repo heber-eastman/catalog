@@ -1,11 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
-const { 
-  GolfCourseInstance, 
-  SuperAdminUser, 
-  sequelize 
-} = require('../models');
-const { requireAuth, requireSuperAdmin } = require('../middleware/auth');
+const { GolfCourseInstance, SuperAdminUser, sequelize } = require('../models');
+const { requireSuperAdmin } = require('../middleware/auth');
 const { sendEmail } = require('../services/emailService');
 const { generateTokenString } = require('../auth/tokenUtil');
 const {
@@ -31,7 +27,13 @@ const router = express.Router();
  */
 router.get('/courses', requireSuperAdmin(), async (req, res) => {
   try {
-    const { page = 1, limit = 20, status, search, sort = 'created_at' } = req.query;
+    const {
+      page = 1,
+      limit = 20,
+      status,
+      search,
+      sort = 'created_at',
+    } = req.query;
     const offset = (page - 1) * limit;
 
     // Build where clause
@@ -266,7 +268,9 @@ router.post('/super-admins/invite', requireSuperAdmin(), async (req, res) => {
       where: { email: value.email },
     });
     if (existingSuperAdmin) {
-      return res.status(409).json({ error: 'Super admin with this email already exists' });
+      return res
+        .status(409)
+        .json({ error: 'Super admin with this email already exists' });
     }
 
     // Generate invitation token
@@ -288,7 +292,7 @@ router.post('/super-admins/invite', requireSuperAdmin(), async (req, res) => {
 
     // Send invitation email
     const registrationUrl = `${process.env.FRONTEND_URL || 'https://admin.devstreet.co'}/super-admin/register?token=${invitationToken}`;
-    
+
     await sendEmail({
       to: value.email,
       subject: 'Super Admin Invitation - Golf Course Management Platform',
@@ -358,7 +362,7 @@ router.post('/super-admins/register', async (req, res) => {
 
     // Hash password and activate super admin
     const hashedPassword = await bcrypt.hash(value.password, 12);
-    
+
     await superAdmin.update({
       password_hash: hashedPassword,
       first_name: value.first_name || superAdmin.first_name,
@@ -381,38 +385,44 @@ router.post('/super-admins/register', async (req, res) => {
  * POST /super-admins/resend-invite
  * Resend invitation to a super admin
  */
-router.post('/super-admins/resend-invite', requireSuperAdmin(), async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
-    }
+router.post(
+  '/super-admins/resend-invite',
+  requireSuperAdmin(),
+  async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) {
+        return res.status(400).json({ error: 'Email is required' });
+      }
 
-    const superAdmin = await SuperAdminUser.findOne({
-      where: { email, is_active: false },
-    });
+      const superAdmin = await SuperAdminUser.findOne({
+        where: { email, is_active: false },
+      });
 
-    if (!superAdmin) {
-      return res.status(400).json({ error: 'Super admin not found or already active' });
-    }
+      if (!superAdmin) {
+        return res
+          .status(400)
+          .json({ error: 'Super admin not found or already active' });
+      }
 
-    // Generate new invitation token
-    const invitationToken = generateTokenString();
-    const tokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      // Generate new invitation token
+      const invitationToken = generateTokenString();
+      const tokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-    await superAdmin.update({
-      invitation_token: invitationToken,
-      invited_at: new Date(),
-      token_expires_at: tokenExpiresAt,
-    });
+      await superAdmin.update({
+        invitation_token: invitationToken,
+        invited_at: new Date(),
+        token_expires_at: tokenExpiresAt,
+      });
 
-    // Send invitation email
-    const registrationUrl = `${process.env.FRONTEND_URL || 'https://admin.devstreet.co'}/super-admin/register?token=${invitationToken}`;
-    
-    await sendEmail({
-      to: email,
-      subject: 'Super Admin Invitation - Golf Course Management Platform (Resent)',
-      text: `Your super admin invitation has been resent.
+      // Send invitation email
+      const registrationUrl = `${process.env.FRONTEND_URL || 'https://admin.devstreet.co'}/super-admin/register?token=${invitationToken}`;
+
+      await sendEmail({
+        to: email,
+        subject:
+          'Super Admin Invitation - Golf Course Management Platform (Resent)',
+        text: `Your super admin invitation has been resent.
       
 Please complete your registration using the following link:
 ${registrationUrl}
@@ -421,7 +431,7 @@ This invitation will expire in 7 days.
 
 Best regards,
 Golf Course Management Team`,
-      html: `
+        html: `
         <h2>Super Admin Invitation (Resent)</h2>
         <p>Your super admin invitation has been resent.</p>
         <p>Please complete your registration by clicking the link below:</p>
@@ -429,41 +439,48 @@ Golf Course Management Team`,
         <p>This invitation will expire in 7 days.</p>
         <p>Best regards,<br>Golf Course Management Team</p>
       `,
-    });
+      });
 
-    res.json({ message: 'Invitation resent successfully' });
-  } catch (error) {
-    console.error('Error resending super admin invitation:', error);
-    res.status(500).json({ error: 'Failed to resend invitation' });
+      res.json({ message: 'Invitation resent successfully' });
+    } catch (error) {
+      console.error('Error resending super admin invitation:', error);
+      res.status(500).json({ error: 'Failed to resend invitation' });
+    }
   }
-});
+);
 
 /**
  * POST /super-admins/revoke-invite
  * Revoke a super admin invitation
  */
-router.post('/super-admins/revoke-invite', requireSuperAdmin(), async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
+router.post(
+  '/super-admins/revoke-invite',
+  requireSuperAdmin(),
+  async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) {
+        return res.status(400).json({ error: 'Email is required' });
+      }
+
+      const superAdmin = await SuperAdminUser.findOne({
+        where: { email, is_active: false },
+      });
+
+      if (!superAdmin) {
+        return res
+          .status(400)
+          .json({ error: 'Super admin not found or already active' });
+      }
+
+      await superAdmin.destroy();
+      res.json({ message: 'Invitation revoked successfully' });
+    } catch (error) {
+      console.error('Error revoking super admin invitation:', error);
+      res.status(500).json({ error: 'Failed to revoke invitation' });
     }
-
-    const superAdmin = await SuperAdminUser.findOne({
-      where: { email, is_active: false },
-    });
-
-    if (!superAdmin) {
-      return res.status(400).json({ error: 'Super admin not found or already active' });
-    }
-
-    await superAdmin.destroy();
-    res.json({ message: 'Invitation revoked successfully' });
-  } catch (error) {
-    console.error('Error revoking super admin invitation:', error);
-    res.status(500).json({ error: 'Failed to revoke invitation' });
   }
-});
+);
 
 /**
  * PUT /super-admins/:id
@@ -517,4 +534,4 @@ router.delete('/super-admins/:id', requireSuperAdmin(), async (req, res) => {
   }
 });
 
-module.exports = router; 
+module.exports = router;

@@ -37,4 +37,4 @@ module.exports = {
   updateStaffSchema,
   resendInviteSchema,
   revokeInviteSchema,
-}; 
+};

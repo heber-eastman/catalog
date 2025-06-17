@@ -20,7 +20,9 @@ const updateCourseSchema = Joi.object({
 });
 
 const updateCourseStatusSchema = Joi.object({
-  status: Joi.string().valid('Pending', 'Active', 'Suspended', 'Deactivated').required(),
+  status: Joi.string()
+    .valid('Pending', 'Active', 'Suspended', 'Deactivated')
+    .required(),
 });
 
 // Super admin management schemas
@@ -63,4 +65,4 @@ module.exports = {
   updateSuperAdminSchema,
   resendInviteSchema,
   revokeInviteSchema,
-}; 
+};
