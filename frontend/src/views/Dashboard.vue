@@ -6,7 +6,7 @@
         <p>Welcome to your golf course management system!</p>
       </v-col>
     </v-row>
-    
+
     <v-row>
       <v-col cols="12" md="6">
         <v-card class="pa-4">
@@ -39,7 +39,7 @@
           </v-card-text>
         </v-card>
       </v-col>
-      
+
       <v-col cols="12" md="6">
         <v-card class="pa-4">
           <v-card-title>API Test Results</v-card-title>
@@ -58,7 +58,9 @@
                   <v-expansion-panel-text>
                     <div class="pa-2">
                       <h4>Status: {{ response.status }}</h4>
-                      <pre class="mt-2 pa-2 bg-grey-lighten-4 rounded">{{ response.data }}</pre>
+                      <pre class="mt-2 pa-2 bg-grey-lighten-4 rounded">{{
+                        response.data
+                      }}</pre>
                     </div>
                   </v-expansion-panel-text>
                 </v-expansion-panel>
@@ -72,7 +74,7 @@
 </template>
 
 <script>
-import { customerAPI, staffAPI, notesAPI } from '@/services/api';
+import { customerAPI, staffAPI } from '@/services/api';
 
 export default {
   name: 'Dashboard',
@@ -90,44 +92,57 @@ export default {
   methods: {
     async testCustomersAPI() {
       this.loading.customers = true;
-      
+
       try {
         console.log('Testing Customers API...');
         const response = await customerAPI.getAll({ limit: 5 });
-        
-        this.logAPIResponse('GET', '/customers', response.status, response.data);
+
+        this.logAPIResponse(
+          'GET',
+          '/customers',
+          response.status,
+          response.data
+        );
         console.log('Customers API response:', response.data);
-        
       } catch (error) {
         console.error('Customers API error:', error);
-        this.logAPIResponse('GET', '/customers', error.response?.status || 'Error', {
-          error: error.response?.data?.error || error.message
-        });
+        this.logAPIResponse(
+          'GET',
+          '/customers',
+          error.response?.status || 'Error',
+          {
+            error: error.response?.data?.error || error.message,
+          }
+        );
       } finally {
         this.loading.customers = false;
       }
     },
-    
+
     async testStaffAPI() {
       this.loading.staff = true;
-      
+
       try {
         console.log('Testing Staff API...');
         const response = await staffAPI.getAll();
-        
+
         this.logAPIResponse('GET', '/staff', response.status, response.data);
         console.log('Staff API response:', response.data);
-        
       } catch (error) {
         console.error('Staff API error:', error);
-        this.logAPIResponse('GET', '/staff', error.response?.status || 'Error', {
-          error: error.response?.data?.error || error.message
-        });
+        this.logAPIResponse(
+          'GET',
+          '/staff',
+          error.response?.status || 'Error',
+          {
+            error: error.response?.data?.error || error.message,
+          }
+        );
       } finally {
         this.loading.staff = false;
       }
     },
-    
+
     logAPIResponse(method, endpoint, status, data) {
       this.apiResponses.unshift({
         method,
@@ -136,12 +151,12 @@ export default {
         data: JSON.stringify(data, null, 2),
         timestamp: new Date().toLocaleTimeString(),
       });
-      
+
       // Keep only last 10 responses
       if (this.apiResponses.length > 10) {
         this.apiResponses = this.apiResponses.slice(0, 10);
       }
-      
+
       // Expand the first panel to show the latest response
       this.expandedPanel = 0;
     },
@@ -155,4 +170,4 @@ pre {
   max-height: 200px;
   overflow: auto;
 }
-</style> 
+</style>

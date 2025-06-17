@@ -14,7 +14,7 @@
         </div>
       </v-col>
     </v-row>
-    
+
     <!-- Customers Table -->
     <v-row>
       <v-col cols="12">
@@ -30,7 +30,7 @@
               @input="searchCustomers"
             />
           </v-card-title>
-          
+
           <v-data-table
             :headers="headers"
             :items="customers"
@@ -59,7 +59,7 @@
                 @click="deleteCustomer(item)"
               />
             </template>
-            
+
             <template #no-data>
               <v-alert type="info" class="ma-4">
                 No customers found. Add your first customer to get started!
@@ -69,7 +69,7 @@
         </v-card>
       </v-col>
     </v-row>
-    
+
     <!-- API Test Section -->
     <v-row class="mt-4">
       <v-col cols="12">
@@ -77,30 +77,25 @@
           <v-card-title>API Test Results</v-card-title>
           <v-card-text>
             <div class="d-flex ga-2 mb-4">
-              <v-btn
-                color="primary"
-                @click="loadCustomers"
-                :loading="loading"
-              >
+              <v-btn color="primary" @click="loadCustomers" :loading="loading">
                 Reload Customers
               </v-btn>
-              <v-btn
-                color="secondary"
-                @click="testCreateCustomer"
-              >
+              <v-btn color="secondary" @click="testCreateCustomer">
                 Test Create Customer
               </v-btn>
             </div>
-            
+
             <div v-if="lastApiResponse">
               <h4>Last API Response:</h4>
-              <pre class="mt-2 pa-2 bg-grey-lighten-4 rounded">{{ lastApiResponse }}</pre>
+              <pre class="mt-2 pa-2 bg-grey-lighten-4 rounded">{{
+                lastApiResponse
+              }}</pre>
             </div>
           </v-card-text>
         </v-card>
       </v-col>
     </v-row>
-    
+
     <!-- Create Customer Dialog -->
     <v-dialog v-model="showCreateDialog" max-width="600px">
       <v-card>
@@ -129,13 +124,13 @@
               v-model="newCustomer.email"
               label="Email"
               type="email"
-              :rules="[v => !!v || 'Email is required', v => /.+@.+\..+/.test(v) || 'Email must be valid']"
+              :rules="[
+                v => !!v || 'Email is required',
+                v => /.+@.+\..+/.test(v) || 'Email must be valid',
+              ]"
               required
             />
-            <v-text-field
-              v-model="newCustomer.phone"
-              label="Phone"
-            />
+            <v-text-field v-model="newCustomer.phone" label="Phone" />
           </v-form>
         </v-card-text>
         <v-card-actions>
@@ -194,52 +189,63 @@ export default {
         console.log('Loading customers...');
         const response = await customerAPI.getAll();
         this.customers = response.data.customers || response.data || [];
-        
+
         // Add computed full_name property
         this.customers = this.customers.map(customer => ({
           ...customer,
           full_name: `${customer.first_name} ${customer.last_name}`,
         }));
-        
+
         this.lastApiResponse = JSON.stringify(response.data, null, 2);
         console.log('Customers loaded:', response.data);
-        
       } catch (error) {
         console.error('Error loading customers:', error);
-        this.lastApiResponse = JSON.stringify({
-          error: error.response?.data?.error || error.message
-        }, null, 2);
+        this.lastApiResponse = JSON.stringify(
+          {
+            error: error.response?.data?.error || error.message,
+          },
+          null,
+          2
+        );
       } finally {
         this.loading = false;
       }
     },
-    
+
     async createCustomer() {
       if (!this.createFormValid) return;
-      
+
       this.creating = true;
       try {
         console.log('Creating customer:', this.newCustomer);
         const response = await customerAPI.create(this.newCustomer);
-        
+
         this.lastApiResponse = JSON.stringify(response.data, null, 2);
         console.log('Customer created:', response.data);
-        
+
         // Close dialog and reload customers
         this.showCreateDialog = false;
-        this.newCustomer = { first_name: '', last_name: '', email: '', phone: '' };
+        this.newCustomer = {
+          first_name: '',
+          last_name: '',
+          email: '',
+          phone: '',
+        };
         await this.loadCustomers();
-        
       } catch (error) {
         console.error('Error creating customer:', error);
-        this.lastApiResponse = JSON.stringify({
-          error: error.response?.data?.error || error.message
-        }, null, 2);
+        this.lastApiResponse = JSON.stringify(
+          {
+            error: error.response?.data?.error || error.message,
+          },
+          null,
+          2
+        );
       } finally {
         this.creating = false;
       }
     },
-    
+
     async testCreateCustomer() {
       const testCustomer = {
         first_name: 'Test',
@@ -247,40 +253,43 @@ export default {
         email: `test.customer.${Date.now()}@example.com`,
         phone: '555-0123',
       };
-      
+
       try {
         console.log('Testing create customer API with:', testCustomer);
         const response = await customerAPI.create(testCustomer);
-        
+
         this.lastApiResponse = JSON.stringify(response.data, null, 2);
         console.log('Test customer created:', response.data);
-        
+
         // Reload customers to show the new one
         await this.loadCustomers();
-        
       } catch (error) {
         console.error('Error in test create customer:', error);
-        this.lastApiResponse = JSON.stringify({
-          error: error.response?.data?.error || error.message
-        }, null, 2);
+        this.lastApiResponse = JSON.stringify(
+          {
+            error: error.response?.data?.error || error.message,
+          },
+          null,
+          2
+        );
       }
     },
-    
+
     searchCustomers() {
       // Search is handled by v-data-table automatically
       console.log('Searching customers for:', this.search);
     },
-    
+
     viewCustomer(customer) {
       console.log('View customer:', customer);
       this.$router.push(`/customers/${customer.id}`);
     },
-    
+
     editCustomer(customer) {
       console.log('Edit customer:', customer);
       // TODO: Implement edit functionality
     },
-    
+
     deleteCustomer(customer) {
       console.log('Delete customer:', customer);
       // TODO: Implement delete functionality
@@ -295,4 +304,4 @@ pre {
   max-height: 300px;
   overflow: auto;
 }
-</style> 
+</style>

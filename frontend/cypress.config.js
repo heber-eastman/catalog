@@ -1,4 +1,4 @@
-import { defineConfig } from 'cypress'
+import { defineConfig } from 'cypress';
 
 export default defineConfig({
   e2e: {
@@ -13,7 +13,7 @@ export default defineConfig({
     requestTimeout: 10000,
     responseTimeout: 10000,
     env: {
-      apiUrl: 'http://localhost:3000/api/v1'
-    }
+      apiUrl: 'http://localhost:3000/api/v1',
+    },
   },
-}) 
+});

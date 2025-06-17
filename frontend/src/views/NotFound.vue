@@ -14,21 +14,12 @@
           <p class="text-body-1 mb-6 text-medium-emphasis">
             The page you're looking for doesn't exist or has been moved.
           </p>
-          
+
           <div class="d-flex flex-column ga-3">
-            <v-btn
-              color="primary"
-              size="large"
-              @click="$router.push('/')"
-            >
+            <v-btn color="primary" size="large" @click="$router.push('/')">
               Go Home
             </v-btn>
-            <v-btn
-              variant="text"
-              @click="$router.back()"
-            >
-              Go Back
-            </v-btn>
+            <v-btn variant="text" @click="$router.back()"> Go Back </v-btn>
           </div>
         </v-card>
       </v-col>
@@ -46,4 +37,4 @@ export default {
 .fill-height {
   min-height: 100vh;
 }
-</style> 
+</style>

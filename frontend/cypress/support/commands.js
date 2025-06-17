@@ -6,18 +6,18 @@
 // })
 
 // Add data-cy attribute helper
-Cypress.Commands.add('dataCy', (value) => {
-  return cy.get(`[data-cy=${value}]`)
-})
+Cypress.Commands.add('dataCy', value => {
+  return cy.get(`[data-cy=${value}]`);
+});
 
 // Wait for element to be visible
 Cypress.Commands.add('waitForVisible', (selector, timeout = 10000) => {
-  return cy.get(selector, { timeout }).should('be.visible')
-})
+  return cy.get(selector, { timeout }).should('be.visible');
+});
 
 // Fill form helper
-Cypress.Commands.add('fillForm', (formData) => {
+Cypress.Commands.add('fillForm', formData => {
   Object.entries(formData).forEach(([key, value]) => {
-    cy.dataCy(`${key}-input`).type(value)
-  })
-}) 
+    cy.dataCy(`${key}-input`).type(value);
+  });
+});

@@ -6,12 +6,12 @@
           <v-card-title class="text-h4 text-center mb-4">
             Golf Course Signup
           </v-card-title>
-          
+
           <v-card-text>
             <v-form ref="form" v-model="valid" @submit.prevent="handleSignup">
               <!-- Course Information -->
               <h3 class="mb-4">Course Information</h3>
-              
+
               <v-text-field
                 v-model="form.course_name"
                 label="Course Name"
@@ -21,7 +21,7 @@
                 class="mb-3"
                 data-cy="course-name-input"
               />
-              
+
               <v-text-field
                 v-model="form.street"
                 label="Street Address"
@@ -29,7 +29,7 @@
                 class="mb-3"
                 data-cy="street-input"
               />
-              
+
               <v-row>
                 <v-col cols="6">
                   <v-text-field
@@ -56,10 +56,10 @@
                   />
                 </v-col>
               </v-row>
-              
+
               <!-- Admin User Information -->
               <h3 class="mb-4 mt-4">Primary Admin Information</h3>
-              
+
               <v-row>
                 <v-col cols="6">
                   <v-text-field
@@ -82,7 +82,7 @@
                   />
                 </v-col>
               </v-row>
-              
+
               <v-text-field
                 v-model="form.admin_email"
                 label="Email Address"
@@ -93,7 +93,7 @@
                 class="mb-3"
                 data-cy="admin-email-input"
               />
-              
+
               <v-text-field
                 v-model="form.admin_password"
                 label="Password"
@@ -104,7 +104,7 @@
                 class="mb-3"
                 data-cy="admin-password-input"
               />
-              
+
               <v-text-field
                 v-model="form.admin_phone"
                 label="Phone Number"
@@ -112,7 +112,7 @@
                 class="mb-4"
                 data-cy="admin-phone-input"
               />
-              
+
               <!-- Submit Button -->
               <v-btn
                 type="submit"
@@ -127,21 +127,21 @@
               </v-btn>
             </v-form>
           </v-card-text>
-          
+
           <!-- Success Message -->
           <v-card-text v-if="successMessage" class="text-center">
             <v-alert type="success" class="mb-4">
               {{ successMessage }}
             </v-alert>
           </v-card-text>
-          
+
           <!-- Error Message -->
           <v-card-text v-if="errorMessage" class="text-center">
             <v-alert type="error" class="mb-4">
               {{ errorMessage }}
             </v-alert>
           </v-card-text>
-          
+
           <v-card-actions class="justify-center">
             <v-btn
               variant="text"
@@ -182,7 +182,8 @@ export default {
       },
       courseNameRules: [
         v => !!v || 'Course name is required',
-        v => (v && v.length >= 2) || 'Course name must be at least 2 characters',
+        v =>
+          (v && v.length >= 2) || 'Course name must be at least 2 characters',
       ],
       nameRules: [
         v => !!v || 'Name is required',
@@ -195,8 +196,12 @@ export default {
       passwordRules: [
         v => !!v || 'Password is required',
         v => (v && v.length >= 8) || 'Password must be at least 8 characters',
-        v => /(?=.*[a-z])/.test(v) || 'Password must contain at least one lowercase letter',
-        v => /(?=.*[A-Z])/.test(v) || 'Password must contain at least one uppercase letter',
+        v =>
+          /(?=.*[a-z])/.test(v) ||
+          'Password must contain at least one lowercase letter',
+        v =>
+          /(?=.*[A-Z])/.test(v) ||
+          'Password must contain at least one uppercase letter',
         v => /(?=.*\d)/.test(v) || 'Password must contain at least one number',
       ],
     };
@@ -204,23 +209,23 @@ export default {
   methods: {
     async handleSignup() {
       if (!this.valid) return;
-      
+
       this.loading = true;
       this.errorMessage = '';
       this.successMessage = '';
-      
+
       try {
         const response = await authAPI.signup(this.form);
         console.log('Signup response:', response.data);
-        
+
         this.successMessage = `Course created successfully! Check your email (${this.form.admin_email}) for confirmation instructions.`;
-        
+
         // Reset form
         this.$refs.form.reset();
-        
       } catch (error) {
         console.error('Signup error:', error);
-        this.errorMessage = error.response?.data?.error || 'An error occurred during signup';
+        this.errorMessage =
+          error.response?.data?.error || 'An error occurred during signup';
       } finally {
         this.loading = false;
       }
@@ -233,4 +238,4 @@ export default {
 .fill-height {
   min-height: 100vh;
 }
-</style> 
+</style>

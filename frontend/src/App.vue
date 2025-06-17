@@ -20,66 +20,50 @@
           Logout
         </v-btn>
       </div>
-      
+
       <!-- Guest Actions -->
       <div v-else class="d-flex align-center ga-2">
-        <v-btn
-          variant="text"
-          @click="$router.push('/login')"
-        >
-          Login
-        </v-btn>
-        <v-btn
-          variant="outlined"
-          @click="$router.push('/signup')"
-        >
+        <v-btn variant="text" @click="$router.push('/login')"> Login </v-btn>
+        <v-btn variant="outlined" @click="$router.push('/signup')">
           Sign Up
         </v-btn>
       </div>
 
-      <v-btn
-        icon="mdi-theme-light-dark"
-        @click="toggleTheme"
-        class="ml-2"
-      />
+      <v-btn icon="mdi-theme-light-dark" @click="toggleTheme" class="ml-2" />
     </v-app-bar>
 
     <!-- Navigation Drawer - Only show for authenticated users -->
-    <v-navigation-drawer 
-      v-if="isAuthenticated && !isAuthPage"
-      app 
-      permanent
-    >
+    <v-navigation-drawer v-if="isAuthenticated && !isAuthPage" app permanent>
       <v-list nav>
-        <v-list-item 
-          to="/dashboard" 
-          prepend-icon="mdi-view-dashboard" 
+        <v-list-item
+          to="/dashboard"
+          prepend-icon="mdi-view-dashboard"
           title="Dashboard"
         />
-        
-        <v-list-item 
-          to="/customers" 
-          prepend-icon="mdi-account-multiple" 
+
+        <v-list-item
+          to="/customers"
+          prepend-icon="mdi-account-multiple"
           title="Customers"
         />
-        
-        <v-list-item 
-          to="/staff" 
-          prepend-icon="mdi-account-group" 
+
+        <v-list-item
+          to="/staff"
+          prepend-icon="mdi-account-group"
           title="Staff Management"
         />
-        
+
         <!-- Super Admin Section -->
         <v-divider class="my-2" />
         <v-list-subheader>Super Admin</v-list-subheader>
-        <v-list-item 
-          to="/super-admin/courses" 
-          prepend-icon="mdi-golf" 
+        <v-list-item
+          to="/super-admin/courses"
+          prepend-icon="mdi-golf"
           title="Golf Courses"
         />
-        <v-list-item 
-          to="/super-admin/super-admins" 
-          prepend-icon="mdi-shield-account" 
+        <v-list-item
+          to="/super-admin/super-admins"
+          prepend-icon="mdi-shield-account"
           title="Super Admins"
         />
       </v-list>
@@ -93,7 +77,7 @@
 
     <v-footer v-if="!isAuthPage" app>
       <span>
-        &copy; {{ new Date().getFullYear() }} Golf Course Management System. 
+        &copy; {{ new Date().getFullYear() }} Golf Course Management System.
         Built with Vue 3 & Vuetify.
       </span>
     </v-footer>

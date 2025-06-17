@@ -4,7 +4,7 @@
       <v-col cols="12">
         <h1>Customer Details</h1>
         <p>Customer ID: {{ $route.params.id }}</p>
-        
+
         <!-- Placeholder for customer details -->
         <v-card class="pa-4">
           <v-card-title>Customer Information</v-card-title>
@@ -25,4 +25,4 @@
 export default {
   name: 'CustomerDetail',
 };
-</script> 
+</script>
