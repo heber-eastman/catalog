@@ -25,7 +25,7 @@ describe('GET /api/v1/confirm', () => {
           "id" UUID PRIMARY KEY,
           "name" VARCHAR(255) NOT NULL,
           "subdomain" VARCHAR(255) UNIQUE NOT NULL,
-          "primary_admin_id" INTEGER,
+          "primary_admin_id" UUID,
           "status" VARCHAR(255) NOT NULL DEFAULT 'Pending',
           "street" VARCHAR(255),
           "city" VARCHAR(255),
@@ -41,7 +41,7 @@ describe('GET /api/v1/confirm', () => {
       // Create StaffUsers table
       await sequelize.query(`
         CREATE TABLE IF NOT EXISTS "StaffUsers" (
-          "id" SERIAL PRIMARY KEY,
+          "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           "course_id" UUID NOT NULL,
           "email" VARCHAR(255) UNIQUE NOT NULL,
           "password" VARCHAR(255) NOT NULL,

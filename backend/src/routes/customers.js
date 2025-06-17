@@ -26,11 +26,10 @@ const upload = multer({
   },
 });
 
-// Apply auth middleware to all routes
-router.use(requireAuth());
+// Note: Auth middleware applied to individual routes to avoid interfering with other /api/v1/* routes
 
 // GET /customers/export - Export customers to CSV
-router.get('/customers/export', async (req, res) => {
+router.get('/customers/export', requireAuth(), async (req, res) => {
   try {
     const { search, membership_type, is_archived } = req.query;
 
@@ -103,7 +102,7 @@ router.get('/customers/export', async (req, res) => {
 });
 
 // POST /customers/import - Import customers from CSV
-router.post('/customers/import', upload.single('file'), async (req, res) => {
+router.post('/customers/import', requireAuth(), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -215,7 +214,7 @@ router.post('/customers/import', upload.single('file'), async (req, res) => {
 });
 
 // GET /customers - List customers with search/filter/sort/paginate
-router.get('/customers', async (req, res) => {
+router.get('/customers', requireAuth(), async (req, res) => {
   try {
     const {
       page = 1,
@@ -270,7 +269,7 @@ router.get('/customers', async (req, res) => {
 });
 
 // POST /customers - Create new customer
-router.post('/customers', async (req, res) => {
+router.post('/customers', requireAuth(), async (req, res) => {
   try {
     // Validate request body
     const { error, value } = createCustomerSchema.validate(req.body, {
@@ -306,7 +305,7 @@ router.post('/customers', async (req, res) => {
 });
 
 // GET /customers/:id - Get single customer
-router.get('/customers/:id', async (req, res) => {
+router.get('/customers/:id', requireAuth(), async (req, res) => {
   try {
     const customer = await Customer.findOne({
       where: {
@@ -327,7 +326,7 @@ router.get('/customers/:id', async (req, res) => {
 });
 
 // PUT /customers/:id - Update customer
-router.put('/customers/:id', async (req, res) => {
+router.put('/customers/:id', requireAuth(), async (req, res) => {
   try {
     // Get existing customer
     const customer = await Customer.findOne({
@@ -372,7 +371,7 @@ router.put('/customers/:id', async (req, res) => {
 });
 
 // DELETE /customers/:id - Delete customer
-router.delete('/customers/:id', async (req, res) => {
+router.delete('/customers/:id', requireAuth(), async (req, res) => {
   try {
     const customer = await Customer.findOne({
       where: {

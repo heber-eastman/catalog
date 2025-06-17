@@ -3,22 +3,12 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('StaffUsers', {
+    await queryInterface.createTable('SuperAdminUsers', {
       id: {
         allowNull: false,
         primaryKey: true,
         type: Sequelize.UUID,
         defaultValue: Sequelize.UUIDV4,
-      },
-      course_id: {
-        type: Sequelize.UUID,
-        allowNull: false,
-        references: {
-          model: 'GolfCourseInstances',
-          key: 'id',
-        },
-        onUpdate: 'CASCADE',
-        onDelete: 'CASCADE',
       },
       email: {
         type: Sequelize.STRING,
@@ -28,14 +18,9 @@ module.exports = {
           isEmail: true,
         },
       },
-      password: {
+      password_hash: {
         type: Sequelize.STRING,
         allowNull: false,
-      },
-      role: {
-        type: Sequelize.ENUM('Admin', 'Manager', 'Staff'),
-        allowNull: false,
-        defaultValue: 'Staff',
       },
       is_active: {
         type: Sequelize.BOOLEAN,
@@ -78,19 +63,16 @@ module.exports = {
       },
     });
 
-    // Add indexes for performance with unique names
-    await queryInterface.addIndex('StaffUsers', ['course_id'], {
-      name: 'staff_users_course_id_idx',
-    });
-    await queryInterface.addIndex('StaffUsers', ['email'], {
-      name: 'staff_users_email_idx',
+    // Add indexes for performance
+    await queryInterface.addIndex('SuperAdminUsers', ['email'], {
+      name: 'super_admin_users_email_idx',
       unique: true,
     });
-    await queryInterface.addIndex('StaffUsers', ['invitation_token'], {
-      name: 'staff_users_invitation_token_idx',
+    await queryInterface.addIndex('SuperAdminUsers', ['invitation_token'], {
+      name: 'super_admin_users_invitation_token_idx',
     });
-    await queryInterface.addIndex('StaffUsers', ['is_active'], {
-      name: 'staff_users_is_active_idx',
+    await queryInterface.addIndex('SuperAdminUsers', ['is_active'], {
+      name: 'super_admin_users_is_active_idx',
     });
   },
 
@@ -98,22 +80,21 @@ module.exports = {
     // Remove indexes first
     try {
       await queryInterface.removeIndex(
-        'StaffUsers',
-        'staff_users_course_id_idx'
-      );
-      await queryInterface.removeIndex('StaffUsers', 'staff_users_email_idx');
-      await queryInterface.removeIndex(
-        'StaffUsers',
-        'staff_users_invitation_token_idx'
+        'SuperAdminUsers',
+        'super_admin_users_email_idx'
       );
       await queryInterface.removeIndex(
-        'StaffUsers',
-        'staff_users_is_active_idx'
+        'SuperAdminUsers',
+        'super_admin_users_invitation_token_idx'
+      );
+      await queryInterface.removeIndex(
+        'SuperAdminUsers',
+        'super_admin_users_is_active_idx'
       );
     } catch (error) {
       // Ignore error if indexes don't exist
     }
 
-    await queryInterface.dropTable('StaffUsers');
+    await queryInterface.dropTable('SuperAdminUsers');
   },
-};
+}; 

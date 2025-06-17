@@ -7,11 +7,10 @@ const {
   updateNoteSchema,
 } = require('../validation/noteSchema');
 
-// Apply auth middleware to all routes
-router.use(requireAuth());
+// Note: Auth middleware applied to individual routes to avoid interfering with other /api/v1/* routes
 
 // GET /customers/:cid/notes - Get all notes for a customer
-router.get('/customers/:cid/notes', async (req, res) => {
+router.get('/customers/:cid/notes', requireAuth(), async (req, res) => {
   try {
     const { cid } = req.params;
 
@@ -50,7 +49,7 @@ router.get('/customers/:cid/notes', async (req, res) => {
 });
 
 // POST /customers/:cid/notes - Create a new note
-router.post('/customers/:cid/notes', async (req, res) => {
+router.post('/customers/:cid/notes', requireAuth(), async (req, res) => {
   try {
     const { cid } = req.params;
 
@@ -106,7 +105,7 @@ router.post('/customers/:cid/notes', async (req, res) => {
 });
 
 // PUT /customers/:cid/notes/:id - Update a note
-router.put('/customers/:cid/notes/:id', async (req, res) => {
+router.put('/customers/:cid/notes/:id', requireAuth(), async (req, res) => {
   try {
     const { cid, id } = req.params;
 
@@ -173,7 +172,7 @@ router.put('/customers/:cid/notes/:id', async (req, res) => {
 });
 
 // DELETE /customers/:cid/notes/:id - Delete a note
-router.delete('/customers/:cid/notes/:id', async (req, res) => {
+router.delete('/customers/:cid/notes/:id', requireAuth(), async (req, res) => {
   try {
     const { cid, id } = req.params;
 

@@ -93,6 +93,66 @@ The Golf Course Management Team
   }
 }
 
+/**
+ * Send generic email
+ * @param {Object} emailData - Email parameters
+ * @param {string} emailData.to - Recipient email
+ * @param {string} emailData.subject - Email subject
+ * @param {string} emailData.text - Plain text content
+ * @param {string} emailData.html - HTML content
+ * @returns {Promise<Object>} SES response or mock response
+ */
+async function sendEmail({ to, subject, text, html }) {
+  const params = {
+    Source: process.env.FROM_EMAIL || 'noreply@devstreet.co',
+    Destination: {
+      ToAddresses: [to],
+    },
+    Message: {
+      Subject: {
+        Data: subject,
+        Charset: 'UTF-8',
+      },
+      Body: {
+        Html: {
+          Data: html,
+          Charset: 'UTF-8',
+        },
+        Text: {
+          Data: text,
+          Charset: 'UTF-8',
+        },
+      },
+    },
+  };
+
+  // In test or development environment, return mock response
+  if (
+    process.env.NODE_ENV === 'test' ||
+    process.env.NODE_ENV === 'development'
+  ) {
+    console.log('Development mode: Mocking email send');
+    console.log('Email would be sent to:', to);
+    console.log('Subject:', subject);
+    return {
+      MessageId: 'mock-message-id',
+      to,
+      subject,
+      text,
+      html,
+    };
+  }
+
+  try {
+    const result = await ses.sendEmail(params).promise();
+    return result;
+  } catch (error) {
+    console.error('Error sending email:', error);
+    throw new Error('Failed to send email');
+  }
+}
+
 module.exports = {
   sendConfirmationEmail,
+  sendEmail,
 };
