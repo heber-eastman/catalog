@@ -120,6 +120,9 @@ export const superAdminAPI = {
     api.post('/super-admin/super-admins/resend-invite', data),
   revokeInvite: data =>
     api.post('/super-admin/super-admins/revoke-invite', data),
+  // Add method aliases that the component expects - using email as backend expects
+  resendInvitation: (adminId, email) => api.post('/super-admin/super-admins/resend-invite', { email }),
+  revokeInvitation: (adminId, email) => api.post('/super-admin/super-admins/revoke-invite', { email }),
 };
 
 // Utility functions

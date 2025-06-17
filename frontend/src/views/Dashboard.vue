@@ -1,9 +1,69 @@
 <template>
   <v-container>
+    <!-- Welcome Section -->
     <v-row>
       <v-col cols="12">
-        <h1>Dashboard</h1>
-        <p>Welcome to your golf course management system!</p>
+        <v-card class="pa-6 text-center mb-4">
+          <v-card-title class="text-h4 mb-4">
+            Welcome to Golf Course Management
+          </v-card-title>
+          <v-card-text class="text-h6">
+            Your comprehensive platform for managing customers, staff, and operations.
+          </v-card-text>
+        </v-card>
+      </v-col>
+    </v-row>
+
+    <!-- Status Cards Row -->
+    <v-row class="mb-4">
+      <v-col cols="12" sm="6" md="3">
+        <StatusCard
+          title="Total Customers"
+          :value="dashboardStats.totalCustomers"
+          icon="mdi-account-group"
+          color="primary"
+          :trend="customersTrend"
+          action-text="View All"
+          @action="$router.push('/customers')"
+          data-cy="customers-status-card"
+        />
+      </v-col>
+      <v-col cols="12" sm="6" md="3">
+        <StatusCard
+          title="Active Staff"
+          :value="dashboardStats.totalStaff"
+          icon="mdi-account-tie"
+          color="secondary"
+          :trend="staffTrend"
+          action-text="Manage Staff"
+          @action="$router.push('/staff')"
+          data-cy="staff-status-card"
+        />
+      </v-col>
+      <v-col cols="12" sm="6" md="3">
+        <StatusCard
+          title="Course Status"
+          :value="dashboardStats.courseStatus"
+          icon="mdi-golf"
+          color="success"
+          subtitle="Operational"
+          action-text="View Courses"
+          @action="$router.push('/super-admin/courses')"
+          data-cy="course-status-card"
+        />
+      </v-col>
+      <v-col cols="12" sm="6" md="3">
+        <StatusCard
+          title="This Month"
+          :value="dashboardStats.monthlyBookings"
+          icon="mdi-calendar-check"
+          color="info"
+          subtitle="Bookings"
+          :trend="bookingsTrend"
+          action-text="View Details"
+          @action="showBookingsDetail"
+          data-cy="bookings-status-card"
+        />
       </v-col>
     </v-row>
 
@@ -17,6 +77,7 @@
                 color="primary"
                 prepend-icon="mdi-account-plus"
                 @click="$router.push('/customers')"
+                data-cy="manage-customers-btn"
               >
                 Manage Customers
               </v-btn>
@@ -24,6 +85,7 @@
                 color="secondary"
                 prepend-icon="mdi-account-group"
                 @click="$router.push('/staff')"
+                data-cy="manage-staff-btn"
               >
                 Manage Staff
               </v-btn>
@@ -32,8 +94,27 @@
                 prepend-icon="mdi-note-plus"
                 @click="testCustomersAPI"
                 :loading="loading.customers"
+                data-cy="test-customers-api-btn"
               >
                 Test Customers API
+              </v-btn>
+              <v-btn
+                color="info"
+                prepend-icon="mdi-account-supervisor"
+                @click="testStaffAPI"
+                :loading="loading.staff"
+                data-cy="test-staff-api-btn"
+              >
+                Test Staff API
+              </v-btn>
+              <v-btn
+                color="warning"
+                prepend-icon="mdi-refresh"
+                @click="loadDashboardData"
+                :loading="loading.dashboard"
+                data-cy="refresh-dashboard-btn"
+              >
+                Refresh Dashboard
               </v-btn>
             </div>
           </v-card-text>
@@ -70,39 +151,159 @@
         </v-card>
       </v-col>
     </v-row>
+
+    <!-- Recent Activity -->
+    <v-row class="mt-4">
+      <v-col cols="12">
+        <v-card class="pa-4">
+          <v-card-title>Recent Activity</v-card-title>
+          <v-card-text>
+            <v-list v-if="recentActivity.length > 0">
+              <v-list-item 
+                v-for="(activity, index) in recentActivity" 
+                :key="index"
+                :prepend-icon="activity.icon"
+              >
+                <v-list-item-title>{{ activity.title }}</v-list-item-title>
+                <v-list-item-subtitle>{{ activity.subtitle }}</v-list-item-subtitle>
+                <template #append>
+                  <v-chip :color="activity.color" size="small">
+                    {{ activity.status }}
+                  </v-chip>
+                </template>
+              </v-list-item>
+            </v-list>
+            <div v-else class="text-center text-medium-emphasis py-8">
+              <v-icon icon="mdi-history" size="48" class="mb-2"></v-icon>
+              <p>No recent activity</p>
+            </div>
+          </v-card-text>
+        </v-card>
+      </v-col>
+    </v-row>
   </v-container>
 </template>
 
 <script>
 import { customerAPI, staffAPI } from '@/services/api';
+import StatusCard from '@/components/StatusCard.vue';
 
 export default {
   name: 'Dashboard',
+  components: {
+    StatusCard,
+  },
   data() {
     return {
       loading: {
         customers: false,
         staff: false,
-        notes: false,
+        dashboard: false,
       },
       apiResponses: [],
       expandedPanel: 0,
+      dashboardStats: {
+        totalCustomers: 0,
+        totalStaff: 0,
+        courseStatus: 'Active',
+        monthlyBookings: 0,
+      },
+      recentActivity: [],
     };
   },
+  computed: {
+    customersTrend() {
+      return {
+        direction: 'up',
+        text: '+12.5% from last month',
+      };
+    },
+    staffTrend() {
+      return {
+        direction: 'up',
+        text: '+2 new this week',
+      };
+    },
+    bookingsTrend() {
+      return {
+        direction: 'up',
+        text: '+8.3% from last month',
+      };
+    },
+  },
+  async mounted() {
+    await this.loadDashboardData();
+  },
   methods: {
+    async loadDashboardData() {
+      this.loading.dashboard = true;
+      try {
+        // Load dashboard statistics
+        await Promise.all([
+          this.loadCustomersCount(),
+          this.loadStaffCount(),
+          this.loadRecentActivity(),
+        ]);
+      } catch (error) {
+        console.error('Error loading dashboard data:', error);
+      } finally {
+        this.loading.dashboard = false;
+      }
+    },
+
+    async loadCustomersCount() {
+      try {
+        const response = await customerAPI.getAll({ limit: 1000 });
+        this.dashboardStats.totalCustomers = response.data.customers?.length || response.data.length || 0;
+      } catch (error) {
+        console.error('Error loading customers count:', error);
+        this.dashboardStats.totalCustomers = 'N/A';
+      }
+    },
+
+    async loadStaffCount() {
+      try {
+        const response = await staffAPI.getAll();
+        this.dashboardStats.totalStaff = response.data.staff?.length || response.data.length || 0;
+      } catch (error) {
+        console.error('Error loading staff count:', error);
+        this.dashboardStats.totalStaff = 'N/A';
+      }
+    },
+
+    async loadRecentActivity() {
+      // Simulate recent activity data
+      this.recentActivity = [
+        {
+          title: 'New customer registered',
+          subtitle: 'John Doe - 2 hours ago',
+          icon: 'mdi-account-plus',
+          color: 'success',
+          status: 'New',
+        },
+        {
+          title: 'Staff member invited',
+          subtitle: 'Jane Smith invited as Manager - 4 hours ago',
+          icon: 'mdi-email-send',
+          color: 'info',
+          status: 'Pending',
+        },
+        {
+          title: 'Course status updated',
+          subtitle: 'Maintenance completed - 1 day ago',
+          icon: 'mdi-golf',
+          color: 'success',
+          status: 'Active',
+        },
+      ];
+    },
+
     async testCustomersAPI() {
       this.loading.customers = true;
-
       try {
         console.log('Testing Customers API...');
         const response = await customerAPI.getAll({ limit: 5 });
-
-        this.logAPIResponse(
-          'GET',
-          '/customers',
-          response.status,
-          response.data
-        );
+        this.logAPIResponse('GET', '/customers', response.status, response.data);
         console.log('Customers API response:', response.data);
       } catch (error) {
         console.error('Customers API error:', error);
@@ -110,9 +311,7 @@ export default {
           'GET',
           '/customers',
           error.response?.status || 'Error',
-          {
-            error: error.response?.data?.error || error.message,
-          }
+          { error: error.response?.data?.error || error.message }
         );
       } finally {
         this.loading.customers = false;
@@ -121,11 +320,9 @@ export default {
 
     async testStaffAPI() {
       this.loading.staff = true;
-
       try {
         console.log('Testing Staff API...');
         const response = await staffAPI.getAll();
-
         this.logAPIResponse('GET', '/staff', response.status, response.data);
         console.log('Staff API response:', response.data);
       } catch (error) {
@@ -134,13 +331,15 @@ export default {
           'GET',
           '/staff',
           error.response?.status || 'Error',
-          {
-            error: error.response?.data?.error || error.message,
-          }
+          { error: error.response?.data?.error || error.message }
         );
       } finally {
         this.loading.staff = false;
       }
+    },
+
+    showBookingsDetail() {
+      console.log('Show bookings detail functionality coming soon...');
     },
 
     logAPIResponse(method, endpoint, status, data) {

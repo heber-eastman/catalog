@@ -47,8 +47,8 @@ const routes = [
   },
   {
     path: '/customers/:id',
-    name: 'CustomerDetail',
-    component: () => import('@/views/customers/CustomerDetail.vue'),
+    name: 'CustomerProfile',
+    component: () => import('@/views/customers/CustomerProfile.vue'),
     meta: { requiresAuth: true },
   },
   {
