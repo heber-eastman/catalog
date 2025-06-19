@@ -419,7 +419,14 @@ export default {
       try {
         console.log('Loading super admins...');
         const response = await superAdminAPI.getSuperAdmins();
-        this.superAdmins = response.data.super_admins || response.data || [];
+        
+        // Handle different response formats defensively
+        let superAdminsData = [];
+        if (response && response.data) {
+          superAdminsData = response.data.super_admins || response.data.superAdmins || response.data || [];
+        }
+        
+        this.superAdmins = superAdminsData;
 
         // Add computed full_name property
         this.superAdmins = this.superAdmins.map(admin => ({
@@ -428,8 +435,8 @@ export default {
           is_active: admin.is_active !== false, // Default to true if not specified
         }));
 
-        this.lastApiResponse = JSON.stringify(response.data, null, 2);
-        console.log('Super admins loaded:', response.data);
+        this.lastApiResponse = JSON.stringify(response?.data || {}, null, 2);
+        console.log('Super admins loaded:', response?.data);
       } catch (error) {
         console.error('Error loading super admins:', error);
         this.lastApiResponse = JSON.stringify(

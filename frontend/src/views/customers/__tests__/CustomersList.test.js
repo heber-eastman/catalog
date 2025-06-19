@@ -28,7 +28,7 @@ describe('CustomersList', () => {
       last_name: 'Doe',
       email: 'john@example.com',
       phone: '555-1234',
-      status: 'Active',
+      membership_type: 'Full',
       created_at: '2023-01-01T00:00:00.000Z',
     },
     {
@@ -37,7 +37,7 @@ describe('CustomersList', () => {
       last_name: 'Smith',
       email: 'jane@example.com',
       phone: '555-5678',
-      status: 'Inactive',
+      membership_type: 'Trial',
       created_at: '2023-01-02T00:00:00.000Z',
     },
   ];
@@ -548,12 +548,12 @@ describe('CustomersList', () => {
       full_name: `${customer.first_name} ${customer.last_name}`,
     }));
 
-    // Filter by Active status
-    wrapper.vm.statusFilter = 'Active';
+    // Filter by Full membership
+    wrapper.vm.membershipFilter = 'Full';
     wrapper.vm.applyFilters();
 
     expect(wrapper.vm.filteredCustomers.length).toBe(1);
-    expect(wrapper.vm.filteredCustomers[0].status).toBe('Active');
+    expect(wrapper.vm.filteredCustomers[0].membership_type).toBe('Full');
   });
 
   it('clears all filters', async () => {
@@ -605,14 +605,14 @@ describe('CustomersList', () => {
 
     // Set some filters
     wrapper.vm.search = 'test';
-    wrapper.vm.statusFilter = 'Active';
+    wrapper.vm.membershipFilter = 'Full';
     wrapper.vm.sortBy = 'name_asc';
 
     // Clear filters
     wrapper.vm.clearFilters();
 
     expect(wrapper.vm.search).toBe('');
-    expect(wrapper.vm.statusFilter).toBe(null);
+    expect(wrapper.vm.membershipFilter).toBe(null);
     expect(wrapper.vm.sortBy).toBe('created_at_desc');
   });
 
@@ -923,7 +923,7 @@ describe('CustomersList', () => {
     expect(formatted).not.toBe('N/A');
   });
 
-  it('returns correct status colors', () => {
+  it('returns correct membership type colors', () => {
     const wrapper = mount(CustomersList, {
       global: {
         plugins: [vuetify],
@@ -970,10 +970,10 @@ describe('CustomersList', () => {
       },
     });
 
-    expect(wrapper.vm.getStatusColor('Active')).toBe('success');
-    expect(wrapper.vm.getStatusColor('Inactive')).toBe('error');
-    expect(wrapper.vm.getStatusColor('Pending')).toBe('warning');
-    expect(wrapper.vm.getStatusColor('Unknown')).toBe('primary');
+    expect(wrapper.vm.getMembershipTypeColor('Full')).toBe('success');
+    expect(wrapper.vm.getMembershipTypeColor('Trial')).toBe('info');
+    expect(wrapper.vm.getMembershipTypeColor('Junior')).toBe('purple');
+    expect(wrapper.vm.getMembershipTypeColor('Senior')).toBe('orange');
   });
 
   it('sorts customers correctly', async () => {

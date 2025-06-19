@@ -45,8 +45,15 @@ const mockSuperAdmins = [
 describe('SuperAdminsList', () => {
   let wrapper;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    
+    // Mock API responses for the component mounting
+    const { superAdminAPI } = await import('@/services/api');
+    superAdminAPI.getSuperAdmins.mockResolvedValue({
+      data: { super_admins: [] },
+    });
+    
     wrapper = mount(SuperAdminsList, {
       global: {
         plugins: [vuetify],
@@ -80,6 +87,9 @@ describe('SuperAdminsList', () => {
         },
       },
     });
+    
+    // Wait for the component to mount and finish loading
+    await wrapper.vm.$nextTick();
   });
 
   afterEach(() => {
