@@ -419,13 +419,17 @@ export default {
       try {
         console.log('Loading super admins...');
         const response = await superAdminAPI.getSuperAdmins();
-        
+
         // Handle different response formats defensively
         let superAdminsData = [];
         if (response && response.data) {
-          superAdminsData = response.data.super_admins || response.data.superAdmins || response.data || [];
+          superAdminsData =
+            response.data.super_admins ||
+            response.data.superAdmins ||
+            response.data ||
+            [];
         }
-        
+
         this.superAdmins = superAdminsData;
 
         // Add computed full_name property
