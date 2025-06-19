@@ -9,18 +9,23 @@ const notesRouter = require('./routes/notes');
 const staffRouter = require('./routes/staff');
 const superAdminsRouter = require('./routes/super-admins');
 const authRouter = require('./routes/auth');
-const { rateLimitMiddleware, strictRateLimitMiddleware } = require('./middleware/rateLimit');
+const {
+  rateLimitMiddleware,
+  strictRateLimitMiddleware,
+} = require('./middleware/rateLimit');
 const { extractSubdomainOptional } = require('./middleware/subdomain');
 
 const app = express();
 
 // CORS configuration
-app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
-}));
+app.use(
+  cors({
+    origin: ['http://localhost:5173', 'http://localhost:3000'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  })
+);
 
 app.use(morgan('combined'));
 app.use(express.json());
@@ -34,17 +39,17 @@ app.use(extractSubdomainOptional);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ 
+  res.json({
     status: 'OK',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
 // Basic root endpoint
 app.get('/', (req, res) => {
-  res.json({ 
+  res.json({
     message: 'Backend API is running!',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 

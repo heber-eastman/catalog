@@ -25,7 +25,7 @@ class GDPRService {
 
     // Schedule to run daily at 2 AM
     this.purgeJob = cron.schedule(
-      '0 2 * * *', 
+      '0 2 * * *',
       async () => {
         console.log('Starting GDPR data purge job...');
         try {
@@ -37,13 +37,15 @@ class GDPRService {
       },
       {
         scheduled: false, // Don't start immediately
-        timezone: 'UTC'
+        timezone: 'UTC',
       }
     );
 
     this.purgeJob.start();
     this.isSchedulerRunning = true;
-    console.log(`GDPR scheduler started. Data retention period: ${this.retentionDays} days`);
+    console.log(
+      `GDPR scheduler started. Data retention period: ${this.retentionDays} days`
+    );
   }
 
   /**
@@ -66,33 +68,39 @@ class GDPRService {
   async purgeExpiredData(dryRun = false) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - this.retentionDays);
-    
+
     console.log(`Looking for data older than ${cutoffDate.toISOString()}`);
-    
+
     try {
       // Find archived customers that exceed retention period (based on created_at)
       const expiredCustomers = await Customer.findAll({
         where: {
           is_archived: true,
           created_at: {
-            [Op.lt]: cutoffDate
-          }
+            [Op.lt]: cutoffDate,
+          },
         },
-        attributes: ['id', 'course_id', 'first_name', 'last_name', 'created_at']
+        attributes: [
+          'id',
+          'course_id',
+          'first_name',
+          'last_name',
+          'created_at',
+        ],
       });
 
       // Find customer notes for expired customers
       const customerIds = expiredCustomers.map(c => c.id);
       let expiredNotes = [];
-      
+
       if (customerIds.length > 0) {
         expiredNotes = await CustomerNote.findAll({
           where: {
             customer_id: {
-              [Op.in]: customerIds
-            }
+              [Op.in]: customerIds,
+            },
           },
-          attributes: ['id', 'customer_id']
+          attributes: ['id', 'customer_id'],
         });
       }
 
@@ -103,7 +111,7 @@ class GDPRService {
         dryRun,
         deletedCustomers: 0,
         deletedNotes: 0,
-        errors: []
+        errors: [],
       };
 
       if (dryRun) {
@@ -116,9 +124,9 @@ class GDPRService {
         const deletedNotesCount = await CustomerNote.destroy({
           where: {
             id: {
-              [Op.in]: expiredNotes.map(n => n.id)
-            }
-          }
+              [Op.in]: expiredNotes.map(n => n.id),
+            },
+          },
         });
         result.deletedNotes = deletedNotesCount;
       }
@@ -128,15 +136,15 @@ class GDPRService {
         const deletedCustomersCount = await Customer.destroy({
           where: {
             id: {
-              [Op.in]: customerIds
-            }
-          }
+              [Op.in]: customerIds,
+            },
+          },
         });
         result.deletedCustomers = deletedCustomersCount;
       }
 
       result.message = `Successfully purged ${result.deletedCustomers} customers and ${result.deletedNotes} notes`;
-      
+
       return result;
     } catch (error) {
       console.error('Error during GDPR data purge:', error);
@@ -152,14 +160,14 @@ class GDPRService {
   async getComplianceStatus(courseId) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - this.retentionDays);
-    
+
     try {
       // Count total archived customers
       const totalArchived = await Customer.count({
         where: {
           course_id: courseId,
-          is_archived: true
-        }
+          is_archived: true,
+        },
       });
 
       // Count customers eligible for purging (based on created_at)
@@ -168,9 +176,9 @@ class GDPRService {
           course_id: courseId,
           is_archived: true,
           created_at: {
-            [Op.lt]: cutoffDate
-          }
-        }
+            [Op.lt]: cutoffDate,
+          },
+        },
       });
 
       return {
@@ -180,7 +188,7 @@ class GDPRService {
         totalArchivedCustomers: totalArchived,
         customersEligibleForPurge: eligibleForPurge,
         schedulerRunning: this.isSchedulerRunning,
-        lastCheck: new Date().toISOString()
+        lastCheck: new Date().toISOString(),
       };
     } catch (error) {
       console.error('Error getting GDPR compliance status:', error);
@@ -199,8 +207,8 @@ class GDPRService {
       const customer = await Customer.findOne({
         where: {
           id: customerId,
-          course_id: courseId
-        }
+          course_id: courseId,
+        },
       });
 
       if (!customer) {
@@ -208,21 +216,23 @@ class GDPRService {
       }
 
       if (customer.is_archived) {
-        return { 
+        return {
           message: 'Customer already archived',
-          customer: customer
+          customer: customer,
         };
       }
 
       await customer.update({
         is_archived: true,
-        updated_at: new Date()
+        updated_at: new Date(),
       });
 
       return {
         message: 'Customer archived successfully',
         customer: customer,
-        purgeEligibleDate: new Date(Date.now() + (this.retentionDays * 24 * 60 * 60 * 1000)).toISOString()
+        purgeEligibleDate: new Date(
+          Date.now() + this.retentionDays * 24 * 60 * 60 * 1000
+        ).toISOString(),
       };
     } catch (error) {
       console.error('Error archiving customer:', error);
@@ -236,5 +246,5 @@ const gdprService = new GDPRService();
 
 module.exports = {
   gdprService,
-  GDPRService
-}; 
+  GDPRService,
+};

@@ -233,7 +233,7 @@ router.get('/customers', requireAuth(ALL_ROLES), async (req, res) => {
 
     // Build where clause
     const where = {};
-    
+
     // For non-SuperAdmin users, filter by course_id
     if (req.userRole !== 'SuperAdmin') {
       where.course_id = req.courseId;
@@ -313,106 +313,110 @@ router.post('/customers', requireAuth(ALL_ROLES), async (req, res) => {
 });
 
 // GET /customers/status-counts - Get customer statistics for dashboard
-router.get('/customers/status-counts', requireAuth(ALL_ROLES), async (req, res) => {
-  try {
-    const courseId = req.courseId;
-    
-    // Build base where clause for all queries
-    const baseWhere = {};
-    if (req.userRole !== 'SuperAdmin') {
-      baseWhere.course_id = courseId;
+router.get(
+  '/customers/status-counts',
+  requireAuth(ALL_ROLES),
+  async (req, res) => {
+    try {
+      const courseId = req.courseId;
+
+      // Build base where clause for all queries
+      const baseWhere = {};
+      if (req.userRole !== 'SuperAdmin') {
+        baseWhere.course_id = courseId;
+      }
+
+      // Get total customer count
+      const totalCustomers = await Customer.count({
+        where: {
+          ...baseWhere,
+          is_archived: false,
+        },
+      });
+
+      // Get customers by membership type
+      const membershipTypeCounts = await Customer.findAll({
+        where: {
+          ...baseWhere,
+          is_archived: false,
+        },
+        attributes: [
+          'membership_type',
+          [sequelize.fn('COUNT', sequelize.col('membership_type')), 'count'],
+        ],
+        group: ['membership_type'],
+        raw: true,
+      });
+
+      // Get archived customer count
+      const archivedCustomers = await Customer.count({
+        where: {
+          ...baseWhere,
+          is_archived: true,
+        },
+      });
+
+      // Get new customers this month
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+
+      const newCustomersThisMonth = await Customer.count({
+        where: {
+          ...baseWhere,
+          is_archived: false,
+          created_at: {
+            [Op.gte]: startOfMonth,
+          },
+        },
+      });
+
+      // Get customers with active memberships (non-expired)
+      const now = new Date();
+      const activeMemberships = await Customer.count({
+        where: {
+          ...baseWhere,
+          is_archived: false,
+          [Op.or]: [
+            { membership_end_date: null }, // No expiry date
+            { membership_end_date: { [Op.gte]: now } }, // Future expiry
+          ],
+        },
+      });
+
+      // Format membership type counts for easier consumption
+      const membershipStats = {};
+      membershipTypeCounts.forEach(item => {
+        membershipStats[item.membership_type || 'none'] = parseInt(item.count);
+      });
+
+      const stats = {
+        totalCustomers,
+        archivedCustomers,
+        activeMembers: activeMemberships,
+        newThisMonth: newCustomersThisMonth,
+        membershipTypes: membershipStats,
+        calculatedAt: new Date().toISOString(),
+      };
+
+      res.json(stats);
+    } catch (error) {
+      console.error('Error fetching customer status counts:', error);
+      res.status(500).json({ error: 'Failed to fetch customer statistics' });
     }
-    
-    // Get total customer count
-    const totalCustomers = await Customer.count({
-      where: { 
-        ...baseWhere,
-        is_archived: false 
-      }
-    });
-    
-    // Get customers by membership type
-    const membershipTypeCounts = await Customer.findAll({
-      where: { 
-        ...baseWhere,
-        is_archived: false 
-      },
-      attributes: [
-        'membership_type',
-        [sequelize.fn('COUNT', sequelize.col('membership_type')), 'count']
-      ],
-      group: ['membership_type'],
-      raw: true
-    });
-    
-    // Get archived customer count
-    const archivedCustomers = await Customer.count({
-      where: { 
-        ...baseWhere,
-        is_archived: true 
-      }
-    });
-    
-    // Get new customers this month
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
-    
-    const newCustomersThisMonth = await Customer.count({
-      where: { 
-        ...baseWhere,
-        is_archived: false,
-        created_at: {
-          [Op.gte]: startOfMonth
-        }
-      }
-    });
-    
-    // Get customers with active memberships (non-expired)
-    const now = new Date();
-    const activeMemberships = await Customer.count({
-      where: { 
-        ...baseWhere,
-        is_archived: false,
-        [Op.or]: [
-          { membership_end_date: null }, // No expiry date
-          { membership_end_date: { [Op.gte]: now } } // Future expiry
-        ]
-      }
-    });
-    
-    // Format membership type counts for easier consumption
-    const membershipStats = {};
-    membershipTypeCounts.forEach(item => {
-      membershipStats[item.membership_type || 'none'] = parseInt(item.count);
-    });
-    
-    const stats = {
-      totalCustomers,
-      archivedCustomers,
-      activeMembers: activeMemberships,
-      newThisMonth: newCustomersThisMonth,
-      membershipTypes: membershipStats,
-      calculatedAt: new Date().toISOString()
-    };
-    
-    res.json(stats);
-  } catch (error) {
-    console.error('Error fetching customer status counts:', error);
-    res.status(500).json({ error: 'Failed to fetch customer statistics' });
   }
-});
+);
 
 // GET /customers/:id - Get single customer
 router.get('/customers/:id', requireAuth(ALL_ROLES), async (req, res) => {
   try {
     const where = { id: req.params.id };
-    
+
     // For non-SuperAdmin users, filter by course_id
     if (req.userRole !== 'SuperAdmin') {
       where.course_id = req.courseId;
     }
-    
+
     const customer = await Customer.findOne({
       where,
     });

@@ -1,100 +1,96 @@
 const rateLimit = require('express-rate-limit');
 
 /**
- * Rate limiting middleware
- * Limits to 60 requests per minute with burst of 10
+ * Standard rate limiting for most API endpoints
+ * 100 requests per 15 minutes per IP
  */
 const rateLimitMiddleware = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 60, // 60 requests per minute
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
   message: {
-    error: 'Too many requests from this IP, please try again later.',
-    retryAfter: 60
-  },
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  
-  // Skip rate limiting for certain conditions
-  skip: (req, res) => {
-    // Skip rate limiting for health checks
-    if (req.path === '/health' || req.path === '/') {
-      return true;
-    }
-    
-    // Skip rate limiting in test environment
-    if (process.env.NODE_ENV === 'test') {
-      return true;
-    }
-    
-    return false;
-  },
-  
-  // Custom key generator (default is IP-based)
-  keyGenerator: (req, res) => {
-    // Rate limit by IP address
-    return req.ip || req.connection.remoteAddress;
-  },
-  
-  // Handler for when rate limit is exceeded
-  handler: (req, res) => {
-    res.status(429).json({
-      error: 'Too many requests from this IP, please try again later.',
-      retryAfter: 60,
-      limit: 60,
-      windowMs: 60000
-    });
-  }
-});
-
-/**
- * Stricter rate limiting for sensitive endpoints (like signup, login)
- * Limits to 10 requests per minute
- */
-const strictRateLimitMiddleware = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 10, // 10 requests per minute
-  message: {
-    error: 'Too many attempts from this IP, please try again later.',
-    retryAfter: 60
+    error: 'Too many requests from this IP',
+    retryAfter: 15 * 60, // 15 minutes in seconds
   },
   standardHeaders: true,
   legacyHeaders: false,
-  
-  skip: (req, res) => {
-    return process.env.NODE_ENV === 'test';
-  },
-  
-  keyGenerator: (req, res) => {
-    return req.ip || req.connection.remoteAddress;
-  },
-  
+  // Skip successful responses to prevent abuse
+  skipSuccessfulRequests: false,
+  // Skip failed requests
+  skipFailedRequests: true,
+
+  // Custom handler for rate limit exceeded
   handler: (req, res) => {
     res.status(429).json({
-      error: 'Too many attempts from this IP, please try again later.',
-      retryAfter: 60,
-      limit: 10,
-      windowMs: 60000
+      error: 'Rate limit exceeded',
+      message: 'Too many requests from this IP, please try again later.',
+      retryAfter: Math.round(req.rateLimit.resetTime / 1000),
     });
-  }
+  },
 });
 
 /**
- * Get current rate limit status for an IP
+ * Strict rate limiting for sensitive endpoints (auth, registration)
+ * 10 requests per 15 minutes per IP
  */
-function getRateLimitStatus(req) {
-  const rateLimitHeader = res.get('RateLimit-Remaining');
-  const rateLimitResetHeader = res.get('RateLimit-Reset');
-  
-  return {
-    remaining: rateLimitHeader ? parseInt(rateLimitHeader) : null,
-    resetTime: rateLimitResetHeader ? parseInt(rateLimitResetHeader) : null,
-    limit: 60,
-    windowMs: 60000
-  };
-}
+const strictRateLimitMiddleware = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Limit each IP to 10 requests per windowMs
+  message: {
+    error: 'Too many authentication attempts',
+    retryAfter: 15 * 60,
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false,
+  skipFailedRequests: false,
+
+  // Custom handler for rate limit exceeded
+  handler: (req, res) => {
+    res.status(429).json({
+      error: 'Rate limit exceeded',
+      message: 'Too many authentication attempts from this IP.',
+      retryAfter: Math.round(req.rateLimit.resetTime / 1000),
+    });
+  },
+});
+
+/**
+ * Very strict rate limiting for password reset and sensitive operations
+ * 3 requests per hour per IP
+ */
+const veryStrictRateLimitMiddleware = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3, // Limit each IP to 3 requests per hour
+  message: {
+    error: 'Too many password reset attempts',
+    retryAfter: 60 * 60,
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+
+  // Custom handler for rate limit exceeded
+  handler: (req, res) => {
+    res.status(429).json({
+      error: 'Rate limit exceeded',
+      message: 'Too many password reset attempts from this IP.',
+      retryAfter: Math.round(req.rateLimit.resetTime / 1000),
+    });
+  },
+
+  // Custom key generator to include user agent for better tracking
+  keyGenerator: req => {
+    const userAgent = req.get('User-Agent') || 'unknown';
+    return `${req.ip}_${userAgent.substring(0, 50)}`;
+  },
+
+  // Only count failed requests for password resets
+  skip: req => {
+    return req.method === 'GET'; // Skip GET requests
+  },
+});
 
 module.exports = {
   rateLimitMiddleware,
   strictRateLimitMiddleware,
-  getRateLimitStatus
-}; 
+  veryStrictRateLimitMiddleware,
+};

@@ -1,8 +1,16 @@
-import { vi } from 'vitest';
 import { config } from '@vue/test-utils'
 import { createVuetify } from 'vuetify'
 import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
+import 'vuetify/styles'
+
+// Add missing vitest globals
+import { beforeEach, afterEach, vi } from 'vitest';
+
+// Make globals available
+globalThis.beforeEach = beforeEach;
+globalThis.afterEach = afterEach;
+globalThis.vi = vi;
 
 // Create Vuetify instance for testing
 const vuetify = createVuetify({

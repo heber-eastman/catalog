@@ -1,6 +1,6 @@
-import { defineConfig } from 'vitest/config'
-import { fileURLToPath } from 'node:url'
-import vue from '@vitejs/plugin-vue'
+import { defineConfig } from 'vitest/config';
+import { fileURLToPath } from 'node:url';
+import vue from '@vitejs/plugin-vue';
 
 export default defineConfig({
   plugins: [vue()],
@@ -9,18 +9,18 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.js'],
     css: {
-      include: []
+      include: [],
     },
     deps: {
-      inline: ['vuetify']
-    }
+      inline: ['vuetify'],
+    },
   },
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
-    }
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
   },
   define: {
-    global: 'globalThis'
-  }
-}) 
+    global: 'globalThis',
+  },
+});

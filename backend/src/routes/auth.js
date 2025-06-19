@@ -1,7 +1,7 @@
 const express = require('express');
-const { StaffUser, GolfCourseInstance, SuperAdminUser } = require('../models');
-const { signToken } = require('../auth/jwt');
 const bcrypt = require('bcrypt');
+const { StaffUser, SuperAdminUser } = require('../models');
+const { signToken } = require('../auth/jwt');
 
 const router = express.Router();
 

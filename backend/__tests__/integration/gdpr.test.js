@@ -1,6 +1,10 @@
-const { sequelize, GolfCourseInstance, Customer, CustomerNote } = require('../../src/models');
+const {
+  sequelize,
+  GolfCourseInstance,
+  Customer,
+  CustomerNote,
+} = require('../../src/models');
 const { gdprService, GDPRService } = require('../../src/services/gdprService');
-const { signToken } = require('../../src/auth/jwt');
 const { Op } = require('sequelize');
 
 describe('GDPR Service Tests', () => {
@@ -68,7 +72,7 @@ describe('GDPR Service Tests', () => {
       );
     `);
 
-          await sequelize.query(`
+    await sequelize.query(`
         CREATE TABLE IF NOT EXISTS "customer_notes" (
           "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           "customer_id" UUID NOT NULL,
@@ -92,7 +96,7 @@ describe('GDPR Service Tests', () => {
       city: 'GDPR City',
       state: 'CA',
       postal_code: '90211',
-      country: 'US'
+      country: 'US',
     });
     testCourseId = testCourse.id;
   });
@@ -102,11 +106,13 @@ describe('GDPR Service Tests', () => {
     if (gdprService && typeof gdprService.stopScheduler === 'function') {
       gdprService.stopScheduler();
     }
-    
+
     try {
       // Clean up test data
       if (testCustomerIds.length > 0) {
-        await CustomerNote.destroy({ where: { customer_id: { [Op.in]: testCustomerIds } } });
+        await CustomerNote.destroy({
+          where: { customer_id: { [Op.in]: testCustomerIds } },
+        });
         await Customer.destroy({ where: { id: { [Op.in]: testCustomerIds } } });
       }
       if (testCourseId) {
@@ -117,7 +123,7 @@ describe('GDPR Service Tests', () => {
       // Ignore cleanup errors
       console.warn('Cleanup warning:', error.message);
     }
-    
+
     try {
       await sequelize.close();
     } catch (error) {
@@ -129,22 +135,24 @@ describe('GDPR Service Tests', () => {
     try {
       // Clean up customers and notes before each test
       if (testCustomerIds.length > 0) {
-        await CustomerNote.destroy({ where: { customer_id: { [Op.in]: testCustomerIds } } });
+        await CustomerNote.destroy({
+          where: { customer_id: { [Op.in]: testCustomerIds } },
+        });
         await Customer.destroy({ where: { id: { [Op.in]: testCustomerIds } } });
       }
       if (testCourseId) {
         await Customer.destroy({ where: { course_id: testCourseId } });
       }
     } catch (error) {
-      // Ignore cleanup errors 
+      // Ignore cleanup errors
     }
     testCustomerIds = [];
-    
+
     // Stop scheduler before each test
     if (gdprService && typeof gdprService.stopScheduler === 'function') {
       gdprService.stopScheduler();
     }
-    
+
     // Set a shorter retention period for tests (7 days instead of 7 years)
     gdprService.retentionDays = 7;
   });
@@ -152,10 +160,10 @@ describe('GDPR Service Tests', () => {
   describe('GDPR Scheduler Management', () => {
     test('should start and stop scheduler correctly', () => {
       expect(gdprService.isSchedulerRunning).toBe(false);
-      
+
       gdprService.startScheduler();
       expect(gdprService.isSchedulerRunning).toBe(true);
-      
+
       gdprService.stopScheduler();
       expect(gdprService.isSchedulerRunning).toBe(false);
     });
@@ -163,17 +171,17 @@ describe('GDPR Service Tests', () => {
     test('should not start scheduler if already running', () => {
       gdprService.startScheduler();
       expect(gdprService.isSchedulerRunning).toBe(true);
-      
+
       // Try to start again - should not change state
       gdprService.startScheduler();
       expect(gdprService.isSchedulerRunning).toBe(true);
-      
+
       gdprService.stopScheduler();
     });
 
     test('should handle stopping scheduler when not running', () => {
       expect(gdprService.isSchedulerRunning).toBe(false);
-      
+
       // Should not throw error
       gdprService.stopScheduler();
       expect(gdprService.isSchedulerRunning).toBe(false);
@@ -185,27 +193,27 @@ describe('GDPR Service Tests', () => {
       // Create old archived customer (older than retention period)
       const oldDate = new Date();
       oldDate.setDate(oldDate.getDate() - (gdprService.retentionDays + 1));
-      
+
       const oldCustomer = await Customer.create({
         course_id: testCourseId,
         first_name: 'Old',
         last_name: 'Customer',
         email: 'old@example.com',
         membership_type: 'Full',
-        is_archived: true
+        is_archived: true,
       });
-      
+
       // Use raw SQL to update created_at since Sequelize protects it
       await sequelize.query(
         `UPDATE "Customers" SET created_at = :oldDate, updated_at = :oldDate WHERE id = :customerId`,
         {
-          replacements: { 
-            oldDate: oldDate.toISOString(), 
-            customerId: oldCustomer.id 
-          }
+          replacements: {
+            oldDate: oldDate.toISOString(),
+            customerId: oldCustomer.id,
+          },
         }
       );
-      
+
       testCustomerIds.push(oldCustomer.id);
 
       // Create recent archived customer (within retention period)
@@ -217,13 +225,13 @@ describe('GDPR Service Tests', () => {
         membership_type: 'Weekend',
         is_archived: true,
         created_at: new Date(),
-        updated_at: new Date()
+        updated_at: new Date(),
       });
       testCustomerIds.push(recentCustomer.id);
 
       // Run dry run purge
       const result = await gdprService.purgeExpiredData(true);
-      
+
       expect(result.dryRun).toBe(true);
       expect(result.customersFound).toBe(1); // Only old customer
       expect(result.deletedCustomers).toBe(0); // Dry run, nothing deleted
@@ -234,42 +242,42 @@ describe('GDPR Service Tests', () => {
       // Create old archived customer
       const oldDate = new Date();
       oldDate.setDate(oldDate.getDate() - (gdprService.retentionDays + 1));
-      
+
       const oldCustomer = await Customer.create({
         course_id: testCourseId,
         first_name: 'Old',
         last_name: 'Customer',
         email: 'old@example.com',
         membership_type: 'Full',
-        is_archived: true
+        is_archived: true,
       });
-      
+
       // Use raw SQL to update created_at since Sequelize protects it
       await sequelize.query(
         `UPDATE "Customers" SET created_at = :oldDate, updated_at = :oldDate WHERE id = :customerId`,
         {
-          replacements: { 
-            oldDate: oldDate.toISOString(), 
-            customerId: oldCustomer.id 
-          }
+          replacements: {
+            oldDate: oldDate.toISOString(),
+            customerId: oldCustomer.id,
+          },
         }
       );
-      
+
       testCustomerIds.push(oldCustomer.id);
 
-      // Create notes for old customer
-      const note1 = await CustomerNote.create({
+      // Create notes for old archived customer
+      await CustomerNote.create({
         customer_id: oldCustomer.id,
-        author_id: '00000000-0000-4000-8000-000000000001',
         content: 'Old note 1',
-        is_private: false
+        is_private: false,
+        author: 'Test Author',
       });
 
-      const note2 = await CustomerNote.create({
+      await CustomerNote.create({
         customer_id: oldCustomer.id,
-        author_id: '00000000-0000-4000-8000-000000000001',
         content: 'Old note 2',
-        is_private: true
+        is_private: true,
+        author: 'Test Author',
       });
 
       // Create recent customer (should not be purged)
@@ -281,26 +289,28 @@ describe('GDPR Service Tests', () => {
         membership_type: 'Weekend',
         is_archived: true,
         created_at: new Date(),
-        updated_at: new Date()
+        updated_at: new Date(),
       });
       testCustomerIds.push(recentCustomer.id);
 
       // Run actual purge
       const result = await gdprService.purgeExpiredData(false);
-      
+
       expect(result.dryRun).toBe(false);
       expect(result.customersFound).toBe(1);
       expect(result.notesFound).toBe(2);
       expect(result.deletedCustomers).toBe(1);
       expect(result.deletedNotes).toBe(2);
-      expect(result.message).toBe('Successfully purged 1 customers and 2 notes');
+      expect(result.message).toBe(
+        'Successfully purged 1 customers and 2 notes'
+      );
 
       // Verify old customer and notes were deleted
       const oldCustomerExists = await Customer.findByPk(oldCustomer.id);
       expect(oldCustomerExists).toBe(null);
 
       const notesExist = await CustomerNote.findAll({
-        where: { customer_id: oldCustomer.id }
+        where: { customer_id: oldCustomer.id },
       });
       expect(notesExist).toHaveLength(0);
 
@@ -319,48 +329,50 @@ describe('GDPR Service Tests', () => {
         membership_type: 'Full',
         is_archived: true,
         created_at: new Date(),
-        updated_at: new Date()
+        updated_at: new Date(),
       });
       testCustomerIds.push(recentCustomer.id);
 
       const result = await gdprService.purgeExpiredData(false);
-      
+
       expect(result.customersFound).toBe(0);
       expect(result.notesFound).toBe(0);
       expect(result.deletedCustomers).toBe(0);
       expect(result.deletedNotes).toBe(0);
-      expect(result.message).toBe('Successfully purged 0 customers and 0 notes');
+      expect(result.message).toBe(
+        'Successfully purged 0 customers and 0 notes'
+      );
     });
 
     test('should only purge archived customers', async () => {
       // Create old but active customer (should not be purged)
       const oldDate = new Date();
       oldDate.setDate(oldDate.getDate() - (gdprService.retentionDays + 1));
-      
+
       const oldActiveCustomer = await Customer.create({
         course_id: testCourseId,
         first_name: 'Old',
         last_name: 'Active',
         email: 'oldactive@example.com',
         membership_type: 'Full',
-        is_archived: false // Not archived
+        is_archived: false, // Not archived
       });
-      
+
       // Use raw SQL to update created_at since Sequelize protects it
       await sequelize.query(
         `UPDATE "Customers" SET created_at = :oldDate, updated_at = :oldDate WHERE id = :customerId`,
         {
-          replacements: { 
-            oldDate: oldDate.toISOString(), 
-            customerId: oldActiveCustomer.id 
-          }
+          replacements: {
+            oldDate: oldDate.toISOString(),
+            customerId: oldActiveCustomer.id,
+          },
         }
       );
-      
+
       testCustomerIds.push(oldActiveCustomer.id);
 
       const result = await gdprService.purgeExpiredData(false);
-      
+
       expect(result.customersFound).toBe(0); // Should not find non-archived customers
       expect(result.deletedCustomers).toBe(0);
 
@@ -375,26 +387,26 @@ describe('GDPR Service Tests', () => {
       // Create mix of customers
       const oldDate = new Date();
       oldDate.setDate(oldDate.getDate() - (gdprService.retentionDays + 1));
-      
+
       const oldCustomer = await Customer.create({
         course_id: testCourseId,
         first_name: 'Old',
         last_name: 'Archived',
         email: 'old1@example.com',
-        is_archived: true
+        is_archived: true,
       });
-      
+
       // Use raw SQL to update created_at since Sequelize protects it
       await sequelize.query(
         `UPDATE "Customers" SET created_at = :oldDate, updated_at = :oldDate WHERE id = :customerId`,
         {
-          replacements: { 
-            oldDate: oldDate.toISOString(), 
-            customerId: oldCustomer.id 
-          }
+          replacements: {
+            oldDate: oldDate.toISOString(),
+            customerId: oldCustomer.id,
+          },
         }
       );
-      
+
       const recentCustomer = await Customer.create({
         course_id: testCourseId,
         first_name: 'Recent',
@@ -402,9 +414,9 @@ describe('GDPR Service Tests', () => {
         email: 'recent1@example.com',
         is_archived: true,
         created_at: new Date(),
-        updated_at: new Date()
+        updated_at: new Date(),
       });
-      
+
       const activeCustomer = await Customer.create({
         course_id: testCourseId,
         first_name: 'Active',
@@ -412,35 +424,35 @@ describe('GDPR Service Tests', () => {
         email: 'active1@example.com',
         is_archived: false,
         created_at: new Date(),
-        updated_at: new Date()
+        updated_at: new Date(),
       });
-      
+
       const customers = [oldCustomer, recentCustomer, activeCustomer];
-      
+
       customers.forEach(c => testCustomerIds.push(c.id));
 
       const status = await gdprService.getComplianceStatus(testCourseId);
-      
+
       expect(status).toMatchObject({
         courseId: testCourseId,
         retentionDays: gdprService.retentionDays,
         totalArchivedCustomers: 2,
         customersEligibleForPurge: 1,
-        schedulerRunning: false
+        schedulerRunning: false,
       });
-      
+
       expect(status.cutoffDate).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
       expect(status.lastCheck).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
     });
 
     test('should reflect scheduler status correctly', async () => {
       gdprService.startScheduler();
-      
+
       const status = await gdprService.getComplianceStatus(testCourseId);
       expect(status.schedulerRunning).toBe(true);
-      
+
       gdprService.stopScheduler();
-      
+
       const status2 = await gdprService.getComplianceStatus(testCourseId);
       expect(status2.schedulerRunning).toBe(false);
     });
@@ -456,15 +468,20 @@ describe('GDPR Service Tests', () => {
         membership_type: 'Full',
         is_archived: false,
         created_at: new Date(),
-        updated_at: new Date()
+        updated_at: new Date(),
       });
       testCustomerIds.push(customer.id);
 
-      const result = await gdprService.archiveCustomer(customer.id, testCourseId);
-      
+      const result = await gdprService.archiveCustomer(
+        customer.id,
+        testCourseId
+      );
+
       expect(result.message).toBe('Customer archived successfully');
       expect(result.customer.is_archived).toBe(true);
-      expect(result.purgeEligibleDate).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+      expect(result.purgeEligibleDate).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/
+      );
 
       // Verify customer is archived
       await customer.reload();
@@ -480,21 +497,25 @@ describe('GDPR Service Tests', () => {
         membership_type: 'Weekend',
         is_archived: true,
         created_at: new Date(),
-        updated_at: new Date()
+        updated_at: new Date(),
       });
       testCustomerIds.push(customer.id);
 
-      const result = await gdprService.archiveCustomer(customer.id, testCourseId);
-      
+      const result = await gdprService.archiveCustomer(
+        customer.id,
+        testCourseId
+      );
+
       expect(result.message).toBe('Customer already archived');
       expect(result.customer.is_archived).toBe(true);
     });
 
     test('should throw error for non-existent customer', async () => {
       const fakeId = '00000000-0000-0000-0000-000000000000';
-      
-      await expect(gdprService.archiveCustomer(fakeId, testCourseId))
-        .rejects.toThrow('Customer not found');
+
+      await expect(
+        gdprService.archiveCustomer(fakeId, testCourseId)
+      ).rejects.toThrow('Customer not found');
     });
 
     test('should throw error for customer from different course', async () => {
@@ -507,7 +528,7 @@ describe('GDPR Service Tests', () => {
         city: 'Other City',
         state: 'NY',
         postal_code: '10001',
-        country: 'US'
+        country: 'US',
       });
 
       const customer = await Customer.create({
@@ -518,11 +539,12 @@ describe('GDPR Service Tests', () => {
         membership_type: 'Full',
         is_archived: false,
         created_at: new Date(),
-        updated_at: new Date()
+        updated_at: new Date(),
       });
 
-      await expect(gdprService.archiveCustomer(customer.id, testCourseId))
-        .rejects.toThrow('Customer not found');
+      await expect(
+        gdprService.archiveCustomer(customer.id, testCourseId)
+      ).rejects.toThrow('Customer not found');
 
       // Clean up
       await Customer.destroy({ where: { id: customer.id } });
@@ -540,10 +562,10 @@ describe('GDPR Service Tests', () => {
     test('should respect environment variable for retention days', () => {
       const originalValue = process.env.GDPR_RETENTION_DAYS;
       process.env.GDPR_RETENTION_DAYS = '365';
-      
+
       const testService = new GDPRService();
       expect(testService.retentionDays).toBe(365);
-      
+
       // Restore original value
       if (originalValue) {
         process.env.GDPR_RETENTION_DAYS = originalValue;
@@ -556,17 +578,18 @@ describe('GDPR Service Tests', () => {
   describe('Error Handling', () => {
     test('should handle invalid customer ID gracefully', async () => {
       const invalidId = '00000000-0000-0000-0000-000000000000';
-      
-      await expect(gdprService.archiveCustomer(invalidId, testCourseId))
-        .rejects.toThrow('Customer not found');
+
+      await expect(
+        gdprService.archiveCustomer(invalidId, testCourseId)
+      ).rejects.toThrow('Customer not found');
     });
 
     test('should handle non-existent course ID in compliance status', async () => {
       const invalidCourseId = '00000000-0000-0000-0000-000000000000';
-      
+
       const status = await gdprService.getComplianceStatus(invalidCourseId);
       expect(status.totalArchivedCustomers).toBe(0);
       expect(status.customersEligibleForPurge).toBe(0);
     });
   });
-}); 
+});

@@ -4,7 +4,7 @@ const { Op } = require('sequelize');
 const router = express.Router();
 
 const { StaffUser } = require('../models');
-const { requireAuth, ALL_ROLES } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 
 const { generateTokenString } = require('../auth/tokenUtil');
 const { sendEmail } = require('../services/emailService');
@@ -19,37 +19,41 @@ const {
 // Note: /register route doesn't require auth, apply middleware selectively
 
 // GET /staff - List all staff (Admin, Manager, and SuperAdmin)
-router.get('/', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
-  try {
-    const where = {};
-    
-    // For non-SuperAdmin users, filter by course_id
-    if (req.userRole !== 'SuperAdmin') {
-      where.course_id = req.courseId;
-    }
-    
-    const staff = await StaffUser.findAll({
-      where,
-      attributes: [
-        'id',
-        'email',
-        'role',
-        'is_active',
-        'first_name',
-        'last_name',
-        'phone',
-        'created_at',
-        'updated_at',
-      ],
-      order: [['created_at', 'DESC']],
-    });
+router.get(
+  '/',
+  requireAuth(['Admin', 'Manager', 'SuperAdmin']),
+  async (req, res) => {
+    try {
+      const where = {};
 
-    res.json(staff);
-  } catch (error) {
-    console.error('Error fetching staff:', error);
-    res.status(500).json({ error: 'Failed to fetch staff' });
+      // For non-SuperAdmin users, filter by course_id
+      if (req.userRole !== 'SuperAdmin') {
+        where.course_id = req.courseId;
+      }
+
+      const staff = await StaffUser.findAll({
+        where,
+        attributes: [
+          'id',
+          'email',
+          'role',
+          'is_active',
+          'first_name',
+          'last_name',
+          'phone',
+          'created_at',
+          'updated_at',
+        ],
+        order: [['created_at', 'DESC']],
+      });
+
+      res.json(staff);
+    } catch (error) {
+      console.error('Error fetching staff:', error);
+      res.status(500).json({ error: 'Failed to fetch staff' });
+    }
   }
-});
+);
 
 // POST /staff/invite - Invite new staff member (Admin only)
 router.post('/invite', requireAuth(['Admin']), async (req, res) => {

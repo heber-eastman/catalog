@@ -1,6 +1,11 @@
 const request = require('supertest');
 const app = require('../../src/app');
-const { sequelize, GolfCourseInstance, StaffUser, Customer } = require('../../src/models');
+const {
+  sequelize,
+  GolfCourseInstance,
+  StaffUser,
+  Customer,
+} = require('../../src/models');
 const { signToken } = require('../../src/auth/jwt');
 const bcrypt = require('bcrypt');
 
@@ -51,7 +56,7 @@ describe('Customer Status Counts API', () => {
       );
     `);
 
-          await sequelize.query(`
+    await sequelize.query(`
         CREATE TABLE IF NOT EXISTS "Customers" (
         "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         "course_id" UUID NOT NULL,
@@ -81,7 +86,7 @@ describe('Customer Status Counts API', () => {
       city: 'Golf City',
       state: 'CA',
       postal_code: '90210',
-      country: 'US'
+      country: 'US',
     });
     testCourseId = testCourse.id;
 
@@ -94,7 +99,7 @@ describe('Customer Status Counts API', () => {
       email: 'test.staff@example.com',
       password: hashedPassword,
       role: 'Admin',
-      is_active: true
+      is_active: true,
     });
     testStaffUserId = testStaffUser.id;
 
@@ -102,7 +107,7 @@ describe('Customer Status Counts API', () => {
     authToken = await signToken({
       user_id: testStaffUserId,
       course_id: testCourseId,
-      role: 'Admin'
+      role: 'Admin',
     });
   });
 
@@ -137,7 +142,7 @@ describe('Customer Status Counts API', () => {
         activeMembers: 0,
         newThisMonth: 0,
         membershipTypes: {},
-        calculatedAt: expect.any(String)
+        calculatedAt: expect.any(String),
       });
     });
 
@@ -152,7 +157,7 @@ describe('Customer Status Counts API', () => {
           membership_type: 'Full',
           is_archived: false,
           created_at: new Date(),
-          updated_at: new Date()
+          updated_at: new Date(),
         },
         {
           course_id: testCourseId,
@@ -162,7 +167,7 @@ describe('Customer Status Counts API', () => {
           membership_type: 'Weekend',
           is_archived: false,
           created_at: new Date(),
-          updated_at: new Date()
+          updated_at: new Date(),
         },
         {
           course_id: testCourseId,
@@ -172,8 +177,8 @@ describe('Customer Status Counts API', () => {
           membership_type: 'Full',
           is_archived: false,
           created_at: new Date(),
-          updated_at: new Date()
-        }
+          updated_at: new Date(),
+        },
       ]);
 
       const response = await request(app)
@@ -187,9 +192,9 @@ describe('Customer Status Counts API', () => {
         activeMembers: 3, // All have no expiry date
         newThisMonth: 3, // All created this month
         membershipTypes: {
-          'Full': 2,
-          'Weekend': 1
-        }
+          Full: 2,
+          Weekend: 1,
+        },
       });
     });
 
@@ -204,7 +209,7 @@ describe('Customer Status Counts API', () => {
           membership_type: 'Full',
           is_archived: false,
           created_at: new Date(),
-          updated_at: new Date()
+          updated_at: new Date(),
         },
         {
           course_id: testCourseId,
@@ -214,8 +219,8 @@ describe('Customer Status Counts API', () => {
           membership_type: 'Weekend',
           is_archived: true,
           created_at: new Date(),
-          updated_at: new Date()
-        }
+          updated_at: new Date(),
+        },
       ]);
 
       const response = await request(app)
@@ -229,15 +234,15 @@ describe('Customer Status Counts API', () => {
         activeMembers: 1,
         newThisMonth: 1, // Only non-archived count for new this month
         membershipTypes: {
-          'Full': 1 // Only non-archived customers counted
-        }
+          Full: 1, // Only non-archived customers counted
+        },
       });
     });
 
     test('should correctly count customers with membership expiry dates', async () => {
       const futureDate = new Date();
       futureDate.setFullYear(futureDate.getFullYear() + 1);
-      
+
       const pastDate = new Date();
       pastDate.setFullYear(pastDate.getFullYear() - 1);
 
@@ -251,7 +256,7 @@ describe('Customer Status Counts API', () => {
           membership_end_date: futureDate,
           is_archived: false,
           created_at: new Date(),
-          updated_at: new Date()
+          updated_at: new Date(),
         },
         {
           course_id: testCourseId,
@@ -262,7 +267,7 @@ describe('Customer Status Counts API', () => {
           membership_end_date: pastDate,
           is_archived: false,
           created_at: new Date(),
-          updated_at: new Date()
+          updated_at: new Date(),
         },
         {
           course_id: testCourseId,
@@ -273,8 +278,8 @@ describe('Customer Status Counts API', () => {
           membership_end_date: null,
           is_archived: false,
           created_at: new Date(),
-          updated_at: new Date()
-        }
+          updated_at: new Date(),
+        },
       ]);
 
       const response = await request(app)
@@ -288,16 +293,16 @@ describe('Customer Status Counts API', () => {
         activeMembers: 2, // Only future expiry + no expiry
         newThisMonth: 3,
         membershipTypes: {
-          'Full': 2,
-          'Lifetime': 1
-        }
+          Full: 2,
+          Lifetime: 1,
+        },
       });
     });
 
     test('should calculate newThisMonth correctly', async () => {
       // Make sure we start with a clean slate for this specific test
       await Customer.destroy({ where: { course_id: testCourseId } });
-      
+
       // Instead of trying to manipulate timestamps, let's test that the newThisMonth
       // field exists and is calculated. Since all customers we create in tests
       // will have current timestamps, they should all count as "new this month"
@@ -307,7 +312,7 @@ describe('Customer Status Counts API', () => {
         last_name: 'Customer',
         email: 'new-customer@example.com',
         membership_type: 'Full',
-        is_archived: false
+        is_archived: false,
       });
 
       const response = await request(app)
@@ -321,10 +326,10 @@ describe('Customer Status Counts API', () => {
         archivedCustomers: 0,
         newThisMonth: 1, // Created just now, so counts as new this month
         membershipTypes: {
-          'Full': 1
-        }
+          Full: 1,
+        },
       });
-      
+
       // Verify that the newThisMonth field is present and is a number
       expect(typeof response.body.newThisMonth).toBe('number');
       expect(response.body.newThisMonth).toBeGreaterThanOrEqual(0);
@@ -339,7 +344,7 @@ describe('Customer Status Counts API', () => {
         membership_type: 'Trial', // Use Trial instead of null since NOT NULL constraint
         is_archived: false,
         created_at: new Date(),
-        updated_at: new Date()
+        updated_at: new Date(),
       });
 
       const response = await request(app)
@@ -350,15 +355,13 @@ describe('Customer Status Counts API', () => {
       expect(response.body).toMatchObject({
         totalCustomers: 1,
         membershipTypes: {
-          'Trial': 1
-        }
+          Trial: 1,
+        },
       });
     });
 
     test('should require authentication', async () => {
-      await request(app)
-        .get('/api/v1/customers/status-counts')
-        .expect(401);
+      await request(app).get('/api/v1/customers/status-counts').expect(401);
     });
 
     test('should only count customers for the authenticated course', async () => {
@@ -371,7 +374,7 @@ describe('Customer Status Counts API', () => {
         city: 'Other City',
         state: 'NY',
         postal_code: '10001',
-        country: 'US'
+        country: 'US',
       });
 
       // Create customers for both courses
@@ -384,7 +387,7 @@ describe('Customer Status Counts API', () => {
           membership_type: 'Full',
           is_archived: false,
           created_at: new Date(),
-          updated_at: new Date()
+          updated_at: new Date(),
         },
         {
           course_id: otherCourse.id,
@@ -394,8 +397,8 @@ describe('Customer Status Counts API', () => {
           membership_type: 'Weekend',
           is_archived: false,
           created_at: new Date(),
-          updated_at: new Date()
-        }
+          updated_at: new Date(),
+        },
       ]);
 
       const response = await request(app)
@@ -407,8 +410,8 @@ describe('Customer Status Counts API', () => {
       expect(response.body).toMatchObject({
         totalCustomers: 1,
         membershipTypes: {
-          'Full': 1
-        }
+          Full: 1,
+        },
       });
 
       // Clean up
@@ -422,14 +425,16 @@ describe('Customer Status Counts API', () => {
         .set('Cookie', `jwt=${authToken}`)
         .expect(200);
 
-      expect(response.body.calculatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
-      
+      expect(response.body.calculatedAt).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/
+      );
+
       const calculatedTime = new Date(response.body.calculatedAt);
       const now = new Date();
       const timeDiff = Math.abs(now - calculatedTime);
-      
+
       // Should be calculated within the last few seconds
       expect(timeDiff).toBeLessThan(5000);
     });
   });
-}); 
+});

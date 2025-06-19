@@ -2,7 +2,6 @@ import { mount } from '@vue/test-utils'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import CustomersList from '../CustomersList.vue'
 import { createVuetify } from 'vuetify'
-import { mockAPI } from '@/test/setup'
 
 // Mock the API
 vi.mock('@/services/api', () => ({

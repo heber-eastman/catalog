@@ -8,14 +8,14 @@ const { GolfCourseInstance } = require('../models');
 const mapSubdomainToCourse = async (req, res, next) => {
   try {
     const host = req.get('Host') || req.headers.host;
-    
+
     if (!host) {
       return res.status(400).json({ error: 'Host header required' });
     }
 
     // Extract subdomain from host (e.g., "pine-valley.devstreet.co" -> "pine-valley")
     const subdomain = extractSubdomain(host);
-    
+
     if (!subdomain) {
       return res.status(400).json({ error: 'Invalid subdomain format' });
     }
@@ -23,7 +23,7 @@ const mapSubdomainToCourse = async (req, res, next) => {
     // Find course by subdomain
     const course = await GolfCourseInstance.findOne({
       where: { subdomain },
-      attributes: ['id', 'name', 'subdomain', 'status']
+      attributes: ['id', 'name', 'subdomain', 'status'],
     });
 
     if (!course) {
@@ -41,7 +41,7 @@ const mapSubdomainToCourse = async (req, res, next) => {
       id: course.id,
       name: course.name,
       subdomain: course.subdomain,
-      status: course.status
+      status: course.status,
     };
 
     next();
@@ -61,24 +61,24 @@ const mapSubdomainToCourse = async (req, res, next) => {
 function extractSubdomain(host) {
   // Remove port if present
   const hostWithoutPort = host.split(':')[0];
-  
+
   // Handle localhost for development
   if (hostWithoutPort === 'localhost') {
     return 'localhost';
   }
-  
+
   // Handle subdomain.localhost for development
   if (hostWithoutPort.endsWith('.localhost')) {
     const parts = hostWithoutPort.split('.');
     return parts.length >= 2 ? parts[0] : null;
   }
-  
+
   // Handle production format: subdomain.devstreet.co
   if (hostWithoutPort.endsWith('.devstreet.co')) {
     const parts = hostWithoutPort.split('.');
     return parts.length >= 3 ? parts[0] : null;
   }
-  
+
   // For other domains or invalid formats
   return null;
 }
@@ -89,12 +89,12 @@ function extractSubdomain(host) {
  */
 const extractSubdomainOptional = (req, res, next) => {
   const host = req.get('Host') || req.headers.host;
-  
+
   if (host) {
     const subdomain = extractSubdomain(host);
     req.subdomain = subdomain;
   }
-  
+
   next();
 };
 
@@ -102,4 +102,4 @@ module.exports = {
   mapSubdomainToCourse,
   extractSubdomainOptional,
   extractSubdomain, // Export for testing
-}; 
+};

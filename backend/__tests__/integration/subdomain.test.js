@@ -20,7 +20,7 @@ describe('Subdomain Middleware Tests', () => {
       city: 'Golf City',
       state: 'CA',
       postal_code: '90210',
-      country: 'US'
+      country: 'US',
     });
     testCourseId = testCourse.id;
   });
@@ -29,7 +29,7 @@ describe('Subdomain Middleware Tests', () => {
     // Clean up test data
     if (testCourseId) {
       await GolfCourseInstance.destroy({
-        where: { id: testCourseId }
+        where: { id: testCourseId },
       });
     }
     await sequelize.close();
@@ -43,8 +43,12 @@ describe('Subdomain Middleware Tests', () => {
     });
 
     test('should extract subdomain from production format with port', () => {
-      expect(extractSubdomain('pine-valley.devstreet.co:443')).toBe('pine-valley');
-      expect(extractSubdomain('sunset-golf.devstreet.co:80')).toBe('sunset-golf');
+      expect(extractSubdomain('pine-valley.devstreet.co:443')).toBe(
+        'pine-valley'
+      );
+      expect(extractSubdomain('sunset-golf.devstreet.co:80')).toBe(
+        'sunset-golf'
+      );
     });
 
     test('should handle localhost for development', () => {
@@ -54,7 +58,9 @@ describe('Subdomain Middleware Tests', () => {
 
     test('should extract subdomain from localhost development format', () => {
       expect(extractSubdomain('pine-valley.localhost')).toBe('pine-valley');
-      expect(extractSubdomain('test-course.localhost:3000')).toBe('test-course');
+      expect(extractSubdomain('test-course.localhost:3000')).toBe(
+        'test-course'
+      );
     });
 
     test('should return null for invalid formats', () => {
@@ -94,9 +100,7 @@ describe('Subdomain Middleware Tests', () => {
     });
 
     test('should work without Host header for health check', async () => {
-      const response = await request(app)
-        .get('/health')
-        .expect(200);
+      const response = await request(app).get('/health').expect(200);
 
       expect(response.body.status).toBe('OK');
     });
@@ -108,9 +112,7 @@ describe('Subdomain Middleware Tests', () => {
 
     test('should handle missing Host header gracefully for optional subdomain extraction', async () => {
       // The extractSubdomainOptional middleware should not fail without Host header
-      const response = await request(app)
-        .get('/')
-        .expect(200);
+      const response = await request(app).get('/').expect(200);
 
       expect(response.body.message).toBe('Backend API is running!');
     });
@@ -154,7 +156,7 @@ describe('Subdomain Middleware Tests', () => {
 
     test('should find course by valid subdomain', async () => {
       const course = await GolfCourseInstance.findOne({
-        where: { subdomain: testSubdomain }
+        where: { subdomain: testSubdomain },
       });
 
       expect(course).toBeTruthy();
@@ -164,7 +166,7 @@ describe('Subdomain Middleware Tests', () => {
 
     test('should not find course for invalid subdomain', async () => {
       const course = await GolfCourseInstance.findOne({
-        where: { subdomain: 'non-existent-course' }
+        where: { subdomain: 'non-existent-course' },
       });
 
       expect(course).toBe(null);
@@ -180,11 +182,11 @@ describe('Subdomain Middleware Tests', () => {
         city: 'Inactive City',
         state: 'CA',
         postal_code: '90211',
-        country: 'US'
+        country: 'US',
       });
 
       const course = await GolfCourseInstance.findOne({
-        where: { subdomain: 'inactive-course' }
+        where: { subdomain: 'inactive-course' },
       });
 
       expect(course).toBeTruthy();
@@ -192,21 +194,29 @@ describe('Subdomain Middleware Tests', () => {
 
       // Clean up
       await GolfCourseInstance.destroy({
-        where: { id: inactiveCourse.id }
+        where: { id: inactiveCourse.id },
       });
     });
   });
 
   describe('Real-world subdomain scenarios', () => {
     test('should handle complex subdomain names', async () => {
-      expect(extractSubdomain('pine-valley-country-club.devstreet.co')).toBe('pine-valley-country-club');
-      expect(extractSubdomain('royal-oak-123.devstreet.co')).toBe('royal-oak-123');
-      expect(extractSubdomain('golf-course-2024.devstreet.co')).toBe('golf-course-2024');
+      expect(extractSubdomain('pine-valley-country-club.devstreet.co')).toBe(
+        'pine-valley-country-club'
+      );
+      expect(extractSubdomain('royal-oak-123.devstreet.co')).toBe(
+        'royal-oak-123'
+      );
+      expect(extractSubdomain('golf-course-2024.devstreet.co')).toBe(
+        'golf-course-2024'
+      );
     });
 
     test('should handle subdomains with numbers and hyphens', async () => {
       expect(extractSubdomain('course-1.devstreet.co')).toBe('course-1');
-      expect(extractSubdomain('test-123-golf.devstreet.co')).toBe('test-123-golf');
+      expect(extractSubdomain('test-123-golf.devstreet.co')).toBe(
+        'test-123-golf'
+      );
       expect(extractSubdomain('a-b-c-d.devstreet.co')).toBe('a-b-c-d');
     });
 
@@ -215,4 +225,4 @@ describe('Subdomain Middleware Tests', () => {
       expect(extractSubdomain('sub.domain.devstreet.co')).toBe('sub');
     });
   });
-}); 
+});
