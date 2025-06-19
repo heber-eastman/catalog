@@ -4,7 +4,7 @@ const { Op } = require('sequelize');
 const router = express.Router();
 
 const { StaffUser } = require('../models');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, ALL_ROLES } = require('../middleware/auth');
 
 const { generateTokenString } = require('../auth/tokenUtil');
 const { sendEmail } = require('../services/emailService');
@@ -18,13 +18,18 @@ const {
 
 // Note: /register route doesn't require auth, apply middleware selectively
 
-// GET /staff - List all staff (Admin and Manager only)
-router.get('/', requireAuth(['Admin', 'Manager']), async (req, res) => {
+// GET /staff - List all staff (Admin, Manager, and SuperAdmin)
+router.get('/', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
   try {
+    const where = {};
+    
+    // For non-SuperAdmin users, filter by course_id
+    if (req.userRole !== 'SuperAdmin') {
+      where.course_id = req.courseId;
+    }
+    
     const staff = await StaffUser.findAll({
-      where: {
-        course_id: req.courseId,
-      },
+      where,
       attributes: [
         'id',
         'email',

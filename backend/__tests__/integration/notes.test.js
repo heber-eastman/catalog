@@ -67,7 +67,7 @@ describe('Customer Notes API', () => {
 
       // Create customers table
       await sequelize.query(`
-        CREATE TABLE IF NOT EXISTS "customers" (
+        CREATE TABLE IF NOT EXISTS "Customers" (
           "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           "course_id" UUID NOT NULL,
           "first_name" VARCHAR(255) NOT NULL,

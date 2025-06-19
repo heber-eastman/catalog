@@ -38,7 +38,7 @@ module.exports = (sequelize, DataTypes) => {
         unique: true,
       },
       primary_admin_id: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.UUID,
         allowNull: true,
       },
       status: {
@@ -46,22 +46,22 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: 'Pending',
       },
-      date_created: {
+      created_at: {
         type: DataTypes.DATE,
         allowNull: false,
-        defaultValue: DataTypes.NOW,
+        field: 'created_at',
       },
-      createdAt: {
+      updated_at: {
         type: DataTypes.DATE,
         allowNull: false,
-      },
-      updatedAt: {
-        type: DataTypes.DATE,
-        allowNull: false,
+        field: 'updated_at',
       },
     },
     {
       tableName: 'GolfCourseInstances',
+      timestamps: true,
+      createdAt: 'created_at',
+      updatedAt: 'updated_at',
       // Temporarily removed indexes to avoid sync issues
       // indexes: [
       //   {

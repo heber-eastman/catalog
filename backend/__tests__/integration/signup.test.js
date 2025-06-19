@@ -150,7 +150,7 @@ describe('POST /api/v1/signup', () => {
 
       const course = await GolfCourseInstance.findOne({
         where: { name: 'Test Club' },
-        order: [['date_created', 'DESC']],
+        order: [['created_at', 'DESC']],
       });
       expect(course.subdomain).toBe('test-club-2');
     });

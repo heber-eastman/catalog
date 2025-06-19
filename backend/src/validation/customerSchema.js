@@ -54,6 +54,10 @@ const customerSchema = Joi.object({
       'date.base': 'Please provide a valid membership end date',
       'date.min': 'Membership end date must be after start date',
     }),
+
+  notes: Joi.string().allow('').max(1000).messages({
+    'string.max': 'Notes cannot exceed 1000 characters',
+  }),
 });
 
 // Create schema for new customers (all required fields)

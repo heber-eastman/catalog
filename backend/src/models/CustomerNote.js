@@ -33,7 +33,7 @@ module.exports = sequelize => {
         },
       },
       author_id: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.UUID,
         allowNull: false,
         references: {
           model: 'StaffUsers',

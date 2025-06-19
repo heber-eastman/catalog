@@ -51,10 +51,16 @@ api.interceptors.response.use(
 export const authAPI = {
   signup: data => api.post('/signup', data),
   confirm: token => api.get(`/confirm?token=${token}`),
-  login: credentials => api.post('/login', credentials),
+  login: credentials => api.post('/auth/login', credentials),
+  superAdminLogin: credentials => api.post('/auth/super-admin/login', credentials),
   logout: () => {
-    localStorage.removeItem('jwt_token');
-    return Promise.resolve();
+    // Clear localStorage
+    apiUtils.clearToken();
+    // Make a request to clear the HTTP-only cookie
+    return api.post('/auth/logout').catch(() => {
+      // Ignore errors - we're logging out anyway
+      return Promise.resolve();
+    });
   },
   getCurrentUser: () => api.get('/auth/me'),
 };
@@ -127,10 +133,21 @@ export const superAdminAPI = {
 
 // Utility functions
 export const apiUtils = {
-  isAuthenticated: () => !!localStorage.getItem('jwt_token'),
+  isAuthenticated: () => {
+    // Check if we have a token in localStorage OR if we have a user stored (indicating cookie auth)
+    return !!localStorage.getItem('jwt_token') || !!localStorage.getItem('current_user');
+  },
   getToken: () => localStorage.getItem('jwt_token'),
   setToken: token => localStorage.setItem('jwt_token', token),
-  clearToken: () => localStorage.removeItem('jwt_token'),
+  clearToken: () => {
+    localStorage.removeItem('jwt_token');
+    localStorage.removeItem('current_user');
+  },
+  setUser: user => localStorage.setItem('current_user', JSON.stringify(user)),
+  getUser: () => {
+    const user = localStorage.getItem('current_user');
+    return user ? JSON.parse(user) : null;
+  },
 };
 
 export default api;

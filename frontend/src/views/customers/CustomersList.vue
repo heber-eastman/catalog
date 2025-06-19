@@ -50,12 +50,12 @@
       </v-col>
       <v-col cols="12" md="3">
         <v-select
-          v-model="statusFilter"
-          :items="statusOptions"
-          label="Status Filter"
+          v-model="membershipFilter"
+          :items="membershipTypeOptions"
+          label="Membership Filter"
           clearable
           hide-details
-          data-cy="status-filter"
+          data-cy="membership-filter"
           @update:model-value="applyFilters"
         />
       </v-col>
@@ -128,13 +128,13 @@
               </div>
             </template>
 
-            <template #item.status="{ item }">
+            <template #item.membership_type="{ item }">
               <v-chip 
-                :color="getStatusColor(item.status)" 
+                :color="getMembershipTypeColor(item.membership_type)" 
                 size="small"
-                data-cy="customer-status-chip"
+                data-cy="customer-membership-chip"
               >
-                {{ item.status || 'Active' }}
+                {{ item.membership_type || 'Trial' }}
               </v-chip>
             </template>
 
@@ -231,10 +231,12 @@
               </v-col>
               <v-col cols="6">
                 <v-select
-                  v-model="customerData.status"
-                  :items="statusOptions"
-                  label="Status"
-                  data-cy="customer-status-select"
+                  v-model="customerData.membership_type"
+                  :items="membershipTypeOptions"
+                  label="Membership Type *"
+                  :rules="[v => !!v || 'Membership type is required']"
+                  required
+                  data-cy="customer-membership-type-select"
                 />
               </v-col>
             </v-row>
@@ -413,7 +415,7 @@ export default {
       exporting: false,
       deleting: false,
       search: '',
-      statusFilter: null,
+      membershipFilter: null,
       sortBy: 'created_at_desc',
       debouncedSearch: null, // Initialize here to avoid Vue warnings
       
@@ -431,7 +433,7 @@ export default {
         last_name: '',
         email: '',
         phone: '',
-        status: 'Active',
+        membership_type: 'Trial',
         notes: '',
       },
       
@@ -448,10 +450,12 @@ export default {
       snackbarColor: 'success',
       
       // Options
-      statusOptions: [
-        { title: 'Active', value: 'Active' },
-        { title: 'Inactive', value: 'Inactive' },
-        { title: 'Pending', value: 'Pending' },
+      membershipTypeOptions: [
+        { title: 'Trial', value: 'Trial' },
+        { title: 'Full', value: 'Full' },
+        { title: 'Junior', value: 'Junior' },
+        { title: 'Senior', value: 'Senior' },
+        { title: 'Social', value: 'Social' },
       ],
       sortOptions: [
         { title: 'Name (A-Z)', value: 'name_asc' },
@@ -471,7 +475,7 @@ export default {
         { title: 'Customer', key: 'full_name', sortable: true },
         { title: 'Email', key: 'email', sortable: true },
         { title: 'Phone', key: 'phone', sortable: true },
-        { title: 'Status', key: 'status', sortable: true },
+        { title: 'Membership', key: 'membership_type', sortable: true },
         { title: 'Created', key: 'created_at', sortable: true },
         { title: 'Actions', key: 'actions', sortable: false, width: 120 },
       ],
@@ -489,7 +493,6 @@ export default {
         this.customers = (response.data.customers || response.data || []).map(customer => ({
           ...customer,
           full_name: `${customer.first_name} ${customer.last_name}`,
-          status: customer.status || 'Active',
         }));
         this.applyFilters();
       } catch (error) {
@@ -502,9 +505,9 @@ export default {
     applyFilters() {
       let filtered = [...this.customers];
       
-      // Apply status filter
-      if (this.statusFilter) {
-        filtered = filtered.filter(customer => customer.status === this.statusFilter);
+      // Apply membership filter
+      if (this.membershipFilter) {
+        filtered = filtered.filter(customer => customer.membership_type === this.membershipFilter);
       }
       
       // Apply search filter
@@ -558,7 +561,7 @@ export default {
 
     clearFilters() {
       this.search = '';
-      this.statusFilter = null;
+      this.membershipFilter = null;
       this.sortBy = 'created_at_desc';
       this.applyFilters();
     },
@@ -615,7 +618,7 @@ export default {
         last_name: '',
         email: '',
         phone: '',
-        status: 'Active',
+        membership_type: 'Trial',
         notes: '',
       };
     },
@@ -786,11 +789,13 @@ export default {
       }
     },
 
-    getStatusColor(status) {
-      switch (status) {
-        case 'Active': return 'success';
-        case 'Inactive': return 'error';
-        case 'Pending': return 'warning';
+    getMembershipTypeColor(membershipType) {
+      switch (membershipType) {
+        case 'Full': return 'success';
+        case 'Trial': return 'info';
+        case 'Junior': return 'purple';
+        case 'Senior': return 'orange';
+        case 'Social': return 'blue';
         default: return 'primary';
       }
     },

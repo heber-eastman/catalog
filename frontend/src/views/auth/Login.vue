@@ -3,9 +3,27 @@
     <v-row align="center" justify="center">
       <v-col cols="12" sm="8" md="6" lg="4">
         <v-card class="pa-6">
-          <v-card-title class="text-h4 text-center mb-4"> Login </v-card-title>
+          <v-card-title class="text-h4 text-center mb-4"> 
+            {{ isSuperAdmin ? 'Super Admin Login' : 'Staff Login' }}
+          </v-card-title>
 
           <v-card-text>
+            <!-- Login Type Toggle -->
+            <div class="text-center mb-4">
+              <v-chip-group
+                v-model="loginType"
+                selected-class="text-primary"
+                mandatory
+              >
+                <v-chip value="staff" @click="isSuperAdmin = false">
+                  Staff Login
+                </v-chip>
+                <v-chip value="super-admin" @click="isSuperAdmin = true">
+                  Super Admin
+                </v-chip>
+              </v-chip-group>
+            </div>
+
             <v-form ref="form" v-model="valid" @submit.prevent="handleLogin">
               <v-text-field
                 v-model="form.email"
@@ -43,7 +61,7 @@
                 class="mb-4"
                 data-cy="login-button"
               >
-                Login
+                {{ isSuperAdmin ? 'Login as Super Admin' : 'Login' }}
               </v-btn>
             </v-form>
           </v-card-text>
@@ -57,6 +75,7 @@
 
           <v-card-actions class="justify-center flex-column ga-2">
             <v-btn
+              v-if="!isSuperAdmin"
               variant="text"
               color="primary"
               @click="$router.push('/signup')"
@@ -65,7 +84,10 @@
             </v-btn>
 
             <div class="text-caption text-medium-emphasis">
-              Staff member? Check your email for registration link
+              {{ isSuperAdmin 
+                ? 'Super admin access for platform management' 
+                : 'Staff member? Check your email for registration link' 
+              }}
             </div>
           </v-card-actions>
         </v-card>
@@ -85,6 +107,8 @@ export default {
       loading: false,
       showPassword: false,
       errorMessage: '',
+      loginType: 'staff',
+      isSuperAdmin: false,
       form: {
         email: '',
         password: '',
@@ -104,21 +128,38 @@ export default {
       this.errorMessage = '';
 
       try {
-        const response = await authAPI.login(this.form);
+        let response;
+        
+        if (this.isSuperAdmin) {
+          response = await authAPI.superAdminLogin(this.form);
+        } else {
+          response = await authAPI.login(this.form);
+        }
+        
         console.log('Login response:', response.data);
 
-        // Store the JWT token if provided in response
+        // Store the JWT token if provided in response body
         if (response.data.token) {
           apiUtils.setToken(response.data.token);
         }
 
-        // Redirect based on user role or to dashboard
-        const redirectPath = this.$route.query.redirect || '/dashboard';
-        this.$router.push(redirectPath);
+        // Store user data (for cookie-based auth)
+        apiUtils.setUser(response.data);
+
+        // Redirect based on user role
+        let redirectPath = '/dashboard';
+        if (this.isSuperAdmin || response.data.role === 'SuperAdmin') {
+          redirectPath = '/super-admin/courses';
+        }
+        
+        const finalPath = this.$route.query.redirect || redirectPath;
+        this.$router.push(finalPath);
       } catch (error) {
         console.error('Login error:', error);
         this.errorMessage =
-          error.response?.data?.error || 'Invalid email or password';
+          error.response?.data?.message || 
+          error.response?.data?.error || 
+          'Invalid email or password';
       } finally {
         this.loading = false;
       }

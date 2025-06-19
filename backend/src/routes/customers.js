@@ -4,8 +4,8 @@ const multer = require('multer');
 const csv = require('csv-parser');
 const { Readable } = require('stream');
 const router = express.Router();
-const { Customer } = require('../models');
-const { requireAuth } = require('../middleware/auth');
+const { Customer, sequelize } = require('../models');
+const { requireAuth, ALL_ROLES } = require('../middleware/auth');
 const {
   createCustomerSchema,
   updateCustomerSchema,
@@ -29,7 +29,7 @@ const upload = multer({
 // Note: Auth middleware applied to individual routes to avoid interfering with other /api/v1/* routes
 
 // GET /customers/export - Export customers to CSV
-router.get('/customers/export', requireAuth(), async (req, res) => {
+router.get('/customers/export', requireAuth(ALL_ROLES), async (req, res) => {
   try {
     const { search, membership_type, is_archived } = req.query;
 
@@ -104,7 +104,7 @@ router.get('/customers/export', requireAuth(), async (req, res) => {
 // POST /customers/import - Import customers from CSV
 router.post(
   '/customers/import',
-  requireAuth(),
+  requireAuth(ALL_ROLES),
   upload.single('file'),
   async (req, res) => {
     try {
@@ -219,7 +219,7 @@ router.post(
 );
 
 // GET /customers - List customers with search/filter/sort/paginate
-router.get('/customers', requireAuth(), async (req, res) => {
+router.get('/customers', requireAuth(ALL_ROLES), async (req, res) => {
   try {
     const {
       page = 1,
@@ -232,9 +232,12 @@ router.get('/customers', requireAuth(), async (req, res) => {
     } = req.query;
 
     // Build where clause
-    const where = {
-      course_id: req.courseId,
-    };
+    const where = {};
+    
+    // For non-SuperAdmin users, filter by course_id
+    if (req.userRole !== 'SuperAdmin') {
+      where.course_id = req.courseId;
+    }
 
     // Add search condition
     if (search) {
@@ -274,7 +277,7 @@ router.get('/customers', requireAuth(), async (req, res) => {
 });
 
 // POST /customers - Create new customer
-router.post('/customers', requireAuth(), async (req, res) => {
+router.post('/customers', requireAuth(ALL_ROLES), async (req, res) => {
   try {
     // Validate request body
     const { error, value } = createCustomerSchema.validate(req.body, {
@@ -309,14 +312,109 @@ router.post('/customers', requireAuth(), async (req, res) => {
   }
 });
 
-// GET /customers/:id - Get single customer
-router.get('/customers/:id', requireAuth(), async (req, res) => {
+// GET /customers/status-counts - Get customer statistics for dashboard
+router.get('/customers/status-counts', requireAuth(ALL_ROLES), async (req, res) => {
   try {
-    const customer = await Customer.findOne({
-      where: {
-        id: req.params.id,
-        course_id: req.courseId,
+    const courseId = req.courseId;
+    
+    // Build base where clause for all queries
+    const baseWhere = {};
+    if (req.userRole !== 'SuperAdmin') {
+      baseWhere.course_id = courseId;
+    }
+    
+    // Get total customer count
+    const totalCustomers = await Customer.count({
+      where: { 
+        ...baseWhere,
+        is_archived: false 
+      }
+    });
+    
+    // Get customers by membership type
+    const membershipTypeCounts = await Customer.findAll({
+      where: { 
+        ...baseWhere,
+        is_archived: false 
       },
+      attributes: [
+        'membership_type',
+        [sequelize.fn('COUNT', sequelize.col('membership_type')), 'count']
+      ],
+      group: ['membership_type'],
+      raw: true
+    });
+    
+    // Get archived customer count
+    const archivedCustomers = await Customer.count({
+      where: { 
+        ...baseWhere,
+        is_archived: true 
+      }
+    });
+    
+    // Get new customers this month
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+    
+    const newCustomersThisMonth = await Customer.count({
+      where: { 
+        ...baseWhere,
+        is_archived: false,
+        created_at: {
+          [Op.gte]: startOfMonth
+        }
+      }
+    });
+    
+    // Get customers with active memberships (non-expired)
+    const now = new Date();
+    const activeMemberships = await Customer.count({
+      where: { 
+        ...baseWhere,
+        is_archived: false,
+        [Op.or]: [
+          { membership_end_date: null }, // No expiry date
+          { membership_end_date: { [Op.gte]: now } } // Future expiry
+        ]
+      }
+    });
+    
+    // Format membership type counts for easier consumption
+    const membershipStats = {};
+    membershipTypeCounts.forEach(item => {
+      membershipStats[item.membership_type || 'none'] = parseInt(item.count);
+    });
+    
+    const stats = {
+      totalCustomers,
+      archivedCustomers,
+      activeMembers: activeMemberships,
+      newThisMonth: newCustomersThisMonth,
+      membershipTypes: membershipStats,
+      calculatedAt: new Date().toISOString()
+    };
+    
+    res.json(stats);
+  } catch (error) {
+    console.error('Error fetching customer status counts:', error);
+    res.status(500).json({ error: 'Failed to fetch customer statistics' });
+  }
+});
+
+// GET /customers/:id - Get single customer
+router.get('/customers/:id', requireAuth(ALL_ROLES), async (req, res) => {
+  try {
+    const where = { id: req.params.id };
+    
+    // For non-SuperAdmin users, filter by course_id
+    if (req.userRole !== 'SuperAdmin') {
+      where.course_id = req.courseId;
+    }
+    
+    const customer = await Customer.findOne({
+      where,
     });
 
     if (!customer) {
@@ -331,7 +429,7 @@ router.get('/customers/:id', requireAuth(), async (req, res) => {
 });
 
 // PUT /customers/:id - Update customer
-router.put('/customers/:id', requireAuth(), async (req, res) => {
+router.put('/customers/:id', requireAuth(ALL_ROLES), async (req, res) => {
   try {
     // Get existing customer
     const customer = await Customer.findOne({
@@ -376,7 +474,7 @@ router.put('/customers/:id', requireAuth(), async (req, res) => {
 });
 
 // DELETE /customers/:id - Delete customer
-router.delete('/customers/:id', requireAuth(), async (req, res) => {
+router.delete('/customers/:id', requireAuth(ALL_ROLES), async (req, res) => {
   try {
     const customer = await Customer.findOne({
       where: {
