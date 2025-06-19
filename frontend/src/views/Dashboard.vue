@@ -8,7 +8,8 @@
             Welcome to Golf Course Management
           </v-card-title>
           <v-card-text class="text-h6">
-            Your comprehensive platform for managing customers, staff, and operations.
+            Your comprehensive platform for managing customers, staff, and
+            operations.
           </v-card-text>
         </v-card>
       </v-col>
@@ -159,13 +160,15 @@
           <v-card-title>Recent Activity</v-card-title>
           <v-card-text>
             <v-list v-if="recentActivity.length > 0">
-              <v-list-item 
-                v-for="(activity, index) in recentActivity" 
+              <v-list-item
+                v-for="(activity, index) in recentActivity"
                 :key="index"
                 :prepend-icon="activity.icon"
               >
                 <v-list-item-title>{{ activity.title }}</v-list-item-title>
-                <v-list-item-subtitle>{{ activity.subtitle }}</v-list-item-subtitle>
+                <v-list-item-subtitle>{{
+                  activity.subtitle
+                }}</v-list-item-subtitle>
                 <template #append>
                   <v-chip :color="activity.color" size="small">
                     {{ activity.status }}
@@ -254,7 +257,8 @@ export default {
     async loadCustomersCount() {
       try {
         const response = await customerAPI.getAll({ limit: 1000 });
-        this.dashboardStats.totalCustomers = response.data.customers?.length || response.data.length || 0;
+        this.dashboardStats.totalCustomers =
+          response.data.customers?.length || response.data.length || 0;
       } catch (error) {
         console.error('Error loading customers count:', error);
         this.dashboardStats.totalCustomers = 'N/A';
@@ -264,7 +268,8 @@ export default {
     async loadStaffCount() {
       try {
         const response = await staffAPI.getAll();
-        this.dashboardStats.totalStaff = response.data.staff?.length || response.data.length || 0;
+        this.dashboardStats.totalStaff =
+          response.data.staff?.length || response.data.length || 0;
       } catch (error) {
         console.error('Error loading staff count:', error);
         this.dashboardStats.totalStaff = 'N/A';
@@ -303,7 +308,12 @@ export default {
       try {
         console.log('Testing Customers API...');
         const response = await customerAPI.getAll({ limit: 5 });
-        this.logAPIResponse('GET', '/customers', response.status, response.data);
+        this.logAPIResponse(
+          'GET',
+          '/customers',
+          response.status,
+          response.data
+        );
         console.log('Customers API response:', response.data);
       } catch (error) {
         console.error('Customers API error:', error);

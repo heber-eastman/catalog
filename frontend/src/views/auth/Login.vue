@@ -3,7 +3,7 @@
     <v-row align="center" justify="center">
       <v-col cols="12" sm="8" md="6" lg="4">
         <v-card class="pa-6">
-          <v-card-title class="text-h4 text-center mb-4"> 
+          <v-card-title class="text-h4 text-center mb-4">
             {{ isSuperAdmin ? 'Super Admin Login' : 'Staff Login' }}
           </v-card-title>
 
@@ -84,9 +84,10 @@
             </v-btn>
 
             <div class="text-caption text-medium-emphasis">
-              {{ isSuperAdmin 
-                ? 'Super admin access for platform management' 
-                : 'Staff member? Check your email for registration link' 
+              {{
+                isSuperAdmin
+                  ? 'Super admin access for platform management'
+                  : 'Staff member? Check your email for registration link'
               }}
             </div>
           </v-card-actions>
@@ -129,13 +130,13 @@ export default {
 
       try {
         let response;
-        
+
         if (this.isSuperAdmin) {
           response = await authAPI.superAdminLogin(this.form);
         } else {
           response = await authAPI.login(this.form);
         }
-        
+
         console.log('Login response:', response.data);
 
         // Store the JWT token if provided in response body
@@ -151,14 +152,14 @@ export default {
         if (this.isSuperAdmin || response.data.role === 'SuperAdmin') {
           redirectPath = '/super-admin/courses';
         }
-        
+
         const finalPath = this.$route.query.redirect || redirectPath;
         this.$router.push(finalPath);
       } catch (error) {
         console.error('Login error:', error);
         this.errorMessage =
-          error.response?.data?.message || 
-          error.response?.data?.error || 
+          error.response?.data?.message ||
+          error.response?.data?.error ||
           'Invalid email or password';
       } finally {
         this.loading = false;

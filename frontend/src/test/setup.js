@@ -1,8 +1,8 @@
-import { config } from '@vue/test-utils'
-import { createVuetify } from 'vuetify'
-import * as components from 'vuetify/components'
-import * as directives from 'vuetify/directives'
-import 'vuetify/styles'
+import { config } from '@vue/test-utils';
+import { createVuetify } from 'vuetify';
+import * as components from 'vuetify/components';
+import * as directives from 'vuetify/directives';
+import 'vuetify/styles';
 
 // Add missing vitest globals
 import { beforeEach, afterEach, vi } from 'vitest';
@@ -16,10 +16,10 @@ globalThis.vi = vi;
 const vuetify = createVuetify({
   components,
   directives,
-})
+});
 
 // Configure Vue Test Utils to use Vuetify
-config.global.plugins = [vuetify]
+config.global.plugins = [vuetify];
 
 // Mock the router
 const mockRouter = {
@@ -33,15 +33,15 @@ const mockRouter = {
       params: { id: '1' },
       query: {},
       path: '/',
-      name: 'Home'
-    }
-  }
-}
+      name: 'Home',
+    },
+  },
+};
 
 config.global.mocks = {
   $router: mockRouter,
-  $route: mockRouter.currentRoute.value
-}
+  $route: mockRouter.currentRoute.value,
+};
 
 // Mock API functions
 const mockAPI = {
@@ -75,20 +75,20 @@ const mockAPI = {
     isAuthenticated: vi.fn(),
     getToken: vi.fn(),
     removeToken: vi.fn(),
-  }
-}
+  },
+};
 
 // Make API mocks available globally
 config.global.provide = {
-  api: mockAPI
-}
+  api: mockAPI,
+};
 
 // Reset all mocks before each test
 beforeEach(() => {
-  vi.clearAllMocks()
-})
+  vi.clearAllMocks();
+});
 
-export { mockAPI, mockRouter }
+export { mockAPI, mockRouter };
 
 // Mock ResizeObserver which is used by Vuetify components
 global.ResizeObserver = vi.fn().mockImplementation(() => ({

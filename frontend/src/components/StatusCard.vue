@@ -1,45 +1,35 @@
 <template>
-  <v-card 
+  <v-card
     :color="cardColor"
     :variant="variant"
     class="pa-4 text-center"
     elevation="2"
   >
-    <v-icon 
-      :icon="icon" 
-      :color="iconColor"
-      size="48"
-      class="mb-2"
-    />
-    
+    <v-icon :icon="icon" :color="iconColor" size="48" class="mb-2" />
+
     <v-card-title class="text-h4 font-weight-bold mb-1">
       {{ value }}
     </v-card-title>
-    
+
     <v-card-subtitle class="text-subtitle-1">
       {{ title }}
     </v-card-subtitle>
-    
+
     <v-card-text v-if="subtitle" class="text-caption">
       {{ subtitle }}
     </v-card-text>
-    
+
     <!-- Trend indicator -->
     <div v-if="trend" class="d-flex align-center justify-center mt-2">
-      <v-icon 
-        :icon="trendIcon"
-        :color="trendColor"
-        size="small"
-        class="mr-1"
-      />
+      <v-icon :icon="trendIcon" :color="trendColor" size="small" class="mr-1" />
       <span :class="trendColor" class="text-caption font-weight-medium">
         {{ trendText }}
       </span>
     </div>
-    
+
     <!-- Action button -->
     <v-card-actions v-if="actionText" class="justify-center">
-      <v-btn 
+      <v-btn
         :color="actionColor"
         variant="text"
         size="small"
@@ -58,41 +48,41 @@ export default {
   props: {
     title: {
       type: String,
-      required: true
+      required: true,
     },
     value: {
       type: [String, Number],
-      required: true
+      required: true,
     },
     subtitle: {
       type: String,
-      default: ''
+      default: '',
     },
     icon: {
       type: String,
-      required: true
+      required: true,
     },
     color: {
       type: String,
-      default: 'primary'
+      default: 'primary',
     },
     variant: {
       type: String,
-      default: 'elevated'
+      default: 'elevated',
     },
     trend: {
       type: Object,
-      default: null
+      default: null,
       // Expected format: { value: 12.5, direction: 'up'|'down', text: '+12.5% from last month' }
     },
     actionText: {
       type: String,
-      default: ''
+      default: '',
     },
     actionColor: {
       type: String,
-      default: 'primary'
-    }
+      default: 'primary',
+    },
   },
   computed: {
     cardColor() {
@@ -106,7 +96,9 @@ export default {
     },
     trendIcon() {
       if (!this.trend) return '';
-      return this.trend.direction === 'up' ? 'mdi-trending-up' : 'mdi-trending-down';
+      return this.trend.direction === 'up'
+        ? 'mdi-trending-up'
+        : 'mdi-trending-down';
     },
     trendColor() {
       if (!this.trend) return '';
@@ -114,8 +106,8 @@ export default {
     },
     trendText() {
       return this.trend?.text || '';
-    }
-  }
+    },
+  },
 };
 </script>
 
@@ -127,4 +119,4 @@ export default {
 .v-card:hover {
   transform: translateY(-2px);
 }
-</style> 
+</style>

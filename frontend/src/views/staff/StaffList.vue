@@ -155,12 +155,18 @@
               required
               data-cy="invite-role"
             />
-            <v-text-field v-model="newStaff.phone" label="Phone" data-cy="invite-phone" />
+            <v-text-field
+              v-model="newStaff.phone"
+              label="Phone"
+              data-cy="invite-phone"
+            />
           </v-form>
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn @click="showInviteDialog = false" data-cy="invite-cancel">Cancel</v-btn>
+          <v-btn @click="showInviteDialog = false" data-cy="invite-cancel"
+            >Cancel</v-btn
+          >
           <v-btn
             color="primary"
             @click="inviteStaff"
@@ -219,12 +225,18 @@
               required
               data-cy="edit-role"
             />
-            <v-text-field v-model="editStaffData.phone" label="Phone" data-cy="edit-phone" />
+            <v-text-field
+              v-model="editStaffData.phone"
+              label="Phone"
+              data-cy="edit-phone"
+            />
           </v-form>
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn @click="showEditDialog = false" data-cy="edit-cancel">Cancel</v-btn>
+          <v-btn @click="showEditDialog = false" data-cy="edit-cancel"
+            >Cancel</v-btn
+          >
           <v-btn
             color="primary"
             @click="updateStaff"
@@ -243,12 +255,17 @@
       <v-card>
         <v-card-title class="text-h5">Confirm Deactivation</v-card-title>
         <v-card-text>
-          Are you sure you want to deactivate <strong>{{ selectedStaff?.full_name }}</strong>?
-          This action will prevent them from accessing the system.
+          Are you sure you want to deactivate
+          <strong>{{ selectedStaff?.full_name }}</strong
+          >? This action will prevent them from accessing the system.
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn @click="showDeactivateDialog = false" data-cy="deactivate-cancel">Cancel</v-btn>
+          <v-btn
+            @click="showDeactivateDialog = false"
+            data-cy="deactivate-cancel"
+            >Cancel</v-btn
+          >
           <v-btn
             color="error"
             @click="confirmDeactivateStaff"
@@ -439,7 +456,10 @@ export default {
       this.updating = true;
       try {
         console.log('Updating staff member:', this.editStaffData);
-        const response = await staffAPI.update(this.editStaffData.id, this.editStaffData);
+        const response = await staffAPI.update(
+          this.editStaffData.id,
+          this.editStaffData
+        );
 
         this.lastApiResponse = JSON.stringify(response.data, null, 2);
         console.log('Staff updated:', response.data);

@@ -123,14 +123,16 @@
                 </v-avatar>
                 <div>
                   <div class="font-weight-medium">{{ item.full_name }}</div>
-                  <div class="text-caption text-medium-emphasis">ID: {{ item.id }}</div>
+                  <div class="text-caption text-medium-emphasis">
+                    ID: {{ item.id }}
+                  </div>
                 </div>
               </div>
             </template>
 
             <template #item.membership_type="{ item }">
-              <v-chip 
-                :color="getMembershipTypeColor(item.membership_type)" 
+              <v-chip
+                :color="getMembershipTypeColor(item.membership_type)"
                 size="small"
                 data-cy="customer-membership-chip"
               >
@@ -169,10 +171,18 @@
 
             <template #no-data>
               <div class="text-center pa-6">
-                <v-icon icon="mdi-account-group" size="64" class="mb-2 text-medium-emphasis" />
+                <v-icon
+                  icon="mdi-account-group"
+                  size="64"
+                  class="mb-2 text-medium-emphasis"
+                />
                 <p class="text-h6 mb-2">No customers found</p>
                 <p class="text-medium-emphasis mb-4">
-                  {{ search ? 'Try adjusting your search or filters' : 'Add your first customer to get started!' }}
+                  {{
+                    search
+                      ? 'Try adjusting your search or filters'
+                      : 'Add your first customer to get started!'
+                  }}
                 </p>
                 <v-btn color="primary" @click="showCreateDialog = true">
                   Add Customer
@@ -187,7 +197,9 @@
     <!-- Create/Edit Customer Dialog -->
     <v-dialog v-model="showCreateDialog" max-width="700px">
       <v-card>
-        <v-card-title>{{ editingCustomer ? 'Edit Customer' : 'Add New Customer' }}</v-card-title>
+        <v-card-title>{{
+          editingCustomer ? 'Edit Customer' : 'Add New Customer'
+        }}</v-card-title>
         <v-card-text>
           <v-form ref="customerForm" v-model="customerFormValid">
             <v-row>
@@ -223,8 +235,8 @@
             />
             <v-row>
               <v-col cols="6">
-                <v-text-field 
-                  v-model="customerData.phone" 
+                <v-text-field
+                  v-model="customerData.phone"
                   label="Phone"
                   data-cy="customer-phone"
                 />
@@ -250,7 +262,9 @@
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn @click="closeCustomerDialog" data-cy="cancel-customer-btn">Cancel</v-btn>
+          <v-btn @click="closeCustomerDialog" data-cy="cancel-customer-btn"
+            >Cancel</v-btn
+          >
           <v-btn
             color="primary"
             @click="saveCustomer"
@@ -270,13 +284,15 @@
         <v-card-title>Import Customers</v-card-title>
         <v-card-text>
           <div class="mb-4">
-            <p class="text-subtitle-1 mb-2">Upload CSV file with customer data</p>
+            <p class="text-subtitle-1 mb-2">
+              Upload CSV file with customer data
+            </p>
             <p class="text-caption text-medium-emphasis">
-              Required columns: first_name, last_name, email<br>
+              Required columns: first_name, last_name, email<br />
               Optional columns: phone, status, notes
             </p>
           </div>
-          
+
           <v-file-input
             v-model="importFile"
             label="Select CSV file"
@@ -285,15 +301,11 @@
             show-size
             data-cy="import-file-input"
           />
-          
-          <v-alert
-            v-if="importPreview.length > 0"
-            type="info"
-            class="mt-3"
-          >
+
+          <v-alert v-if="importPreview.length > 0" type="info" class="mt-3">
             Found {{ importPreview.length }} customers in file
           </v-alert>
-          
+
           <div v-if="importErrors.length > 0" class="mt-3">
             <v-alert type="error">
               Import validation errors:
@@ -305,7 +317,9 @@
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn @click="closeImportDialog" data-cy="cancel-import-btn">Cancel</v-btn>
+          <v-btn @click="closeImportDialog" data-cy="cancel-import-btn"
+            >Cancel</v-btn
+          >
           <v-btn
             color="primary"
             @click="processImport"
@@ -327,20 +341,24 @@
           <div class="mb-4">
             <p class="text-subtitle-1 mb-2">Export Options</p>
           </div>
-          
+
           <v-radio-group v-model="exportType" data-cy="export-type">
             <v-radio label="All customers" value="all" />
-            <v-radio label="Selected customers only" value="selected" :disabled="selectedCustomers.length === 0" />
+            <v-radio
+              label="Selected customers only"
+              value="selected"
+              :disabled="selectedCustomers.length === 0"
+            />
             <v-radio label="Filtered customers" value="filtered" />
           </v-radio-group>
-          
+
           <v-select
             v-model="exportFormat"
             :items="exportFormats"
             label="Format"
             data-cy="export-format"
           />
-          
+
           <div class="mt-3">
             <p class="text-caption">
               {{ getExportDescription() }}
@@ -349,7 +367,9 @@
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn @click="showExportDialog = false" data-cy="cancel-export-btn">Cancel</v-btn>
+          <v-btn @click="showExportDialog = false" data-cy="cancel-export-btn"
+            >Cancel</v-btn
+          >
           <v-btn
             color="primary"
             @click="processExport"
@@ -367,17 +387,14 @@
       <v-card>
         <v-card-title>Confirm Bulk Delete</v-card-title>
         <v-card-text>
-          Are you sure you want to delete {{ selectedCustomers.length }} selected customers?
-          This action cannot be undone.
+          Are you sure you want to delete
+          {{ selectedCustomers.length }} selected customers? This action cannot
+          be undone.
         </v-card-text>
         <v-card-actions>
           <v-spacer />
           <v-btn @click="showBulkDeleteDialog = false">Cancel</v-btn>
-          <v-btn
-            color="error"
-            @click="processBulkDelete"
-            :loading="deleting"
-          >
+          <v-btn color="error" @click="processBulkDelete" :loading="deleting">
             Delete
           </v-btn>
         </v-card-actions>
@@ -385,11 +402,7 @@
     </v-dialog>
 
     <!-- Snackbar for notifications -->
-    <v-snackbar
-      v-model="showSnackbar"
-      :color="snackbarColor"
-      timeout="4000"
-    >
+    <v-snackbar v-model="showSnackbar" :color="snackbarColor" timeout="4000">
       {{ snackbarMessage }}
       <template #actions>
         <v-btn @click="showSnackbar = false" icon="mdi-close" />
@@ -418,13 +431,13 @@ export default {
       membershipFilter: null,
       sortBy: 'created_at_desc',
       debouncedSearch: null, // Initialize here to avoid Vue warnings
-      
+
       // Dialog states
       showCreateDialog: false,
       showImportDialog: false,
       showExportDialog: false,
       showBulkDeleteDialog: false,
-      
+
       // Form data
       customerFormValid: false,
       editingCustomer: null,
@@ -436,19 +449,19 @@ export default {
         membership_type: 'Trial',
         notes: '',
       },
-      
+
       // Import/Export data
       importFile: null,
       importPreview: [],
       importErrors: [],
       exportType: 'all',
       exportFormat: 'csv',
-      
+
       // Snackbar
       showSnackbar: false,
       snackbarMessage: '',
       snackbarColor: 'success',
-      
+
       // Options
       membershipTypeOptions: [
         { title: 'Trial', value: 'Trial' },
@@ -470,7 +483,7 @@ export default {
         { title: 'Excel', value: 'xlsx' },
         { title: 'JSON', value: 'json' },
       ],
-      
+
       headers: [
         { title: 'Customer', key: 'full_name', sortable: true },
         { title: 'Email', key: 'email', sortable: true },
@@ -490,13 +503,19 @@ export default {
       this.loading = true;
       try {
         const response = await customerAPI.getAll();
-        this.customers = (response.data.customers || response.data || []).map(customer => ({
-          ...customer,
-          full_name: `${customer.first_name} ${customer.last_name}`,
-        }));
+        this.customers = (response.data.customers || response.data || []).map(
+          customer => ({
+            ...customer,
+            full_name: `${customer.first_name} ${customer.last_name}`,
+          })
+        );
         this.applyFilters();
       } catch (error) {
-        this.showNotification('Error loading customers: ' + (error.response?.data?.error || error.message), 'error');
+        this.showNotification(
+          'Error loading customers: ' +
+            (error.response?.data?.error || error.message),
+          'error'
+        );
       } finally {
         this.loading = false;
       }
@@ -504,22 +523,25 @@ export default {
 
     applyFilters() {
       let filtered = [...this.customers];
-      
+
       // Apply membership filter
       if (this.membershipFilter) {
-        filtered = filtered.filter(customer => customer.membership_type === this.membershipFilter);
+        filtered = filtered.filter(
+          customer => customer.membership_type === this.membershipFilter
+        );
       }
-      
+
       // Apply search filter
       if (this.search) {
         const searchLower = this.search.toLowerCase();
-        filtered = filtered.filter(customer =>
-          customer.full_name.toLowerCase().includes(searchLower) ||
-          customer.email.toLowerCase().includes(searchLower) ||
-          customer.phone?.toLowerCase().includes(searchLower)
+        filtered = filtered.filter(
+          customer =>
+            customer.full_name.toLowerCase().includes(searchLower) ||
+            customer.email.toLowerCase().includes(searchLower) ||
+            customer.phone?.toLowerCase().includes(searchLower)
         );
       }
-      
+
       this.filteredCustomers = filtered;
       this.applySorting();
     },
@@ -527,10 +549,10 @@ export default {
     applySorting() {
       const [field, direction] = this.sortBy.split('_');
       const isAsc = direction === 'asc';
-      
+
       this.filteredCustomers.sort((a, b) => {
         let aVal, bVal;
-        
+
         switch (field) {
           case 'name':
             aVal = a.full_name;
@@ -548,7 +570,7 @@ export default {
             aVal = a[field];
             bVal = b[field];
         }
-        
+
         if (aVal < bVal) return isAsc ? -1 : 1;
         if (aVal > bVal) return isAsc ? 1 : -1;
         return 0;
@@ -583,14 +605,18 @@ export default {
           this.showNotification('Customer deleted successfully');
           await this.loadCustomers();
         } catch (error) {
-          this.showNotification('Error deleting customer: ' + (error.response?.data?.error || error.message), 'error');
+          this.showNotification(
+            'Error deleting customer: ' +
+              (error.response?.data?.error || error.message),
+            'error'
+          );
         }
       }
     },
 
     async saveCustomer() {
       if (!this.customerFormValid) return;
-      
+
       this.saving = true;
       try {
         if (this.editingCustomer) {
@@ -600,11 +626,15 @@ export default {
           await customerAPI.create(this.customerData);
           this.showNotification('Customer created successfully');
         }
-        
+
         this.closeCustomerDialog();
         await this.loadCustomers();
       } catch (error) {
-        this.showNotification('Error saving customer: ' + (error.response?.data?.error || error.message), 'error');
+        this.showNotification(
+          'Error saving customer: ' +
+            (error.response?.data?.error || error.message),
+          'error'
+        );
       } finally {
         this.saving = false;
       }
@@ -626,63 +656,72 @@ export default {
     // Import functionality
     async processImport() {
       if (!this.importFile) return;
-      
+
       this.importing = true;
       try {
         // In a real app, this would parse CSV and validate data
         // For now, we'll simulate the process
-        
+
         const text = await this.importFile.text();
         const lines = text.split('\n').filter(line => line.trim());
         const headers = lines[0].split(',').map(h => h.trim());
-        
+
         this.importErrors = [];
         this.importPreview = [];
-        
+
         // Validate headers
         const requiredHeaders = ['first_name', 'last_name', 'email'];
-        const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+        const missingHeaders = requiredHeaders.filter(
+          h => !headers.includes(h)
+        );
         if (missingHeaders.length > 0) {
-          this.importErrors.push(`Missing required columns: ${missingHeaders.join(', ')}`);
+          this.importErrors.push(
+            `Missing required columns: ${missingHeaders.join(', ')}`
+          );
           return;
         }
-        
+
         // Process data rows
         for (let i = 1; i < lines.length; i++) {
           const values = lines[i].split(',').map(v => v.trim());
           const customer = {};
-          
+
           headers.forEach((header, index) => {
             customer[header] = values[index] || '';
           });
-          
+
           // Validate required fields
           if (!customer.first_name || !customer.last_name || !customer.email) {
             this.importErrors.push(`Row ${i + 1}: Missing required fields`);
             continue;
           }
-          
+
           // Validate email format
           if (!/\S+@\S+\.\S+/.test(customer.email)) {
             this.importErrors.push(`Row ${i + 1}: Invalid email format`);
             continue;
           }
-          
+
           this.importPreview.push(customer);
         }
-        
+
         if (this.importErrors.length === 0) {
           // Process import (simulate API calls)
           for (const customer of this.importPreview) {
             await customerAPI.create(customer);
           }
-          
-          this.showNotification(`Successfully imported ${this.importPreview.length} customers`);
+
+          this.showNotification(
+            `Successfully imported ${this.importPreview.length} customers`
+          );
           this.closeImportDialog();
           await this.loadCustomers();
         }
       } catch (error) {
-        this.showNotification('Error processing import: ' + error.message, 'error');
+        this.showNotification(
+          'Error processing import: ' + error.message,
+          'error'
+        );
       } finally {
         this.importing = false;
       }
@@ -709,33 +748,40 @@ export default {
       this.exporting = true;
       try {
         let dataToExport = [];
-        
+
         switch (this.exportType) {
           case 'all':
             dataToExport = this.customers;
             break;
           case 'selected':
-            dataToExport = this.customers.filter(c => this.selectedCustomers.includes(c.id));
+            dataToExport = this.customers.filter(c =>
+              this.selectedCustomers.includes(c.id)
+            );
             break;
           case 'filtered':
             dataToExport = this.filteredCustomers;
             break;
         }
-        
+
         // In a real app, you'd generate and download the file
         // For now, we'll just simulate the process
-        
+
         const blob = this.generateExportFile(dataToExport);
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = `customers_export_${new Date().toISOString().split('T')[0]}.${this.exportFormat}`;
         a.click();
-        
-        this.showNotification(`Successfully exported ${dataToExport.length} customers`);
+
+        this.showNotification(
+          `Successfully exported ${dataToExport.length} customers`
+        );
         this.showExportDialog = false;
       } catch (error) {
-        this.showNotification('Error processing export: ' + error.message, 'error');
+        this.showNotification(
+          'Error processing export: ' + error.message,
+          'error'
+        );
       } finally {
         this.exporting = false;
       }
@@ -746,27 +792,39 @@ export default {
         case 'csv':
           return this.generateCSV(data);
         case 'json':
-          return new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+          return new Blob([JSON.stringify(data, null, 2)], {
+            type: 'application/json',
+          });
         default:
           return this.generateCSV(data);
       }
     },
 
     generateCSV(data) {
-      const headers = ['ID', 'First Name', 'Last Name', 'Email', 'Phone', 'Status', 'Created'];
+      const headers = [
+        'ID',
+        'First Name',
+        'Last Name',
+        'Email',
+        'Phone',
+        'Status',
+        'Created',
+      ];
       const csvContent = [
         headers.join(','),
-        ...data.map(customer => [
-          customer.id,
-          customer.first_name,
-          customer.last_name,
-          customer.email,
-          customer.phone || '',
-          customer.status || 'Active',
-          customer.created_at,
-        ].join(','))
+        ...data.map(customer =>
+          [
+            customer.id,
+            customer.first_name,
+            customer.last_name,
+            customer.email,
+            customer.phone || '',
+            customer.status || 'Active',
+            customer.created_at,
+          ].join(',')
+        ),
       ].join('\n');
-      
+
       return new Blob([csvContent], { type: 'text/csv' });
     },
 
@@ -777,13 +835,19 @@ export default {
         for (const customerId of this.selectedCustomers) {
           await customerAPI.delete(customerId);
         }
-        
-        this.showNotification(`Successfully deleted ${this.selectedCustomers.length} customers`);
+
+        this.showNotification(
+          `Successfully deleted ${this.selectedCustomers.length} customers`
+        );
         this.selectedCustomers = [];
         this.showBulkDeleteDialog = false;
         await this.loadCustomers();
       } catch (error) {
-        this.showNotification('Error deleting customers: ' + (error.response?.data?.error || error.message), 'error');
+        this.showNotification(
+          'Error deleting customers: ' +
+            (error.response?.data?.error || error.message),
+          'error'
+        );
       } finally {
         this.deleting = false;
       }
@@ -791,12 +855,18 @@ export default {
 
     getMembershipTypeColor(membershipType) {
       switch (membershipType) {
-        case 'Full': return 'success';
-        case 'Trial': return 'info';
-        case 'Junior': return 'purple';
-        case 'Senior': return 'orange';
-        case 'Social': return 'blue';
-        default: return 'primary';
+        case 'Full':
+          return 'success';
+        case 'Trial':
+          return 'info';
+        case 'Junior':
+          return 'purple';
+        case 'Senior':
+          return 'orange';
+        case 'Social':
+          return 'blue';
+        default:
+          return 'primary';
       }
     },
 

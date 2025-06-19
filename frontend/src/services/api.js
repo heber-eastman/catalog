@@ -52,7 +52,8 @@ export const authAPI = {
   signup: data => api.post('/signup', data),
   confirm: token => api.get(`/confirm?token=${token}`),
   login: credentials => api.post('/auth/login', credentials),
-  superAdminLogin: credentials => api.post('/auth/super-admin/login', credentials),
+  superAdminLogin: credentials =>
+    api.post('/auth/super-admin/login', credentials),
   logout: () => {
     // Clear localStorage
     apiUtils.clearToken();
@@ -127,15 +128,20 @@ export const superAdminAPI = {
   revokeInvite: data =>
     api.post('/super-admin/super-admins/revoke-invite', data),
   // Add method aliases that the component expects - using email as backend expects
-  resendInvitation: (adminId, email) => api.post('/super-admin/super-admins/resend-invite', { email }),
-  revokeInvitation: (adminId, email) => api.post('/super-admin/super-admins/revoke-invite', { email }),
+  resendInvitation: (adminId, email) =>
+    api.post('/super-admin/super-admins/resend-invite', { email }),
+  revokeInvitation: (adminId, email) =>
+    api.post('/super-admin/super-admins/revoke-invite', { email }),
 };
 
 // Utility functions
 export const apiUtils = {
   isAuthenticated: () => {
     // Check if we have a token in localStorage OR if we have a user stored (indicating cookie auth)
-    return !!localStorage.getItem('jwt_token') || !!localStorage.getItem('current_user');
+    return (
+      !!localStorage.getItem('jwt_token') ||
+      !!localStorage.getItem('current_user')
+    );
   },
   getToken: () => localStorage.getItem('jwt_token'),
   setToken: token => localStorage.setItem('jwt_token', token),

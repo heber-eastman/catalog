@@ -1,6 +1,6 @@
-import { defineConfig } from 'vitest/config'
-import vue from '@vitejs/plugin-vue'
-import { resolve } from 'path'
+import { defineConfig } from 'vitest/config';
+import vue from '@vitejs/plugin-vue';
+import { resolve } from 'path';
 
 export default defineConfig({
   plugins: [vue()],
@@ -9,11 +9,11 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['src/test/setup.js'],
     css: {
-      include: []
+      include: [],
     },
     deps: {
-      inline: ['vuetify']
-    }
+      inline: ['vuetify'],
+    },
   },
   resolve: {
     alias: {
@@ -21,6 +21,6 @@ export default defineConfig({
     },
   },
   define: {
-    global: 'globalThis'
-  }
-}) 
+    global: 'globalThis',
+  },
+});

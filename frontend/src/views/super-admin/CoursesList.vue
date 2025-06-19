@@ -112,13 +112,25 @@
               required
               data-cy="create-course-name"
             />
-            <v-text-field v-model="newCourse.street" label="Street Address" data-cy="create-course-street" />
+            <v-text-field
+              v-model="newCourse.street"
+              label="Street Address"
+              data-cy="create-course-street"
+            />
             <v-row>
               <v-col cols="6">
-                <v-text-field v-model="newCourse.city" label="City" data-cy="create-course-city" />
+                <v-text-field
+                  v-model="newCourse.city"
+                  label="City"
+                  data-cy="create-course-city"
+                />
               </v-col>
               <v-col cols="3">
-                <v-text-field v-model="newCourse.state" label="State" data-cy="create-course-state" />
+                <v-text-field
+                  v-model="newCourse.state"
+                  label="State"
+                  data-cy="create-course-state"
+                />
               </v-col>
               <v-col cols="3">
                 <v-text-field
@@ -138,7 +150,11 @@
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn @click="showCreateDialog = false" data-cy="create-course-cancel">Cancel</v-btn>
+          <v-btn
+            @click="showCreateDialog = false"
+            data-cy="create-course-cancel"
+            >Cancel</v-btn
+          >
           <v-btn
             color="primary"
             @click="createCourse"
@@ -165,13 +181,25 @@
               required
               data-cy="edit-course-name"
             />
-            <v-text-field v-model="editCourseData.street" label="Street Address" data-cy="edit-course-street" />
+            <v-text-field
+              v-model="editCourseData.street"
+              label="Street Address"
+              data-cy="edit-course-street"
+            />
             <v-row>
               <v-col cols="6">
-                <v-text-field v-model="editCourseData.city" label="City" data-cy="edit-course-city" />
+                <v-text-field
+                  v-model="editCourseData.city"
+                  label="City"
+                  data-cy="edit-course-city"
+                />
               </v-col>
               <v-col cols="3">
-                <v-text-field v-model="editCourseData.state" label="State" data-cy="edit-course-state" />
+                <v-text-field
+                  v-model="editCourseData.state"
+                  label="State"
+                  data-cy="edit-course-state"
+                />
               </v-col>
               <v-col cols="3">
                 <v-text-field
@@ -197,7 +225,9 @@
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn @click="showEditDialog = false" data-cy="edit-course-cancel">Cancel</v-btn>
+          <v-btn @click="showEditDialog = false" data-cy="edit-course-cancel"
+            >Cancel</v-btn
+          >
           <v-btn
             color="primary"
             @click="updateCourse"
@@ -216,12 +246,18 @@
       <v-card>
         <v-card-title class="text-h5">Confirm Status Change</v-card-title>
         <v-card-text>
-          Are you sure you want to change the status of <strong>{{ selectedCourse?.name }}</strong> 
-          to <strong>{{ newStatus }}</strong>?
+          Are you sure you want to change the status of
+          <strong>{{ selectedCourse?.name }}</strong> to
+          <strong>{{ newStatus }}</strong
+          >?
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn @click="showStatusDialog = false" data-cy="status-change-cancel">Cancel</v-btn>
+          <v-btn
+            @click="showStatusDialog = false"
+            data-cy="status-change-cancel"
+            >Cancel</v-btn
+          >
           <v-btn
             color="primary"
             @click="confirmStatusChange"
@@ -400,7 +436,9 @@ export default {
 
       this.changingStatus = true;
       try {
-        console.log(`Updating course ${this.selectedCourse.name} status to ${this.newStatus}`);
+        console.log(
+          `Updating course ${this.selectedCourse.name} status to ${this.newStatus}`
+        );
         const response = await superAdminAPI.updateCourseStatus(
           this.selectedCourse.id,
           this.newStatus
@@ -463,7 +501,10 @@ export default {
       this.updating = true;
       try {
         console.log('Updating course:', this.editCourseData);
-        const response = await superAdminAPI.updateCourse(this.editCourseData.id, this.editCourseData);
+        const response = await superAdminAPI.updateCourse(
+          this.editCourseData.id,
+          this.editCourseData
+        );
 
         this.lastApiResponse = JSON.stringify(response.data, null, 2);
         console.log('Course updated:', response.data);

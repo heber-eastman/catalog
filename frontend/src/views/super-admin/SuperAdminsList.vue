@@ -96,7 +96,8 @@
 
             <template #no-data>
               <v-alert type="info" class="ma-4">
-                No super admins found. Invite your first super admin to get started!
+                No super admins found. Invite your first super admin to get
+                started!
               </v-alert>
             </template>
           </v-data-table>
@@ -111,7 +112,11 @@
           <v-card-title>Super Admin API Test Results</v-card-title>
           <v-card-text>
             <div class="d-flex ga-2 mb-4">
-              <v-btn color="primary" @click="loadSuperAdmins" :loading="loading">
+              <v-btn
+                color="primary"
+                @click="loadSuperAdmins"
+                :loading="loading"
+              >
                 Reload Super Admins
               </v-btn>
               <v-btn color="secondary" @click="testInviteSuperAdmin">
@@ -121,7 +126,9 @@
 
             <div v-if="lastApiResponse">
               <h4>Last API Response:</h4>
-              <pre class="mt-2 pa-2 bg-grey-lighten-4 rounded">{{ lastApiResponse }}</pre>
+              <pre class="mt-2 pa-2 bg-grey-lighten-4 rounded">{{
+                lastApiResponse
+              }}</pre>
             </div>
           </v-card-text>
         </v-card>
@@ -165,16 +172,20 @@
               required
               data-cy="invite-super-admin-email"
             />
-            <v-text-field 
-              v-model="newSuperAdmin.phone" 
-              label="Phone" 
-              data-cy="invite-super-admin-phone" 
+            <v-text-field
+              v-model="newSuperAdmin.phone"
+              label="Phone"
+              data-cy="invite-super-admin-phone"
             />
           </v-form>
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn @click="showInviteDialog = false" data-cy="invite-super-admin-cancel">Cancel</v-btn>
+          <v-btn
+            @click="showInviteDialog = false"
+            data-cy="invite-super-admin-cancel"
+            >Cancel</v-btn
+          >
           <v-btn
             color="primary"
             @click="inviteSuperAdmin"
@@ -225,16 +236,20 @@
               required
               data-cy="edit-super-admin-email"
             />
-            <v-text-field 
-              v-model="editSuperAdminData.phone" 
-              label="Phone" 
-              data-cy="edit-super-admin-phone" 
+            <v-text-field
+              v-model="editSuperAdminData.phone"
+              label="Phone"
+              data-cy="edit-super-admin-phone"
             />
           </v-form>
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn @click="showEditDialog = false" data-cy="edit-super-admin-cancel">Cancel</v-btn>
+          <v-btn
+            @click="showEditDialog = false"
+            data-cy="edit-super-admin-cancel"
+            >Cancel</v-btn
+          >
           <v-btn
             color="primary"
             @click="updateSuperAdmin"
@@ -253,12 +268,17 @@
       <v-card>
         <v-card-title class="text-h5">Confirm Deactivation</v-card-title>
         <v-card-text>
-          Are you sure you want to deactivate <strong>{{ selectedSuperAdmin?.full_name }}</strong>?
-          This action will prevent them from accessing the system.
+          Are you sure you want to deactivate
+          <strong>{{ selectedSuperAdmin?.full_name }}</strong
+          >? This action will prevent them from accessing the system.
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn @click="showDeactivateDialog = false" data-cy="deactivate-super-admin-cancel">Cancel</v-btn>
+          <v-btn
+            @click="showDeactivateDialog = false"
+            data-cy="deactivate-super-admin-cancel"
+            >Cancel</v-btn
+          >
           <v-btn
             color="error"
             @click="confirmDeactivateSuperAdmin"
@@ -276,11 +296,17 @@
       <v-card>
         <v-card-title class="text-h5">Resend Invitation</v-card-title>
         <v-card-text>
-          Are you sure you want to resend the invitation to <strong>{{ selectedSuperAdmin?.full_name }}</strong>?
+          Are you sure you want to resend the invitation to
+          <strong>{{ selectedSuperAdmin?.full_name }}</strong
+          >?
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn @click="showResendDialog = false" data-cy="resend-invitation-cancel">Cancel</v-btn>
+          <v-btn
+            @click="showResendDialog = false"
+            data-cy="resend-invitation-cancel"
+            >Cancel</v-btn
+          >
           <v-btn
             color="primary"
             @click="confirmResendInvitation"
@@ -298,12 +324,17 @@
       <v-card>
         <v-card-title class="text-h5">Revoke Invitation</v-card-title>
         <v-card-text>
-          Are you sure you want to revoke the invitation for <strong>{{ selectedSuperAdmin?.full_name }}</strong>?
-          This action cannot be undone.
+          Are you sure you want to revoke the invitation for
+          <strong>{{ selectedSuperAdmin?.full_name }}</strong
+          >? This action cannot be undone.
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn @click="showRevokeDialog = false" data-cy="revoke-invitation-cancel">Cancel</v-btn>
+          <v-btn
+            @click="showRevokeDialog = false"
+            data-cy="revoke-invitation-cancel"
+            >Cancel</v-btn
+          >
           <v-btn
             color="error"
             @click="confirmRevokeInvitation"
@@ -317,18 +348,10 @@
     </v-dialog>
 
     <!-- Snackbar for notifications -->
-    <v-snackbar
-      v-model="showSnackbar"
-      :color="snackbarColor"
-      :timeout="3000"
-    >
+    <v-snackbar v-model="showSnackbar" :color="snackbarColor" :timeout="3000">
       {{ snackbarMessage }}
       <template #actions>
-        <v-btn
-          color="white"
-          variant="text"
-          @click="showSnackbar = false"
-        >
+        <v-btn color="white" variant="text" @click="showSnackbar = false">
           Close
         </v-btn>
       </template>
@@ -427,7 +450,9 @@ export default {
       this.inviting = true;
       try {
         console.log('Inviting super admin:', this.newSuperAdmin);
-        const response = await superAdminAPI.inviteSuperAdmin(this.newSuperAdmin);
+        const response = await superAdminAPI.inviteSuperAdmin(
+          this.newSuperAdmin
+        );
 
         this.lastApiResponse = JSON.stringify(response.data, null, 2);
         console.log('Super admin invitation sent:', response.data);
@@ -441,7 +466,10 @@ export default {
           phone: '',
         };
         await this.loadSuperAdmins();
-        this.showNotification('Super admin invitation sent successfully!', 'success');
+        this.showNotification(
+          'Super admin invitation sent successfully!',
+          'success'
+        );
       } catch (error) {
         console.error('Error inviting super admin:', error);
         this.lastApiResponse = JSON.stringify(
@@ -504,7 +532,10 @@ export default {
       this.updating = true;
       try {
         console.log('Updating super admin:', this.editSuperAdminData);
-        const response = await superAdminAPI.updateSuperAdmin(this.editSuperAdminData.id, this.editSuperAdminData);
+        const response = await superAdminAPI.updateSuperAdmin(
+          this.editSuperAdminData.id,
+          this.editSuperAdminData
+        );
 
         this.lastApiResponse = JSON.stringify(response.data, null, 2);
         console.log('Super admin updated:', response.data);
@@ -547,7 +578,9 @@ export default {
       this.deactivating = true;
       try {
         console.log('Deactivating super admin:', this.selectedSuperAdmin);
-        const response = await superAdminAPI.deactivateSuperAdmin(this.selectedSuperAdmin.id);
+        const response = await superAdminAPI.deactivateSuperAdmin(
+          this.selectedSuperAdmin.id
+        );
 
         this.lastApiResponse = JSON.stringify(response.data, null, 2);
         console.log('Super admin deactivated:', response.data);
@@ -556,7 +589,10 @@ export default {
         this.showDeactivateDialog = false;
         this.selectedSuperAdmin = null;
         await this.loadSuperAdmins();
-        this.showNotification('Super admin deactivated successfully!', 'success');
+        this.showNotification(
+          'Super admin deactivated successfully!',
+          'success'
+        );
       } catch (error) {
         console.error('Error deactivating super admin:', error);
         this.lastApiResponse = JSON.stringify(
@@ -583,8 +619,14 @@ export default {
 
       this.resending = true;
       try {
-        console.log('Resending invitation for super admin:', this.selectedSuperAdmin);
-        const response = await superAdminAPI.resendInvitation(this.selectedSuperAdmin.id, this.selectedSuperAdmin.email);
+        console.log(
+          'Resending invitation for super admin:',
+          this.selectedSuperAdmin
+        );
+        const response = await superAdminAPI.resendInvitation(
+          this.selectedSuperAdmin.id,
+          this.selectedSuperAdmin.email
+        );
 
         this.lastApiResponse = JSON.stringify(response.data, null, 2);
         console.log('Invitation resent:', response.data);
@@ -620,8 +662,14 @@ export default {
 
       this.revoking = true;
       try {
-        console.log('Revoking invitation for super admin:', this.selectedSuperAdmin);
-        const response = await superAdminAPI.revokeInvitation(this.selectedSuperAdmin.id, this.selectedSuperAdmin.email);
+        console.log(
+          'Revoking invitation for super admin:',
+          this.selectedSuperAdmin
+        );
+        const response = await superAdminAPI.revokeInvitation(
+          this.selectedSuperAdmin.id,
+          this.selectedSuperAdmin.email
+        );
 
         this.lastApiResponse = JSON.stringify(response.data, null, 2);
         console.log('Invitation revoked:', response.data);

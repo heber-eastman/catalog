@@ -1,12 +1,13 @@
-# AWS Infrastructure Setup for *.devstreet.co
+# AWS Infrastructure Setup for \*.devstreet.co
 
 This document outlines the AWS infrastructure configuration required for Section 11 multi-tenant subdomain routing.
 
 ## Overview
 
 The application uses subdomain-based multi-tenancy where each golf course gets its own subdomain:
+
 - `pine-valley.devstreet.co` → Pine Valley Golf Course
-- `sunset-golf.devstreet.co` → Sunset Golf Course  
+- `sunset-golf.devstreet.co` → Sunset Golf Course
 - `royal-club.devstreet.co` → Royal Club Golf Course
 
 ## Required AWS Services
@@ -14,6 +15,7 @@ The application uses subdomain-based multi-tenancy where each golf course gets i
 ### 1. Route 53 - DNS Management
 
 #### Hosted Zone Setup
+
 ```bash
 # Create hosted zone for devstreet.co (if not exists)
 aws route53 create-hosted-zone \
@@ -22,6 +24,7 @@ aws route53 create-hosted-zone \
 ```
 
 #### Wildcard DNS Record
+
 ```json
 {
   "Comment": "Wildcard DNS for multi-tenant subdomains",
@@ -44,6 +47,7 @@ aws route53 create-hosted-zone \
 ```
 
 #### CLI Command to Create Wildcard Record
+
 ```bash
 # Replace YOUR_LOAD_BALANCER_IP with actual IP
 aws route53 change-resource-record-sets \
@@ -54,19 +58,15 @@ aws route53 change-resource-record-sets \
 ### 2. Application Load Balancer (ALB)
 
 #### ALB Configuration
+
 ```json
 {
   "Name": "devstreet-alb",
   "Scheme": "internet-facing",
   "Type": "application",
   "IpAddressType": "ipv4",
-  "Subnets": [
-    "subnet-12345678",
-    "subnet-87654321"
-  ],
-  "SecurityGroups": [
-    "sg-web-traffic"
-  ],
+  "Subnets": ["subnet-12345678", "subnet-87654321"],
+  "SecurityGroups": ["sg-web-traffic"],
   "Tags": [
     {
       "Key": "Environment",
@@ -81,6 +81,7 @@ aws route53 change-resource-record-sets \
 ```
 
 #### Target Group Configuration
+
 ```json
 {
   "Name": "devstreet-backend",
@@ -99,6 +100,7 @@ aws route53 change-resource-record-sets \
 ### 3. SSL/TLS Certificate (ACM)
 
 #### Request Wildcard Certificate
+
 ```bash
 # Request certificate for *.devstreet.co
 aws acm request-certificate \
@@ -109,6 +111,7 @@ aws acm request-certificate \
 ```
 
 #### HTTPS Listener Configuration
+
 ```json
 {
   "LoadBalancerArn": "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/devstreet-alb/1234567890abcdef",
@@ -131,6 +134,7 @@ aws acm request-certificate \
 ## Security Groups
 
 ### Web Traffic Security Group
+
 ```json
 {
   "GroupName": "devstreet-web-traffic",
@@ -155,7 +159,8 @@ aws acm request-certificate \
 }
 ```
 
-### Backend Security Group  
+### Backend Security Group
+
 ```json
 {
   "GroupName": "devstreet-backend",
@@ -176,6 +181,7 @@ aws acm request-certificate \
 ## Environment Configuration
 
 ### Environment Variables for Production
+
 ```bash
 # Backend application environment
 NODE_ENV=production
@@ -205,6 +211,7 @@ COOKIE_SAME_SITE=strict
 ## Deployment Steps
 
 ### 1. Infrastructure Setup
+
 ```bash
 # 1. Create VPC and subnets (if not exists)
 # 2. Create security groups
@@ -215,6 +222,7 @@ COOKIE_SAME_SITE=strict
 ```
 
 ### 2. Application Deployment
+
 ```bash
 # 1. Deploy backend instances
 # 2. Register instances with target group
@@ -223,6 +231,7 @@ COOKIE_SAME_SITE=strict
 ```
 
 ### 3. Verification Commands
+
 ```bash
 # Test DNS resolution
 dig *.devstreet.co
@@ -239,12 +248,14 @@ openssl s_client -connect pine-valley.devstreet.co:443 -servername pine-valley.d
 ## Monitoring and Logging
 
 ### CloudWatch Alarms
+
 - ALB target health
 - SSL certificate expiration
 - DNS query failures
 - Rate limiting violations
 
 ### Log Groups
+
 - `/aws/elb/devstreet-alb` - Load balancer logs
 - `/aws/lambda/devstreet-backend` - Application logs
 - Route 53 query logs (optional)
@@ -252,10 +263,12 @@ openssl s_client -connect pine-valley.devstreet.co:443 -servername pine-valley.d
 ## Cost Optimization
 
 ### Reserved Instances
+
 - Use Reserved Instances for stable workloads
 - Consider Savings Plans for flexible usage
 
 ### Auto Scaling
+
 - Configure Auto Scaling groups based on CPU/memory usage
 - Use predictive scaling for known traffic patterns
 
@@ -264,28 +277,31 @@ openssl s_client -connect pine-valley.devstreet.co:443 -servername pine-valley.d
 ### Common Issues
 
 1. **DNS Resolution Problems**
+
    ```bash
    # Check NS records are correctly configured
    dig NS devstreet.co
-   
+
    # Verify wildcard resolution
    dig test-subdomain.devstreet.co
    ```
 
 2. **SSL Certificate Issues**
+
    ```bash
    # Check certificate status
    aws acm describe-certificate --certificate-arn YOUR_CERT_ARN
-   
+
    # Verify certificate covers wildcards
    openssl x509 -in certificate.pem -text -noout | grep DNS
    ```
 
 3. **Load Balancer Health Checks**
+
    ```bash
    # Check target group health
    aws elbv2 describe-target-health --target-group-arn YOUR_TG_ARN
-   
+
    # Test health check endpoint
    curl -H "Host: pine-valley.devstreet.co" http://instance-ip:3000/health
    ```
@@ -293,16 +309,19 @@ openssl s_client -connect pine-valley.devstreet.co:443 -servername pine-valley.d
 ## Security Best Practices
 
 1. **Network Security**
+
    - Use private subnets for backend instances
    - Implement WAF rules for common attacks
    - Enable VPC Flow Logs
 
 2. **Application Security**
+
    - Enable rate limiting (implemented in middleware)
    - Use HTTPS only in production
    - Implement proper CORS policies
 
 3. **Data Security**
+
    - Enable RDS encryption at rest
    - Use encrypted EBS volumes
    - Implement proper IAM roles and policies
@@ -310,4 +329,4 @@ openssl s_client -connect pine-valley.devstreet.co:443 -servername pine-valley.d
 4. **GDPR Compliance**
    - Automated data purging (implemented in GDPR service)
    - Data retention policies
-   - Audit logging for data access 
+   - Audit logging for data access

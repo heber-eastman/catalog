@@ -4,9 +4,9 @@
       <v-col cols="12">
         <!-- Header -->
         <div class="d-flex align-center mb-4">
-          <v-btn 
-            icon="mdi-arrow-left" 
-            variant="text" 
+          <v-btn
+            icon="mdi-arrow-left"
+            variant="text"
             @click="$router.back()"
             class="mr-2"
             data-cy="back-btn"
@@ -45,7 +45,7 @@
                 <v-list-item-title>{{ customer.email }}</v-list-item-title>
                 <v-list-item-subtitle>Email</v-list-item-subtitle>
               </v-list-item>
-              
+
               <v-list-item v-if="customer.phone">
                 <template #prepend>
                   <v-icon icon="mdi-phone" />
@@ -53,12 +53,14 @@
                 <v-list-item-title>{{ customer.phone }}</v-list-item-title>
                 <v-list-item-subtitle>Phone</v-list-item-subtitle>
               </v-list-item>
-              
+
               <v-list-item>
                 <template #prepend>
                   <v-icon icon="mdi-calendar" />
                 </template>
-                <v-list-item-title>{{ formatDate(customer.created_at) }}</v-list-item-title>
+                <v-list-item-title>{{
+                  formatDate(customer.created_at)
+                }}</v-list-item-title>
                 <v-list-item-subtitle>Member Since</v-list-item-subtitle>
               </v-list-item>
             </v-list>
@@ -86,9 +88,16 @@
     <!-- Customer not found -->
     <v-row v-else>
       <v-col cols="12" class="text-center">
-        <v-icon icon="mdi-account-off" size="64" class="mb-2 text-medium-emphasis" />
+        <v-icon
+          icon="mdi-account-off"
+          size="64"
+          class="mb-2 text-medium-emphasis"
+        />
         <h2 class="mb-2">Customer Not Found</h2>
-        <p class="text-medium-emphasis mb-4">The customer you're looking for doesn't exist or may have been deleted.</p>
+        <p class="text-medium-emphasis mb-4">
+          The customer you're looking for doesn't exist or may have been
+          deleted.
+        </p>
         <v-btn color="primary" @click="$router.push('/customers')">
           Back to Customers
         </v-btn>
@@ -141,4 +150,4 @@ export default {
     },
   },
 };
-</script> 
+</script>
