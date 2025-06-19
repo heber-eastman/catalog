@@ -1,10 +1,21 @@
 const rateLimit = require('express-rate-limit');
 
 /**
+ * Create a conditional rate limiter that skips rate limiting in test environment
+ */
+const createConditionalRateLimit = (options) => {
+  if (process.env.NODE_ENV === 'test') {
+    // Return a no-op middleware for testing
+    return (req, res, next) => next();
+  }
+  return rateLimit(options);
+};
+
+/**
  * Standard rate limiting for most API endpoints
  * 100 requests per 15 minutes per IP
  */
-const rateLimitMiddleware = rateLimit({
+const rateLimitMiddleware = createConditionalRateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per windowMs
   message: {
@@ -32,7 +43,7 @@ const rateLimitMiddleware = rateLimit({
  * Strict rate limiting for sensitive endpoints (auth, registration)
  * 10 requests per 15 minutes per IP
  */
-const strictRateLimitMiddleware = rateLimit({
+const strictRateLimitMiddleware = createConditionalRateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10, // Limit each IP to 10 requests per windowMs
   message: {
@@ -58,7 +69,7 @@ const strictRateLimitMiddleware = rateLimit({
  * Very strict rate limiting for password reset and sensitive operations
  * 3 requests per hour per IP
  */
-const veryStrictRateLimitMiddleware = rateLimit({
+const veryStrictRateLimitMiddleware = createConditionalRateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 3, // Limit each IP to 3 requests per hour
   message: {

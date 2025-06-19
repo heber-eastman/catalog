@@ -270,14 +270,14 @@ describe('GDPR Service Tests', () => {
         customer_id: oldCustomer.id,
         content: 'Old note 1',
         is_private: false,
-        author: 'Test Author',
+        author_id: '00000000-0000-4000-8000-000000000001',
       });
 
       await CustomerNote.create({
         customer_id: oldCustomer.id,
         content: 'Old note 2',
         is_private: true,
-        author: 'Test Author',
+        author_id: '00000000-0000-4000-8000-000000000001',
       });
 
       // Create recent customer (should not be purged)
