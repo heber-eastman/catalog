@@ -15,7 +15,7 @@ const ses = new AWS.SES({
  * @returns {Promise<Object>} SES response or mock response
  */
 async function sendConfirmationEmail(email, subdomain, token) {
-      const confirmationUrl = `https://${subdomain}.catalog.golf/confirm?token=${token}`;
+  const confirmationUrl = `https://${subdomain}.catalog.golf/confirm?token=${token}`;
 
   const params = {
     Source: process.env.FROM_EMAIL || 'noreply@catalog.golf',

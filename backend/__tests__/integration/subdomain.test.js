@@ -37,9 +37,9 @@ describe('Subdomain Middleware Tests', () => {
 
   describe('extractSubdomain utility function', () => {
     test('should extract subdomain from production format', () => {
-          expect(extractSubdomain('pine-valley.catalog.golf')).toBe('pine-valley');
-    expect(extractSubdomain('sunset-golf.catalog.golf')).toBe('sunset-golf');
-    expect(extractSubdomain('royal-club.catalog.golf')).toBe('royal-club');
+      expect(extractSubdomain('pine-valley.catalog.golf')).toBe('pine-valley');
+      expect(extractSubdomain('sunset-golf.catalog.golf')).toBe('sunset-golf');
+      expect(extractSubdomain('royal-club.catalog.golf')).toBe('royal-club');
     });
 
     test('should extract subdomain from production format with port', () => {
@@ -64,7 +64,7 @@ describe('Subdomain Middleware Tests', () => {
     });
 
     test('should return null for invalid formats', () => {
-              expect(extractSubdomain('catalog.golf')).toBe(null);
+      expect(extractSubdomain('catalog.golf')).toBe(null);
       expect(extractSubdomain('invalid-domain.com')).toBe(null);
       expect(extractSubdomain('')).toBe(null);
       expect(extractSubdomain('just-domain')).toBe(null);
