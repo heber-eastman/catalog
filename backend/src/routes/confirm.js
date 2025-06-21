@@ -89,7 +89,7 @@ router.get('/confirm', async (req, res) => {
 
       // Redirect to dashboard
       return res.redirect(
-        `https://${golfCourse.subdomain}.devstreet.co/dashboard`
+        `https://${golfCourse.subdomain}.catalog.golf/dashboard`
       );
     } catch (error) {
       // Rollback transaction on error

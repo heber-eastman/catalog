@@ -37,16 +37,16 @@ describe('Subdomain Middleware Tests', () => {
 
   describe('extractSubdomain utility function', () => {
     test('should extract subdomain from production format', () => {
-      expect(extractSubdomain('pine-valley.devstreet.co')).toBe('pine-valley');
-      expect(extractSubdomain('sunset-golf.devstreet.co')).toBe('sunset-golf');
-      expect(extractSubdomain('royal-club.devstreet.co')).toBe('royal-club');
+          expect(extractSubdomain('pine-valley.catalog.golf')).toBe('pine-valley');
+    expect(extractSubdomain('sunset-golf.catalog.golf')).toBe('sunset-golf');
+    expect(extractSubdomain('royal-club.catalog.golf')).toBe('royal-club');
     });
 
     test('should extract subdomain from production format with port', () => {
-      expect(extractSubdomain('pine-valley.devstreet.co:443')).toBe(
+      expect(extractSubdomain('pine-valley.catalog.golf:443')).toBe(
         'pine-valley'
       );
-      expect(extractSubdomain('sunset-golf.devstreet.co:80')).toBe(
+      expect(extractSubdomain('sunset-golf.catalog.golf:80')).toBe(
         'sunset-golf'
       );
     });
@@ -64,7 +64,7 @@ describe('Subdomain Middleware Tests', () => {
     });
 
     test('should return null for invalid formats', () => {
-      expect(extractSubdomain('devstreet.co')).toBe(null);
+              expect(extractSubdomain('catalog.golf')).toBe(null);
       expect(extractSubdomain('invalid-domain.com')).toBe(null);
       expect(extractSubdomain('')).toBe(null);
       expect(extractSubdomain('just-domain')).toBe(null);
@@ -75,7 +75,7 @@ describe('Subdomain Middleware Tests', () => {
     test('should work with valid subdomain in production format', async () => {
       const response = await request(app)
         .get('/health')
-        .set('Host', `${testSubdomain}.devstreet.co`)
+        .set('Host', `${testSubdomain}.catalog.golf`)
         .expect(200);
 
       expect(response.body.status).toBe('OK');
@@ -121,7 +121,7 @@ describe('Subdomain Middleware Tests', () => {
       // Test that subdomain is properly extracted and available in req.subdomain
       const response = await request(app)
         .get('/')
-        .set('Host', `${testSubdomain}.devstreet.co`)
+        .set('Host', `${testSubdomain}.catalog.golf`)
         .expect(200);
 
       expect(response.body.message).toBe('Backend API is running!');
@@ -201,28 +201,28 @@ describe('Subdomain Middleware Tests', () => {
 
   describe('Real-world subdomain scenarios', () => {
     test('should handle complex subdomain names', async () => {
-      expect(extractSubdomain('pine-valley-country-club.devstreet.co')).toBe(
+      expect(extractSubdomain('pine-valley-country-club.catalog.golf')).toBe(
         'pine-valley-country-club'
       );
-      expect(extractSubdomain('royal-oak-123.devstreet.co')).toBe(
+      expect(extractSubdomain('royal-oak-123.catalog.golf')).toBe(
         'royal-oak-123'
       );
-      expect(extractSubdomain('golf-course-2024.devstreet.co')).toBe(
+      expect(extractSubdomain('golf-course-2024.catalog.golf')).toBe(
         'golf-course-2024'
       );
     });
 
     test('should handle subdomains with numbers and hyphens', async () => {
-      expect(extractSubdomain('course-1.devstreet.co')).toBe('course-1');
-      expect(extractSubdomain('test-123-golf.devstreet.co')).toBe(
+      expect(extractSubdomain('course-1.catalog.golf')).toBe('course-1');
+      expect(extractSubdomain('test-123-golf.catalog.golf')).toBe(
         'test-123-golf'
       );
-      expect(extractSubdomain('a-b-c-d.devstreet.co')).toBe('a-b-c-d');
+      expect(extractSubdomain('a-b-c-d.catalog.golf')).toBe('a-b-c-d');
     });
 
     test('should handle edge cases with multiple dots', async () => {
-      expect(extractSubdomain('subdomain.devstreet.co')).toBe('subdomain');
-      expect(extractSubdomain('sub.domain.devstreet.co')).toBe('sub');
+      expect(extractSubdomain('subdomain.catalog.golf')).toBe('subdomain');
+      expect(extractSubdomain('sub.domain.catalog.golf')).toBe('sub');
     });
   });
 });

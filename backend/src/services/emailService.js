@@ -15,10 +15,10 @@ const ses = new AWS.SES({
  * @returns {Promise<Object>} SES response or mock response
  */
 async function sendConfirmationEmail(email, subdomain, token) {
-  const confirmationUrl = `https://${subdomain}.devstreet.co/confirm?token=${token}`;
+      const confirmationUrl = `https://${subdomain}.catalog.golf/confirm?token=${token}`;
 
   const params = {
-    Source: process.env.FROM_EMAIL || 'noreply@devstreet.co',
+    Source: process.env.FROM_EMAIL || 'noreply@catalog.golf',
     Destination: {
       ToAddresses: [email],
     },
@@ -104,7 +104,7 @@ The Golf Course Management Team
  */
 async function sendEmail({ to, subject, text, html }) {
   const params = {
-    Source: process.env.FROM_EMAIL || 'noreply@devstreet.co',
+    Source: process.env.FROM_EMAIL || 'noreply@catalog.golf',
     Destination: {
       ToAddresses: [to],
     },

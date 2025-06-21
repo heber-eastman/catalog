@@ -291,7 +291,7 @@ router.post('/super-admins/invite', requireSuperAdmin(), async (req, res) => {
     });
 
     // Send invitation email
-    const registrationUrl = `${process.env.FRONTEND_URL || 'https://admin.devstreet.co'}/super-admin/register?token=${invitationToken}`;
+    const registrationUrl = `${process.env.FRONTEND_URL || 'https://admin.catalog.golf'}/super-admin/register?token=${invitationToken}`;
 
     await sendEmail({
       to: value.email,
@@ -416,7 +416,7 @@ router.post(
       });
 
       // Send invitation email
-      const registrationUrl = `${process.env.FRONTEND_URL || 'https://admin.devstreet.co'}/super-admin/register?token=${invitationToken}`;
+      const registrationUrl = `${process.env.FRONTEND_URL || 'https://admin.catalog.golf'}/super-admin/register?token=${invitationToken}`;
 
       await sendEmail({
         to: email,

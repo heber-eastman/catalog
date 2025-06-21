@@ -1,4 +1,4 @@
-# AWS Infrastructure Setup for \*.devstreet.co
+# AWS Infrastructure Setup for \*.catalog.golf
 
 This document outlines the AWS infrastructure configuration required for Section 11 multi-tenant subdomain routing.
 
@@ -6,9 +6,9 @@ This document outlines the AWS infrastructure configuration required for Section
 
 The application uses subdomain-based multi-tenancy where each golf course gets its own subdomain:
 
-- `pine-valley.devstreet.co` → Pine Valley Golf Course
-- `sunset-golf.devstreet.co` → Sunset Golf Course
-- `royal-club.devstreet.co` → Royal Club Golf Course
+- `pine-valley.catalog.golf` → Pine Valley Golf Course
+- `sunset-golf.catalog.golf` → Sunset Golf Course
+- `royal-club.catalog.golf` → Royal Club Golf Course
 
 ## Required AWS Services
 
@@ -17,10 +17,10 @@ The application uses subdomain-based multi-tenancy where each golf course gets i
 #### Hosted Zone Setup
 
 ```bash
-# Create hosted zone for devstreet.co (if not exists)
+# Create hosted zone for catalog.golf (if not exists)
 aws route53 create-hosted-zone \
-  --name devstreet.co \
-  --caller-reference "devstreet-$(date +%s)"
+  --name catalog.golf \
+  --caller-reference "catalog-$(date +%s)"
 ```
 
 #### Wildcard DNS Record
@@ -32,7 +32,7 @@ aws route53 create-hosted-zone \
     {
       "Action": "CREATE",
       "ResourceRecordSet": {
-        "Name": "*.devstreet.co",
+        "Name": "*.catalog.golf",
         "Type": "A",
         "TTL": 300,
         "ResourceRecords": [
@@ -61,7 +61,7 @@ aws route53 change-resource-record-sets \
 
 ```json
 {
-  "Name": "devstreet-alb",
+  "Name": "catalog-alb",
   "Scheme": "internet-facing",
   "Type": "application",
   "IpAddressType": "ipv4",
@@ -74,7 +74,7 @@ aws route53 change-resource-record-sets \
     },
     {
       "Key": "Application",
-      "Value": "devstreet-catalog"
+      "Value": "catalog-golf"
     }
   ]
 }
@@ -84,7 +84,7 @@ aws route53 change-resource-record-sets \
 
 ```json
 {
-  "Name": "devstreet-backend",
+  "Name": "catalog-backend",
   "Protocol": "HTTP",
   "Port": 3000,
   "VpcId": "vpc-12345678",
@@ -102,10 +102,10 @@ aws route53 change-resource-record-sets \
 #### Request Wildcard Certificate
 
 ```bash
-# Request certificate for *.devstreet.co
+# Request certificate for *.catalog.golf
 aws acm request-certificate \
-  --domain-name "*.devstreet.co" \
-  --subject-alternative-names "devstreet.co" \
+  --domain-name "*.catalog.golf" \
+  --subject-alternative-names "catalog.golf" \
   --validation-method DNS \
   --region us-east-1
 ```
@@ -114,7 +114,7 @@ aws acm request-certificate \
 
 ```json
 {
-  "LoadBalancerArn": "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/devstreet-alb/1234567890abcdef",
+  "LoadBalancerArn": "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/catalog-alb/1234567890abcdef",
   "Protocol": "HTTPS",
   "Port": 443,
   "Certificates": [
@@ -125,7 +125,7 @@ aws acm request-certificate \
   "DefaultActions": [
     {
       "Type": "forward",
-      "TargetGroupArn": "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/devstreet-backend/1234567890abcdef"
+      "TargetGroupArn": "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/catalog-backend/1234567890abcdef"
     }
   ]
 }
@@ -137,8 +137,8 @@ aws acm request-certificate \
 
 ```json
 {
-  "GroupName": "devstreet-web-traffic",
-  "GroupDescription": "Allow HTTP/HTTPS traffic for devstreet application",
+  "GroupName": "catalog-web-traffic",
+  "GroupDescription": "Allow HTTP/HTTPS traffic for catalog application",
   "VpcId": "vpc-12345678",
   "SecurityGroupRules": [
     {
@@ -163,7 +163,7 @@ aws acm request-certificate \
 
 ```json
 {
-  "GroupName": "devstreet-backend",
+  "GroupName": "catalog-backend",
   "GroupDescription": "Allow traffic from ALB to backend instances",
   "VpcId": "vpc-12345678",
   "SecurityGroupRules": [
@@ -234,15 +234,15 @@ COOKIE_SAME_SITE=strict
 
 ```bash
 # Test DNS resolution
-dig *.devstreet.co
-nslookup pine-valley.devstreet.co
+dig *.catalog.golf
+nslookup pine-valley.catalog.golf
 
 # Test subdomain routing
-curl -H "Host: pine-valley.devstreet.co" https://devstreet.co/health
-curl -H "Host: sunset-golf.devstreet.co" https://devstreet.co/health
+curl -H "Host: pine-valley.catalog.golf" https://catalog.golf/health
+curl -H "Host: sunset-golf.catalog.golf" https://catalog.golf/health
 
 # Test SSL certificate
-openssl s_client -connect pine-valley.devstreet.co:443 -servername pine-valley.devstreet.co
+openssl s_client -connect pine-valley.catalog.golf:443 -servername pine-valley.catalog.golf
 ```
 
 ## Monitoring and Logging
@@ -256,8 +256,8 @@ openssl s_client -connect pine-valley.devstreet.co:443 -servername pine-valley.d
 
 ### Log Groups
 
-- `/aws/elb/devstreet-alb` - Load balancer logs
-- `/aws/lambda/devstreet-backend` - Application logs
+- `/aws/elb/catalog-alb` - Load balancer logs
+- `/aws/lambda/catalog-backend` - Application logs
 - Route 53 query logs (optional)
 
 ## Cost Optimization
@@ -280,10 +280,10 @@ openssl s_client -connect pine-valley.devstreet.co:443 -servername pine-valley.d
 
    ```bash
    # Check NS records are correctly configured
-   dig NS devstreet.co
+   dig NS catalog.golf
 
    # Verify wildcard resolution
-   dig test-subdomain.devstreet.co
+   dig test-subdomain.catalog.golf
    ```
 
 2. **SSL Certificate Issues**
@@ -303,7 +303,7 @@ openssl s_client -connect pine-valley.devstreet.co:443 -servername pine-valley.d
    aws elbv2 describe-target-health --target-group-arn YOUR_TG_ARN
 
    # Test health check endpoint
-   curl -H "Host: pine-valley.devstreet.co" http://instance-ip:3000/health
+   curl -H "Host: pine-valley.catalog.golf" http://instance-ip:3000/health
    ```
 
 ## Security Best Practices

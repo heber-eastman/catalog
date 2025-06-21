@@ -2,7 +2,7 @@ const { GolfCourseInstance } = require('../models');
 
 /**
  * Middleware to extract subdomain from Host header and map to course_id
- * Expected Host: subdomain.devstreet.co
+ * Expected Host: subdomain.catalog.golf
  * Sets req.courseId and req.subdomain for downstream middleware
  */
 const mapSubdomainToCourse = async (req, res, next) => {
@@ -13,7 +13,7 @@ const mapSubdomainToCourse = async (req, res, next) => {
       return res.status(400).json({ error: 'Host header required' });
     }
 
-    // Extract subdomain from host (e.g., "pine-valley.devstreet.co" -> "pine-valley")
+    // Extract subdomain from host (e.g., "pine-valley.catalog.golf" -> "pine-valley")
     const subdomain = extractSubdomain(host);
 
     if (!subdomain) {
@@ -54,7 +54,7 @@ const mapSubdomainToCourse = async (req, res, next) => {
 /**
  * Extract subdomain from host header
  * Supports formats:
- * - subdomain.devstreet.co -> subdomain
+ * - subdomain.catalog.golf -> subdomain
  * - localhost:3000 -> localhost (for development)
  * - subdomain.localhost:3000 -> subdomain (for development)
  */
@@ -73,8 +73,8 @@ function extractSubdomain(host) {
     return parts.length >= 2 ? parts[0] : null;
   }
 
-  // Handle production format: subdomain.devstreet.co
-  if (hostWithoutPort.endsWith('.devstreet.co')) {
+  // Handle production format: subdomain.catalog.golf
+  if (hostWithoutPort.endsWith('.catalog.golf')) {
     const parts = hostWithoutPort.split('.');
     return parts.length >= 3 ? parts[0] : null;
   }
