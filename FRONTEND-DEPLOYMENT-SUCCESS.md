@@ -7,23 +7,27 @@ Your frontend is now successfully deployed and accessible at **https://app.catal
 ## 🏗️ Infrastructure Components
 
 ### Domain & DNS
+
 - **Frontend Domain**: `app.catalog.golf`
 - **Backend API**: `https://api.catalog.golf/api/v1`
 - **Route 53 Hosted Zone**: Z02766972A977NGTX3R7
 - **DNS Records**: A record pointing to CloudFront distribution
 
 ### SSL Certificates
+
 - **Frontend Certificate**: `arn:aws:acm:us-east-1:722895251763:certificate/ef7bc90c-f2c3-4f8f-8980-9c31c8b2610c`
 - **Backend Certificate**: `arn:aws:acm:us-east-1:722895251763:certificate/c4575455-1125-4a5c-903b-a941c6808b52`
 - **Status**: Both certificates are ISSUED and valid
 
 ### CloudFront & S3
+
 - **CloudFront Distribution**: E253LTYDQKHUYE
 - **S3 Bucket**: catalog-golf-frontend-1750797391
 - **Custom Domain**: app.catalog.golf configured with SSL certificate
 - **Cache**: Invalidated to serve latest build
 
 ### Backend Infrastructure
+
 - **Application Load Balancer**: catalog-backend-alb-871648486.us-east-1.elb.amazonaws.com
 - **HTTPS Listener**: Port 443 with SSL termination
 - **HTTP Redirect**: Port 80 redirects to HTTPS
@@ -32,13 +36,16 @@ Your frontend is now successfully deployed and accessible at **https://app.catal
 ## 🔧 Configuration Files
 
 ### Frontend Environment
+
 ```bash
 # frontend/.env.production
 VITE_API_BASE_URL=https://api.catalog.golf/api/v1
 ```
 
 ### CORS Configuration
+
 Backend is configured to accept requests from:
+
 - `https://app.catalog.golf` (new domain)
 - `https://d2knix92k5b40.cloudfront.net` (CloudFront domain)
 - `http://localhost:5173` (development)
@@ -46,21 +53,25 @@ Backend is configured to accept requests from:
 ## 🚀 Access URLs
 
 ### Production
+
 - **Frontend**: https://app.catalog.golf
 - **Backend API**: https://api.catalog.golf/api/v1
 - **Health Check**: https://api.catalog.golf/health
 
 ### Development
+
 - **Frontend**: http://localhost:5173
 - **Backend**: http://localhost:3000
 
 ## 👥 Login Credentials
 
 ### Super Admin
+
 - **Email**: heber@catalog.golf
 - **Password**: admin123
 
 ### Staff Admin (Pine Valley Golf Course)
+
 - **Email**: admin@pinevalley.golf
 - **Password**: admin123
 
@@ -111,4 +122,4 @@ The setup is complete! The domain will become accessible on your local network o
 2. Use external DNS servers (8.8.8.8, 1.1.1.1)
 3. Test using the CloudFront domain with Host header
 
-Your golf course management application is now production-ready with professional custom domains and full HTTPS security! 
+Your golf course management application is now production-ready with professional custom domains and full HTTPS security!

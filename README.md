@@ -270,6 +270,7 @@ The project includes optimized Dockerfiles for production:
 ### Prerequisites
 
 1. **AWS Account Setup:**
+
    - AWS CLI installed and configured
    - Appropriate IAM permissions
    - Domain registered (catalog.golf)
@@ -399,12 +400,14 @@ After deployment, verify:
 The GitHub Actions workflow automatically:
 
 1. **On Pull Request:**
+
    - Runs linting and formatting checks
    - Executes all unit tests
    - Builds Docker images
    - Runs security audits
 
 2. **On Merge to Main:**
+
    - Builds and pushes Docker images to ECR
    - Deploys to staging environment
    - Runs smoke tests
@@ -488,6 +491,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ### Common Issues
 
 **Database Connection Issues:**
+
 ```bash
 # Check PostgreSQL is running
 pg_isready
@@ -497,6 +501,7 @@ npm run db:reset --workspace=backend
 ```
 
 **Docker Issues:**
+
 ```bash
 # Clean Docker cache
 docker system prune -a
@@ -506,6 +511,7 @@ npm run docker:build --no-cache
 ```
 
 **AWS Deployment Issues:**
+
 ```bash
 # Check ECS service status
 aws ecs describe-services --cluster catalog-golf --services catalog-golf-backend

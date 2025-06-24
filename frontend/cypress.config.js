@@ -15,42 +15,42 @@ export default defineConfig({
     requestTimeout: 15000,
     responseTimeout: 15000,
     pageLoadTimeout: 30000,
-    
+
     // Retry configuration
     retries: {
-      runMode: 2,    // Retry failed tests 2 times in CI
-      openMode: 0    // Don't retry in interactive mode
+      runMode: 2, // Retry failed tests 2 times in CI
+      openMode: 0, // Don't retry in interactive mode
     },
 
     // Environment-specific configuration
     env: {
       apiUrl: 'http://localhost:3000/api/v1',
-      
+
       // Test data configuration
       testTimeout: 30000,
       slowTestThreshold: 10000,
-      
+
       // Feature flags for testing
       enableAccessibilityTests: true,
       enablePerformanceTests: true,
       enableVisualTests: false,
-      
+
       // Test user credentials (use test environment values)
       testSuperAdmin: {
         email: 'test.super.admin@catalog.golf',
-        password: 'TestSuperAdmin123!'
+        password: 'TestSuperAdmin123!',
       },
       testStaff: {
         email: 'test.staff@catalog.golf',
-        password: 'TestStaff123!'
-      }
+        password: 'TestStaff123!',
+      },
     },
 
     // Setup node events
     setupNodeEvents(on, config) {
       // Environment-specific overrides
       const environment = config.env.ENVIRONMENT || 'local';
-      
+
       switch (environment) {
         case 'staging':
           config.baseUrl = 'https://staging.catalog.golf';
@@ -59,7 +59,7 @@ export default defineConfig({
           config.requestTimeout = 20000;
           config.responseTimeout = 20000;
           break;
-          
+
         case 'production':
           config.baseUrl = 'https://catalog.golf';
           config.env.apiUrl = 'https://catalog.golf/api/v1';
@@ -68,7 +68,7 @@ export default defineConfig({
           config.responseTimeout = 25000;
           config.video = false; // Don't record videos in production tests
           break;
-          
+
         case 'local':
         default:
           // Use default configuration for local development
@@ -116,7 +116,7 @@ export default defineConfig({
           // In a real implementation, you might use Lighthouse or similar
           console.log('⚡ Measuring performance for:', url);
           return { score: 95, metrics: { fcp: 1.2, lcp: 2.5 } };
-        }
+        },
       });
 
       // Code coverage (if using)
@@ -128,17 +128,20 @@ export default defineConfig({
       if (config.env.enableAccessibilityTests) {
         on('task', {
           logA11yViolations(violations) {
-            console.log('♿ Accessibility violations found:', violations.length);
+            console.log(
+              '♿ Accessibility violations found:',
+              violations.length
+            );
             violations.forEach(violation => {
               console.log(`- ${violation.id}: ${violation.description}`);
             });
             return null;
-          }
+          },
         });
       }
 
       return config;
-    }
+    },
   },
 
   // Component testing configuration (if needed)
@@ -150,19 +153,16 @@ export default defineConfig({
     supportFile: 'cypress/support/component.js',
     specPattern: 'src/**/*.cy.{js,jsx,ts,tsx,vue}',
     viewportWidth: 1280,
-    viewportHeight: 720
+    viewportHeight: 720,
   },
 
   // Global configuration
   experimentalStudio: true,
   experimentalSessionAndOrigin: true,
   chromeWebSecurity: false,
-  
+
   // File exclusions
-  excludeSpecPattern: [
-    'cypress/e2e/examples/*',
-    'cypress/e2e/**/skip-*'
-  ],
+  excludeSpecPattern: ['cypress/e2e/examples/*', 'cypress/e2e/**/skip-*'],
 
   // Browser configuration
   browsers: [
@@ -171,21 +171,21 @@ export default defineConfig({
       family: 'chromium',
       channel: 'stable',
       displayName: 'Chrome (Stable)',
-      version: 'stable'
+      version: 'stable',
     },
     {
       name: 'chrome-headless',
       family: 'chromium',
       channel: 'stable',
       displayName: 'Chrome (Headless)',
-      version: 'stable'
+      version: 'stable',
     },
     {
       name: 'firefox',
       family: 'firefox',
       channel: 'stable',
       displayName: 'Firefox (Stable)',
-      version: 'stable'
-    }
-  ]
+      version: 'stable',
+    },
+  ],
 });

@@ -298,7 +298,7 @@ jobs:
         run: |
           # Wait for services to be ready
           sleep 30
-          
+
           # Run health checks
           curl -f https://staging.catalog.golf/health || exit 1
           curl -f https://staging.catalog.golf/api/v1/auth/test || exit 1
@@ -358,11 +358,11 @@ jobs:
         run: |
           # Wait for services to be ready
           sleep 60
-          
+
           # Run comprehensive health checks
           curl -f https://catalog.golf/health || exit 1
           curl -f https://catalog.golf/api/v1/auth/test || exit 1
-          
+
           # Verify SSL
           curl -f https://catalog.golf/api/v1/health || exit 1
 

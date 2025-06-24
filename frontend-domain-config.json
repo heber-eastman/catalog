@@ -1,1 +1,5 @@
-{"frontend_certificate_arn": "arn:aws:acm:us-east-1:722895251763:certificate/ef7bc90c-f2c3-4f8f-8980-9c31c8b2610c", "cloudfront_distribution_id": "E253LTYDQKHUYE", "domain": "app.catalog.golf"}
+{
+  "frontend_certificate_arn": "arn:aws:acm:us-east-1:722895251763:certificate/ef7bc90c-f2c3-4f8f-8980-9c31c8b2610c",
+  "cloudfront_distribution_id": "E253LTYDQKHUYE",
+  "domain": "app.catalog.golf"
+}

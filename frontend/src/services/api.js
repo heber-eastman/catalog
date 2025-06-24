@@ -39,7 +39,11 @@ api.interceptors.response.use(
       // Clear invalid token and user data
       apiUtils.clearToken();
       // Only redirect if not already on login page and not in test environment
-      if (typeof window !== 'undefined' && window.location.pathname !== '/login' && !window.location.pathname.includes('/login')) {
+      if (
+        typeof window !== 'undefined' &&
+        window.location.pathname !== '/login' &&
+        !window.location.pathname.includes('/login')
+      ) {
         console.log('Authentication failed, redirecting to login');
         // Use router navigation if available, otherwise fall back to window.location
         if (window.app && window.app.$router) {

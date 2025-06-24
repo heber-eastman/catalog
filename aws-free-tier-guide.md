@@ -3,8 +3,9 @@
 ## 🆓 What You Get for Free
 
 AWS Free Tier includes (12 months for new accounts):
+
 - **EC2**: 750 hours/month of t2.micro instances
-- **RDS**: 750 hours/month of db.t3.micro + 20GB storage  
+- **RDS**: 750 hours/month of db.t3.micro + 20GB storage
 - **S3**: 5GB storage + 20,000 GET requests + 2,000 PUT requests
 - **CloudWatch**: 10 custom metrics + 5GB log ingestion
 - **Data Transfer**: 15GB outbound per month
@@ -12,11 +13,13 @@ AWS Free Tier includes (12 months for new accounts):
 ## 🚀 Quick Setup
 
 ### Prerequisites
+
 1. AWS Account (new accounts get 12 months free tier)
 2. AWS CLI installed and configured
 3. Your application code ready
 
 ### Step 1: Deploy Infrastructure
+
 ```bash
 # Make the script executable
 chmod +x deploy-aws-free-tier.sh
@@ -26,18 +29,21 @@ chmod +x deploy-aws-free-tier.sh
 ```
 
 This will create:
+
 - VPC with public/private subnets
 - EC2 t2.micro instance (FREE)
 - RDS db.t3.micro PostgreSQL (FREE)
 - Security groups and networking
 
 ### Step 2: Connect to Your Server
+
 ```bash
 # SSH into your EC2 instance
 ssh -i catalog-golf-key.pem ec2-user@<PUBLIC_IP>
 ```
 
 ### Step 3: Deploy Your Application
+
 ```bash
 # On the EC2 instance:
 
@@ -113,13 +119,13 @@ sudo tee /etc/nginx/conf.d/catalog-golf.conf << EOF
 server {
     listen 80;
     server_name _;
-    
+
     # Serve frontend
     location / {
         root /home/ec2-user/app/frontend/dist;
         try_files \$uri \$uri/ /index.html;
     }
-    
+
     # Proxy API requests to backend
     location /api/ {
         proxy_pass http://localhost:3000;
@@ -132,7 +138,7 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_cache_bypass \$http_upgrade;
     }
-    
+
     # Health check
     location /health {
         proxy_pass http://localhost:3000;
@@ -155,17 +161,20 @@ echo "✅ Setup complete! Your app is running at http://$(curl -s http://169.254
 ## 💰 Free Tier Limits & Monitoring
 
 ### Monthly Limits (Free Tier)
+
 - **EC2**: 750 hours (= 1 t2.micro running 24/7)
 - **RDS**: 750 hours (= 1 db.t3.micro running 24/7)
 - **Storage**: 20GB EBS + 20GB RDS
 - **Data Transfer**: 15GB outbound
 
 ### Cost After Free Tier
+
 - EC2 t2.micro: ~$8.50/month
 - RDS db.t3.micro: ~$12.60/month
 - **Total**: ~$21/month
 
 ### Set Up Billing Alerts
+
 1. Go to AWS Console → Billing
 2. Set up billing alerts for $10, $20, $30
 3. Monitor usage in CloudWatch
@@ -173,6 +182,7 @@ echo "✅ Setup complete! Your app is running at http://$(curl -s http://169.254
 ## 🔒 Security Best Practices
 
 ### 1. Secure SSH Access
+
 ```bash
 # Limit SSH to your IP only
 aws ec2 authorize-security-group-ingress \
@@ -183,11 +193,13 @@ aws ec2 authorize-security-group-ingress \
 ```
 
 ### 2. Database Security
+
 - RDS is in private subnet (not publicly accessible)
 - Only EC2 security group can access database
 - Strong password set
 
 ### 3. Application Security
+
 - Environment variables secured
 - CORS properly configured
 - Rate limiting enabled
@@ -195,6 +207,7 @@ aws ec2 authorize-security-group-ingress \
 ## 📊 Monitoring & Maintenance
 
 ### Check Application Health
+
 ```bash
 # SSH into server
 ssh -i catalog-golf-key.pem ec2-user@<PUBLIC_IP>
@@ -210,6 +223,7 @@ pm2 restart catalog-golf-api
 ```
 
 ### Database Maintenance
+
 ```bash
 # Connect to database
 psql -h <RDS_ENDPOINT> -U catalogadmin -d catalog_golf
@@ -224,6 +238,7 @@ pg_dump -h <RDS_ENDPOINT> -U catalogadmin catalog_golf > backup.sql
 ## 🚨 Troubleshooting
 
 ### Application Won't Start
+
 ```bash
 # Check logs
 pm2 logs
@@ -236,6 +251,7 @@ node -e "require('./src/models/index.js')"
 ```
 
 ### High Memory Usage
+
 ```bash
 # Check memory
 free -h
@@ -248,6 +264,7 @@ sudo yum install htop -y && htop
 ```
 
 ### Database Connection Issues
+
 ```bash
 # Test connection from EC2
 telnet <RDS_ENDPOINT> 5432
@@ -259,6 +276,7 @@ aws ec2 describe-security-groups --group-ids <RDS_SG_ID>
 ## 📈 Scaling Options
 
 ### When You Outgrow Free Tier:
+
 1. **Upgrade EC2**: t2.micro → t2.small → t2.medium
 2. **Add Load Balancer**: Application Load Balancer for multiple instances
 3. **Database Scaling**: Read replicas, larger instance sizes
@@ -266,6 +284,7 @@ aws ec2 describe-security-groups --group-ids <RDS_SG_ID>
 5. **Auto Scaling**: ASG for handling traffic spikes
 
 ### Migration Path:
+
 ```bash
 # Create AMI of your configured instance
 aws ec2 create-image --instance-id <INSTANCE_ID> --name "catalog-golf-v1"
@@ -274,4 +293,4 @@ aws ec2 create-image --instance-id <INSTANCE_ID> --name "catalog-golf-v1"
 aws ec2 run-instances --image-id <AMI_ID> --instance-type t2.small
 ```
 
-This setup gives you a production-ready application on AWS completely free for the first 12 months! 
+This setup gives you a production-ready application on AWS completely free for the first 12 months!

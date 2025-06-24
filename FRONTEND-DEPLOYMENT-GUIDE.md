@@ -19,6 +19,7 @@ This guide explains how to deploy the Catalog Golf frontend to AWS.
 ```
 
 **What it does:**
+
 - Builds the frontend for production
 - Creates an S3 bucket for static hosting
 - Uploads all frontend files
@@ -35,6 +36,7 @@ This guide explains how to deploy the Catalog Golf frontend to AWS.
 ```
 
 **What it does:**
+
 - Everything from Option 1, plus:
 - Creates CloudFront distribution for global CDN
 - Enables HTTPS encryption
@@ -65,6 +67,7 @@ After frontend deployment, update backend to allow the new domain:
 ```
 
 This will:
+
 - Find your deployed frontend URL
 - Update backend CORS configuration
 - Create a deployment script for the backend update
@@ -76,6 +79,7 @@ This will:
 ```
 
 This will:
+
 - Upload the updated CORS configuration to your EC2 server
 - Restart the backend service
 - Test the connection
@@ -83,11 +87,13 @@ This will:
 ## What Gets Created
 
 ### AWS Resources (Simple Deployment)
+
 - **S3 Bucket**: Static website hosting
 - **Bucket Policy**: Public read access
 - **Website Endpoint**: HTTP access URL
 
 ### AWS Resources (Full Deployment)
+
 - Everything from simple deployment, plus:
 - **CloudFront Distribution**: Global CDN
 - **SSL Certificate**: Automatic HTTPS
@@ -96,7 +102,9 @@ This will:
 ## Configuration Details
 
 ### Environment Variables
+
 The deployment automatically creates `.env.production` with:
+
 ```
 VITE_API_BASE_URL=http://YOUR_BACKEND_IP:3000/api/v1
 VITE_APP_TITLE=Catalog Golf
@@ -104,7 +112,9 @@ VITE_APP_DESCRIPTION=Golf Course Management System
 ```
 
 ### CORS Configuration
+
 Backend is updated to allow:
+
 - `http://localhost:5173` (development)
 - `http://localhost:3000` (local backend)
 - `http://your-bucket.s3-website-us-east-1.amazonaws.com` (deployed frontend)
@@ -112,18 +122,23 @@ Backend is updated to allow:
 ## Testing Your Deployment
 
 ### 1. Check Frontend Access
+
 Visit the URL provided by the deployment script:
+
 ```
 http://catalog-golf-frontend-XXXXXX.s3-website-us-east-1.amazonaws.com
 ```
 
 ### 2. Test API Connection
+
 1. Open browser developer tools
 2. Try logging in with your test credentials
 3. Check network tab for successful API calls
 
 ### 3. Verify CORS
+
 If you see CORS errors:
+
 1. Ensure you ran `./update-backend-cors.sh`
 2. Ensure you ran `./deploy-backend-update.sh`
 3. Check backend logs on EC2 server
@@ -131,16 +146,19 @@ If you see CORS errors:
 ## Troubleshooting
 
 ### Frontend Not Loading
+
 - Check S3 bucket policy is public
 - Verify files were uploaded correctly
 - Check browser console for errors
 
 ### API Calls Failing
+
 - Verify backend is running: `http://YOUR_BACKEND_IP:3000/health`
 - Check CORS configuration was updated
 - Verify environment variables in build
 
 ### CORS Errors
+
 ```bash
 # Re-run CORS update
 ./update-backend-cors.sh
@@ -154,11 +172,13 @@ cd app/backend && npm start
 ## Cost Estimates
 
 ### Simple S3 Deployment
+
 - **S3 Storage**: ~$0.50/month
 - **S3 Requests**: ~$0.10/month
 - **Total**: ~$0.60/month
 
 ### Full CloudFront Deployment
+
 - **S3 Storage**: ~$0.50/month
 - **CloudFront**: ~$1.00/month (1TB free tier)
 - **Total**: ~$1.50/month
@@ -166,11 +186,13 @@ cd app/backend && npm start
 ## Performance Benefits
 
 ### Simple Deployment
+
 - ✅ Static file serving
 - ✅ Instant availability
 - ✅ Basic caching
 
 ### Full Deployment
+
 - ✅ All simple benefits, plus:
 - ✅ Global CDN (faster worldwide)
 - ✅ HTTPS encryption
@@ -194,7 +216,8 @@ cd app/backend && npm start
 ## Support
 
 If you encounter issues:
+
 1. Check AWS CloudWatch logs
 2. Verify all prerequisites are met
 3. Ensure AWS CLI has proper permissions
-4. Check the deployment script output for error messages 
+4. Check the deployment script output for error messages

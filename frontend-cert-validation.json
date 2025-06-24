@@ -1,17 +1,17 @@
 {
-    "Changes": [
-        {
-            "Action": "CREATE",
-            "ResourceRecordSet": {
-                "Name": "_92053b3615d877cf5f0246c91fec7f6d.app.catalog.golf.",
-                "Type": "CNAME",
-                "TTL": 300,
-                "ResourceRecords": [
-                    {
-                        "Value": "_99f2716f931fd1a12459eabcc1234423.xlfgrmvvlj.acm-validations.aws."
-                    }
-                ]
-            }
-        }
-    ]
+  "Changes": [
+    {
+      "Action": "CREATE",
+      "ResourceRecordSet": {
+        "Name": "_92053b3615d877cf5f0246c91fec7f6d.app.catalog.golf.",
+        "Type": "CNAME",
+        "TTL": 300,
+        "ResourceRecords": [
+          {
+            "Value": "_99f2716f931fd1a12459eabcc1234423.xlfgrmvvlj.acm-validations.aws."
+          }
+        ]
+      }
+    }
+  ]
 }

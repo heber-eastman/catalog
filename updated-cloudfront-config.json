@@ -2,9 +2,7 @@
   "CallerReference": "catalog-golf-frontend-1750797409",
   "Aliases": {
     "Quantity": 1,
-    "Items": [
-      "app.catalog.golf"
-    ]
+    "Items": ["app.catalog.golf"]
   },
   "DefaultRootObject": "index.html",
   "Origins": {
@@ -23,11 +21,7 @@
           "OriginProtocolPolicy": "http-only",
           "OriginSslProtocols": {
             "Quantity": 3,
-            "Items": [
-              "TLSv1",
-              "TLSv1.1",
-              "TLSv1.2"
-            ]
+            "Items": ["TLSv1", "TLSv1.1", "TLSv1.2"]
           },
           "OriginReadTimeout": 30,
           "OriginKeepaliveTimeout": 5
@@ -57,16 +51,10 @@
     "ViewerProtocolPolicy": "redirect-to-https",
     "AllowedMethods": {
       "Quantity": 2,
-      "Items": [
-        "HEAD",
-        "GET"
-      ],
+      "Items": ["HEAD", "GET"],
       "CachedMethods": {
         "Quantity": 2,
-        "Items": [
-          "HEAD",
-          "GET"
-        ]
+        "Items": ["HEAD", "GET"]
       }
     },
     "SmoothStreaming": false,
