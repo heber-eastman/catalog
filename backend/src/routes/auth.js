@@ -62,7 +62,7 @@ router.post('/login', async (req, res) => {
     // Set cookie
     res.cookie('jwt', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: false, // Set to false since we're not using HTTPS
       sameSite: 'strict',
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     });
@@ -134,7 +134,7 @@ router.post('/super-admin/login', async (req, res) => {
     // Set cookie
     res.cookie('jwt', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: false, // Set to false since we're not using HTTPS
       sameSite: 'strict',
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     });
@@ -165,7 +165,7 @@ router.post('/logout', (req, res) => {
     // Clear the JWT cookie
     res.clearCookie('jwt', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: false, // Set to false since we're not using HTTPS
       sameSite: 'strict',
     });
 

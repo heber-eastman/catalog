@@ -36,11 +36,17 @@ api.interceptors.response.use(
   error => {
     // Handle authentication errors
     if (error.response?.status === 401) {
-      // Clear invalid token
-      localStorage.removeItem('jwt_token');
-      // Redirect to login if not already there
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+      // Clear invalid token and user data
+      apiUtils.clearToken();
+      // Only redirect if not already on login page and not in test environment
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login' && !window.location.pathname.includes('/login')) {
+        console.log('Authentication failed, redirecting to login');
+        // Use router navigation if available, otherwise fall back to window.location
+        if (window.app && window.app.$router) {
+          window.app.$router.push('/login');
+        } else {
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error);

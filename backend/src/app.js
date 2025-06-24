@@ -22,7 +22,8 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:5173', 
   'http://localhost:3000',
-  process.env.FRONTEND_URL || 'http://catalog-golf-frontend-simple-1750793998.s3-website-us-east-1.amazonaws.com'
+  'http://catalog-golf-frontend-simple-1750793998.s3-website-us-east-1.amazonaws.com',
+  'https://d2knix92k5b40.cloudfront.net'
 ];
 
 // Filter out empty origins
