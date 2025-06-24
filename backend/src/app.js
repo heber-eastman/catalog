@@ -9,6 +9,7 @@ const notesRouter = require('./routes/notes');
 const staffRouter = require('./routes/staff');
 const superAdminsRouter = require('./routes/super-admins');
 const authRouter = require('./routes/auth');
+const healthRouter = require('./routes/health');
 const {
   rateLimitMiddleware,
   strictRateLimitMiddleware,
@@ -17,10 +18,19 @@ const { extractSubdomainOptional } = require('./middleware/subdomain');
 
 const app = express();
 
-// CORS configuration
+// CORS configuration - Updated for deployed frontend
+const allowedOrigins = [
+  'http://localhost:5173', 
+  'http://localhost:3000',
+  process.env.FRONTEND_URL || 'http://catalog-golf-frontend-simple-1750793998.s3-website-us-east-1.amazonaws.com'
+];
+
+// Filter out empty origins
+const validOrigins = allowedOrigins.filter(origin => origin && !origin.includes('PLACEHOLDER'));
+
 app.use(
   cors({
-    origin: ['http://localhost:5173', 'http://localhost:3000'],
+    origin: validOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
@@ -37,13 +47,9 @@ app.use(rateLimitMiddleware);
 // Add subdomain extraction for optional use
 app.use(extractSubdomainOptional);
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-  });
-});
+// Health check endpoints (no rate limiting)
+app.use('/health', healthRouter);
+app.use('/api/v1/health', healthRouter);
 
 // Basic root endpoint
 app.get('/', (req, res) => {

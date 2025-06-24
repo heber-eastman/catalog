@@ -78,7 +78,7 @@ describe('Subdomain Middleware Tests', () => {
         .set('Host', `${testSubdomain}.catalog.golf`)
         .expect(200);
 
-      expect(response.body.status).toBe('OK');
+      expect(response.body.status).toBe('healthy');
     });
 
     test('should work with valid subdomain in localhost format', async () => {
@@ -87,7 +87,7 @@ describe('Subdomain Middleware Tests', () => {
         .set('Host', `${testSubdomain}.localhost:3000`)
         .expect(200);
 
-      expect(response.body.status).toBe('OK');
+      expect(response.body.status).toBe('healthy');
     });
 
     test('should work with plain localhost', async () => {
@@ -96,13 +96,13 @@ describe('Subdomain Middleware Tests', () => {
         .set('Host', 'localhost:3000')
         .expect(200);
 
-      expect(response.body.status).toBe('OK');
+      expect(response.body.status).toBe('healthy');
     });
 
     test('should work without Host header for health check', async () => {
       const response = await request(app).get('/health').expect(200);
 
-      expect(response.body.status).toBe('OK');
+      expect(response.body.status).toBe('healthy');
     });
   });
 
@@ -137,7 +137,7 @@ describe('Subdomain Middleware Tests', () => {
         .expect(200);
 
       // Health check should still work with invalid subdomain
-      expect(response.body.status).toBe('OK');
+      expect(response.body.status).toBe('healthy');
     });
 
     test('should handle empty Host header gracefully', async () => {
@@ -146,7 +146,7 @@ describe('Subdomain Middleware Tests', () => {
         .set('Host', '')
         .expect(200);
 
-      expect(response.body.status).toBe('OK');
+      expect(response.body.status).toBe('healthy');
     });
   });
 

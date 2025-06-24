@@ -17,7 +17,7 @@ describe('Backend API Tests', () => {
       const response = await request(app).get('/health').expect(200);
 
       expect(response.body).toHaveProperty('status');
-      expect(response.body.status).toBe('OK');
+      expect(response.body.status).toBe('healthy');
       expect(response.body).toHaveProperty('timestamp');
     });
   });
