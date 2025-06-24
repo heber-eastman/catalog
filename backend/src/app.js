@@ -20,14 +20,16 @@ const app = express();
 
 // CORS configuration - Updated for deployed frontend
 const allowedOrigins = [
-  'http://localhost:5173', 
+  'http://localhost:5173',
   'http://localhost:3000',
   'http://catalog-golf-frontend-simple-1750793998.s3-website-us-east-1.amazonaws.com',
-  'https://d2knix92k5b40.cloudfront.net'
+  'https://d2knix92k5b40.cloudfront.net',
 ];
 
 // Filter out empty origins
-const validOrigins = allowedOrigins.filter(origin => origin && !origin.includes('PLACEHOLDER'));
+const validOrigins = allowedOrigins.filter(
+  origin => origin && !origin.includes('PLACEHOLDER')
+);
 
 app.use(
   cors({

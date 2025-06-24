@@ -59,7 +59,9 @@ module.exports = {
     ]);
 
     console.log('✅ Demo data created:');
-    console.log('   Golf Course: Pine Valley Golf Club (pinevalley.catalog.golf)');
+    console.log(
+      '   Golf Course: Pine Valley Golf Club (pinevalley.catalog.golf)'
+    );
     console.log('   Staff Login: admin@pinevalley.golf / admin123');
   },
 
@@ -84,4 +86,4 @@ module.exports = {
       subdomain: 'pinevalley',
     });
   },
-}; 
+};

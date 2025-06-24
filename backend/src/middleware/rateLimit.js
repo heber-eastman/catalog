@@ -4,7 +4,10 @@ const rateLimit = require('express-rate-limit');
  * Create a conditional rate limiter that skips rate limiting in test and development environments
  */
 const createConditionalRateLimit = options => {
-  if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
+  if (
+    process.env.NODE_ENV === 'test' ||
+    process.env.NODE_ENV === 'development'
+  ) {
     // Return a no-op middleware for testing and development
     return (req, res, next) => next();
   }

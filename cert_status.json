@@ -1,0 +1,55 @@
+{
+    "Certificate": {
+        "CertificateArn": "arn:aws:acm:us-east-1:722895251763:certificate/c4575455-1125-4a5c-903b-a941c6808b52",
+        "DomainName": "api.catalog.golf",
+        "SubjectAlternativeNames": [
+            "api.catalog.golf"
+        ],
+        "DomainValidationOptions": [
+            {
+                "DomainName": "api.catalog.golf",
+                "ValidationDomain": "api.catalog.golf",
+                "ValidationStatus": "SUCCESS",
+                "ResourceRecord": {
+                    "Name": "_5b94e7ad7b8b4d6aefcd3f8e179564a8.api.catalog.golf.",
+                    "Type": "CNAME",
+                    "Value": "_b883606bc565d0d8cf029f0e61079b25.xlfgrmvvlj.acm-validations.aws."
+                },
+                "ValidationMethod": "DNS"
+            }
+        ],
+        "Serial": "07:d3:ac:3d:5d:66:5a:8a:0a:21:33:ce:8a:b0:f8:b6",
+        "Subject": "CN=api.catalog.golf",
+        "Issuer": "Amazon",
+        "CreatedAt": "2025-06-24T15:59:30.045000-06:00",
+        "IssuedAt": "2025-06-24T16:04:42.375000-06:00",
+        "Status": "ISSUED",
+        "NotBefore": "2025-06-23T18:00:00-06:00",
+        "NotAfter": "2026-07-23T17:59:59-06:00",
+        "KeyAlgorithm": "RSA-2048",
+        "SignatureAlgorithm": "SHA256WITHRSA",
+        "InUseBy": [
+            "arn:aws:elasticloadbalancing:us-east-1:722895251763:loadbalancer/app/catalog-backend-alb/f560aefc3252eaf8"
+        ],
+        "Type": "AMAZON_ISSUED",
+        "KeyUsages": [
+            {
+                "Name": "DIGITAL_SIGNATURE"
+            },
+            {
+                "Name": "KEY_ENCIPHERMENT"
+            }
+        ],
+        "ExtendedKeyUsages": [
+            {
+                "Name": "TLS_WEB_SERVER_AUTHENTICATION",
+                "OID": "1.3.6.1.5.5.7.3.1"
+            }
+        ],
+        "RenewalEligibility": "ELIGIBLE",
+        "Options": {
+            "CertificateTransparencyLoggingPreference": "ENABLED",
+            "Export": "DISABLED"
+        }
+    }
+}

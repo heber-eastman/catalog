@@ -1,5 +1,4 @@
 const express = require('express');
-const { Sequelize } = require('sequelize');
 const { sequelize } = require('../models');
 const router = express.Router();
 
@@ -23,16 +22,16 @@ router.get('/', async (req, res) => {
         rss: `${Math.round(memoryUsage.rss / 1024 / 1024)} MB`,
         heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)} MB`,
         heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)} MB`,
-        external: `${Math.round(memoryUsage.external / 1024 / 1024)} MB`
+        external: `${Math.round(memoryUsage.external / 1024 / 1024)} MB`,
       },
-      environment: process.env.NODE_ENV || 'development'
+      environment: process.env.NODE_ENV || 'development',
     });
   } catch (error) {
     console.error('Health check error:', error);
     res.status(503).json({
       status: 'unhealthy',
       error: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -44,24 +43,24 @@ router.get('/', async (req, res) => {
 router.get('/db', async (req, res) => {
   try {
     const startTime = Date.now();
-    
+
     // Test database connection
     await sequelize.authenticate();
-    
+
     const responseTime = Date.now() - startTime;
-    
+
     // Get connection pool status
     const pool = sequelize.connectionManager.pool;
     const poolStatus = {
       size: pool.size,
       available: pool.available,
       using: pool.using,
-      waiting: pool.pending
+      waiting: pool.pending,
     };
 
     // Test a simple query
-    const [results] = await sequelize.query('SELECT 1 as test');
-    
+    await sequelize.query('SELECT 1 as test');
+
     res.status(200).json({
       status: 'healthy',
       database: {
@@ -69,9 +68,9 @@ router.get('/db', async (req, res) => {
         responseTime: `${responseTime}ms`,
         pool: poolStatus,
         dialect: sequelize.getDialect(),
-        version: sequelize.databaseVersion || 'unknown'
+        version: sequelize.databaseVersion || 'unknown',
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Database health check error:', error);
@@ -79,9 +78,9 @@ router.get('/db', async (req, res) => {
       status: 'unhealthy',
       database: {
         status: 'disconnected',
-        error: error.message
+        error: error.message,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -94,7 +93,7 @@ router.get('/detailed', async (req, res) => {
   const checks = {
     timestamp: new Date().toISOString(),
     status: 'healthy',
-    checks: {}
+    checks: {},
   };
 
   try {
@@ -103,17 +102,17 @@ router.get('/detailed', async (req, res) => {
       const dbStartTime = Date.now();
       await sequelize.authenticate();
       const dbResponseTime = Date.now() - dbStartTime;
-      
+
       checks.checks.database = {
         status: 'healthy',
         responseTime: `${dbResponseTime}ms`,
-        details: 'Database connection successful'
+        details: 'Database connection successful',
       };
     } catch (dbError) {
       checks.checks.database = {
         status: 'unhealthy',
         error: dbError.message,
-        details: 'Database connection failed'
+        details: 'Database connection failed',
       };
       checks.status = 'unhealthy';
     }
@@ -127,19 +126,23 @@ router.get('/detailed', async (req, res) => {
     checks.checks.memory = {
       status: memoryUsagePercent < 85 ? 'healthy' : 'warning',
       usage: `${memoryUsedMB}MB / ${memoryTotalMB}MB (${memoryUsagePercent.toFixed(1)}%)`,
-      details: memoryUsagePercent < 85 ? 'Memory usage normal' : 'High memory usage'
+      details:
+        memoryUsagePercent < 85 ? 'Memory usage normal' : 'High memory usage',
     };
 
     // Environment variables check
     const requiredEnvVars = ['JWT_SECRET', 'DATABASE_URL'];
-    const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
-    
+    const missingEnvVars = requiredEnvVars.filter(
+      envVar => !process.env[envVar]
+    );
+
     checks.checks.environment = {
       status: missingEnvVars.length === 0 ? 'healthy' : 'unhealthy',
-      details: missingEnvVars.length === 0 
-        ? 'All required environment variables present'
-        : `Missing environment variables: ${missingEnvVars.join(', ')}`,
-      missingVars: missingEnvVars
+      details:
+        missingEnvVars.length === 0
+          ? 'All required environment variables present'
+          : `Missing environment variables: ${missingEnvVars.join(', ')}`,
+      missingVars: missingEnvVars,
     };
 
     if (missingEnvVars.length > 0) {
@@ -153,13 +156,13 @@ router.get('/detailed', async (req, res) => {
         checks.checks.aws = {
           status: 'healthy',
           details: 'AWS configuration appears valid',
-          region: process.env.AWS_REGION || 'not-set'
+          region: process.env.AWS_REGION || 'not-set',
         };
       } catch (awsError) {
         checks.checks.aws = {
           status: 'warning',
           details: 'AWS services check skipped',
-          error: awsError.message
+          error: awsError.message,
         };
       }
     }
@@ -169,18 +172,17 @@ router.get('/detailed', async (req, res) => {
     checks.checks.uptime = {
       status: 'healthy',
       uptime: Math.floor(uptimeSeconds),
-      details: `Application running for ${Math.floor(uptimeSeconds / 60)} minutes`
+      details: `Application running for ${Math.floor(uptimeSeconds / 60)} minutes`,
     };
 
     const statusCode = checks.status === 'healthy' ? 200 : 503;
     res.status(statusCode).json(checks);
-
   } catch (error) {
     console.error('Detailed health check error:', error);
     res.status(503).json({
       status: 'unhealthy',
       error: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -193,28 +195,28 @@ router.get('/ready', async (req, res) => {
   try {
     // Check if database is ready
     await sequelize.authenticate();
-    
+
     // Check if required services are available
     const isReady = process.env.JWT_SECRET && process.env.DATABASE_URL;
-    
+
     if (isReady) {
       res.status(200).json({
         status: 'ready',
         timestamp: new Date().toISOString(),
-        message: 'Application is ready to receive traffic'
+        message: 'Application is ready to receive traffic',
       });
     } else {
       res.status(503).json({
         status: 'not-ready',
         timestamp: new Date().toISOString(),
-        message: 'Application is not ready to receive traffic'
+        message: 'Application is not ready to receive traffic',
       });
     }
   } catch (error) {
     res.status(503).json({
       status: 'not-ready',
       error: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -230,16 +232,16 @@ router.get('/live', async (req, res) => {
       status: 'alive',
       timestamp: new Date().toISOString(),
       pid: process.pid,
-      uptime: Math.floor(process.uptime())
+      uptime: Math.floor(process.uptime()),
     });
   } catch (error) {
     // If we can't even send this response, the container should be restarted
     res.status(503).json({
       status: 'dead',
       error: error.message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 });
 
-module.exports = router; 
+module.exports = router;

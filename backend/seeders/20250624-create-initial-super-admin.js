@@ -43,9 +43,10 @@ module.exports = {
     console.log('   Password: super123');
   },
 
+  // eslint-disable-next-line no-unused-vars
   async down(queryInterface, Sequelize) {
     await queryInterface.bulkDelete('SuperAdminUsers', {
       email: 'super@catalog.golf',
     });
   },
-}; 
+};

@@ -4,37 +4,43 @@
  */
 
 const request = require('supertest');
-const { execSync } = require('child_process');
 
 // Environment configuration
 const BASE_URL = process.env.SMOKE_TEST_URL || 'http://localhost:3000';
 const TIMEOUT = 30000; // 30 seconds
 
 describe('🔥 Smoke Tests - Production Health Checks', () => {
-  let app;
   let superAdminToken;
   let staffToken;
   let testCourseId;
 
+  // Define test data at module level so it's accessible across tests
+  const superAdminData = {
+    email: `smoke.super.admin.${Date.now()}@catalog.golf`,
+    password: 'SmokeTest123!',
+    firstName: 'Smoke',
+    lastName: 'SuperAdmin',
+  };
+
   beforeAll(async () => {
     console.log(`🎯 Running smoke tests against: ${BASE_URL}`);
-    
+
     // For local testing, we might need to start the app
     if (BASE_URL.includes('localhost')) {
       try {
         const { createApp } = require('../../src/app');
-        app = createApp();
+        createApp();
       } catch (error) {
-        console.warn('Could not create app for testing - assuming external server');
+        console.warn(
+          'Could not create app for testing - assuming external server'
+        );
       }
     }
   }, TIMEOUT);
 
   describe('🏥 Health and Infrastructure', () => {
     test('Health endpoint responds correctly', async () => {
-      const response = await request(BASE_URL)
-        .get('/health')
-        .expect(200);
+      const response = await request(BASE_URL).get('/health').expect(200);
 
       expect(response.body).toHaveProperty('status', 'healthy');
       expect(response.body).toHaveProperty('timestamp');
@@ -73,12 +79,12 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
 
     test('Rate limiting is active', async () => {
       // Make multiple rapid requests to test rate limiting
-      const promises = Array(10).fill().map(() => 
-        request(BASE_URL).get('/api/v1/auth/test')
-      );
+      const promises = Array(10)
+        .fill()
+        .map(() => request(BASE_URL).get('/api/v1/auth/test'));
 
       const responses = await Promise.all(promises);
-      
+
       // All should succeed initially (unless rate limit is very low)
       responses.forEach(response => {
         expect([200, 429]).toContain(response.status);
@@ -107,13 +113,6 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
   });
 
   describe('🔐 Authentication Flow', () => {
-    const superAdminData = {
-      email: `smoke.super.admin.${Date.now()}@catalog.golf`,
-      password: 'SmokeTest123!',
-      firstName: 'Smoke',
-      lastName: 'SuperAdmin'
-    };
-
     test('Super admin registration works', async () => {
       const response = await request(BASE_URL)
         .post('/api/v1/auth/super-admin/register')
@@ -129,14 +128,14 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
         .post('/api/v1/auth/super-admin/login')
         .send({
           email: superAdminData.email,
-          password: superAdminData.password
+          password: superAdminData.password,
         })
         .expect(200);
 
       expect(response.body).toHaveProperty('token');
       expect(response.body).toHaveProperty('user');
       expect(response.body.user).toHaveProperty('role', 'SuperAdmin');
-      
+
       superAdminToken = response.body.token;
     });
 
@@ -173,7 +172,7 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
       name: `Smoke Test Golf Course ${Date.now()}`,
       subdomain: `smoke-test-${Date.now()}`,
       contactEmail: `smoke.course.${Date.now()}@catalog.golf`,
-      contactPhone: '+1-555-SMOKE'
+      contactPhone: '+1-555-SMOKE',
     };
 
     test('Golf course creation works', async () => {
@@ -182,7 +181,7 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
         .post('/api/v1/auth/super-admin/login')
         .send({
           email: superAdminData.email,
-          password: superAdminData.password
+          password: superAdminData.password,
         })
         .expect(200);
 
@@ -197,7 +196,7 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
       expect(response.body).toHaveProperty('course');
       expect(response.body.course).toHaveProperty('id');
       expect(response.body.course).toHaveProperty('name', courseData.name);
-      
+
       testCourseId = response.body.course.id;
     });
 
@@ -209,7 +208,7 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
 
       expect(response.body).toHaveProperty('courses');
       expect(response.body.courses.length).toBeGreaterThan(0);
-      
+
       const createdCourse = response.body.courses.find(
         course => course.id === testCourseId
       );
@@ -225,7 +224,7 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
       firstName: 'Smoke',
       lastName: 'Staff',
       role: 'admin',
-      courseId: null // Will be set in test
+      courseId: null, // Will be set in test
     };
 
     test('Staff registration works', async () => {
@@ -247,14 +246,14 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
         .post('/api/v1/auth/login')
         .send({
           email: staffData.email,
-          password: staffData.password
+          password: staffData.password,
         })
         .expect(200);
 
       expect(response.body).toHaveProperty('token');
       expect(response.body).toHaveProperty('user');
       expect(response.body.user).toHaveProperty('role', 'Staff');
-      
+
       staffToken = response.body.token;
     });
 
@@ -276,7 +275,7 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
       email: `smoke.customer.${Date.now()}@catalog.golf`,
       phone: '+1-555-SMOKE',
       membershipType: 'full',
-      notes: 'Created via smoke test'
+      notes: 'Created via smoke test',
     };
 
     let customerId;
@@ -290,8 +289,11 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
 
       expect(response.body).toHaveProperty('customer');
       expect(response.body.customer).toHaveProperty('id');
-      expect(response.body.customer).toHaveProperty('email', customerData.email);
-      
+      expect(response.body.customer).toHaveProperty(
+        'email',
+        customerData.email
+      );
+
       customerId = response.body.customer.id;
     });
 
@@ -304,7 +306,7 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
       expect(response.body).toHaveProperty('customers');
       expect(Array.isArray(response.body.customers)).toBe(true);
       expect(response.body.customers.length).toBeGreaterThan(0);
-      
+
       const createdCustomer = response.body.customers.find(
         customer => customer.id === customerId
       );
@@ -319,13 +321,16 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
 
       expect(response.body).toHaveProperty('customer');
       expect(response.body.customer).toHaveProperty('id', customerId);
-      expect(response.body.customer).toHaveProperty('email', customerData.email);
+      expect(response.body.customer).toHaveProperty(
+        'email',
+        customerData.email
+      );
     });
 
     test('Customer update works', async () => {
       const updateData = {
         phone: '+1-555-UPDATED',
-        notes: 'Updated via smoke test'
+        notes: 'Updated via smoke test',
       };
 
       const response = await request(BASE_URL)
@@ -348,7 +353,7 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
 
       expect(response.body).toHaveProperty('customers');
       expect(response.body.customers.length).toBeGreaterThan(0);
-      
+
       const foundCustomer = response.body.customers.find(
         customer => customer.id === customerId
       );
@@ -369,17 +374,17 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
           firstName: 'Notes',
           lastName: 'Test',
           email: `notes.test.${Date.now()}@catalog.golf`,
-          phone: '+1-555-NOTES'
+          phone: '+1-555-NOTES',
         })
         .expect(201);
-      
+
       customerId = customerResponse.body.customer.id;
     });
 
     test('Note creation works', async () => {
       const noteData = {
         content: 'Smoke test note content',
-        type: 'general'
+        type: 'general',
       };
 
       const response = await request(BASE_URL)
@@ -391,7 +396,7 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
       expect(response.body).toHaveProperty('note');
       expect(response.body.note).toHaveProperty('id');
       expect(response.body.note).toHaveProperty('content', noteData.content);
-      
+
       noteId = response.body.note.id;
     });
 
@@ -404,7 +409,7 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
       expect(response.body).toHaveProperty('notes');
       expect(Array.isArray(response.body.notes)).toBe(true);
       expect(response.body.notes.length).toBeGreaterThan(0);
-      
+
       const createdNote = response.body.notes.find(note => note.id === noteId);
       expect(createdNote).toBeDefined();
     });
@@ -437,9 +442,7 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
 
   describe('🔒 Security and Authorization', () => {
     test('Unauthorized requests are rejected', async () => {
-      await request(BASE_URL)
-        .get('/api/v1/customers')
-        .expect(401);
+      await request(BASE_URL).get('/api/v1/customers').expect(401);
     });
 
     test('Cross-tenant data isolation works', async () => {
@@ -448,7 +451,7 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
         name: `Isolation Test Course ${Date.now()}`,
         subdomain: `isolation-test-${Date.now()}`,
         contactEmail: `isolation.${Date.now()}@catalog.golf`,
-        contactPhone: '+1-555-ISOL'
+        contactPhone: '+1-555-ISOL',
       };
 
       const courseResponse = await request(BASE_URL)
@@ -466,7 +469,7 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
         firstName: 'Isolation',
         lastName: 'Staff',
         role: 'admin',
-        courseId: secondCourseId
+        courseId: secondCourseId,
       };
 
       await request(BASE_URL)
@@ -480,7 +483,7 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
         .post('/api/v1/auth/login')
         .send({
           email: secondStaffData.email,
-          password: secondStaffData.password
+          password: secondStaffData.password,
         })
         .expect(200);
 
@@ -501,7 +504,7 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
         firstName: 'Invalid',
         lastName: 'Customer',
         email: 'not-an-email',
-        phone: '+1-555-0000'
+        phone: '+1-555-0000',
       };
 
       await request(BASE_URL)
@@ -528,37 +531,35 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
   describe('⚡ Performance', () => {
     test('API responses are reasonably fast', async () => {
       const startTime = Date.now();
-      
+
       await request(BASE_URL)
         .get('/api/v1/customers')
         .set('Authorization', `Bearer ${staffToken}`)
         .expect(200);
-      
+
       const responseTime = Date.now() - startTime;
       expect(responseTime).toBeLessThan(5000); // 5 seconds max
     });
 
     test('Health check is very fast', async () => {
       const startTime = Date.now();
-      
-      await request(BASE_URL)
-        .get('/health')
-        .expect(200);
-      
+
+      await request(BASE_URL).get('/health').expect(200);
+
       const responseTime = Date.now() - startTime;
       expect(responseTime).toBeLessThan(1000); // 1 second max
     });
 
     test('Database queries are efficient', async () => {
       const startTime = Date.now();
-      
+
       // Test a more complex query (customers with pagination)
       await request(BASE_URL)
         .get('/api/v1/customers')
         .query({ limit: 100, offset: 0 })
         .set('Authorization', `Bearer ${staffToken}`)
         .expect(200);
-      
+
       const responseTime = Date.now() - startTime;
       expect(responseTime).toBeLessThan(3000); // 3 seconds max
     });
@@ -566,10 +567,10 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
 
   afterAll(async () => {
     console.log('🧹 Cleaning up smoke test data...');
-    
+
     // In a real smoke test environment, you might want to clean up test data
     // or leave it for debugging purposes depending on your strategy
-    
+
     if (process.env.CLEANUP_SMOKE_DATA === 'true') {
       // Clean up test data here if needed
       console.log('Test data cleanup completed');
@@ -577,4 +578,4 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
       console.log('Test data left in place for debugging');
     }
   });
-}); 
+});
