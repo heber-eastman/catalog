@@ -23,6 +23,29 @@ console.log('Connection test starting...');
 console.log('NODE_ENV:', process.env.NODE_ENV);
 console.log('DATABASE_URL is set:', !!process.env.DATABASE_URL);
 
+// Debug ALL environment variables that might affect database connection
+const dbEnvVars = Object.keys(process.env).filter(
+  key =>
+    key.includes('DB') ||
+    key.includes('DATABASE') ||
+    key.includes('POSTGRES') ||
+    key.includes('PG')
+);
+console.log('Database-related environment variables:');
+dbEnvVars.forEach(key => {
+  const value = process.env[key];
+  if (key.includes('PASSWORD') || key.includes('PASS')) {
+    console.log(`${key}: [HIDDEN]`);
+  } else {
+    console.log(`${key}: ${value}`);
+  }
+});
+
+// Check system networking
+console.log('Checking system networking...');
+console.log('hostname:', require('os').hostname());
+console.log('network interfaces:', Object.keys(require('os').networkInterfaces()));
+
 if (productionDbConfig) {
   console.log('Using parsed production DB config:', {
     host: productionDbConfig.host,
