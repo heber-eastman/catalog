@@ -64,7 +64,7 @@ const sequelize = productionDbConfig
 
 async function createMigrationsTable() {
   const queryInterface = sequelize.getQueryInterface();
-  
+
   // Create SequelizeMeta table if it doesn't exist
   await queryInterface.createTable('SequelizeMeta', {
     name: {
@@ -89,13 +89,10 @@ async function getExecutedMigrations() {
 }
 
 async function markMigrationAsExecuted(migrationName) {
-  await sequelize.query(
-    'INSERT INTO "SequelizeMeta" (name) VALUES (?)',
-    {
-      replacements: [migrationName],
-      type: Sequelize.QueryTypes.INSERT,
-    }
-  );
+  await sequelize.query('INSERT INTO "SequelizeMeta" (name) VALUES (?)', {
+    replacements: [migrationName],
+    type: Sequelize.QueryTypes.INSERT,
+  });
 }
 
 async function runMigrations() {
@@ -131,16 +128,16 @@ async function runMigrations() {
 
       for (const migrationFile of pendingMigrations) {
         console.log(`Running migration: ${migrationFile}`);
-        
+
         const migrationPath = path.join(migrationsDir, migrationFile);
         const migration = require(migrationPath);
-        
+
         // Run the migration
         await migration.up(sequelize.getQueryInterface(), Sequelize);
-        
+
         // Mark as executed
         await markMigrationAsExecuted(migrationFile);
-        
+
         console.log(`Completed migration: ${migrationFile}`);
       }
 
