@@ -34,7 +34,7 @@ if (productionDbConfig) {
   });
 }
 
-module.exports = {
+const config = {
   development: {
     url: process.env.DATABASE_URL,
     username: process.env.DB_USER || 'postgres',
@@ -105,3 +105,7 @@ module.exports = {
         },
       },
 };
+
+console.log('Final config for production:', JSON.stringify(config.production, null, 2));
+
+module.exports = config;
