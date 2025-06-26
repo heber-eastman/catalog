@@ -332,9 +332,10 @@ jobs:
       - name: Run database migrations
         env:
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          NODE_ENV: production
         run: |
           cd backend
-          npm ci --only=production
+          npm install
           npm run db:migrate
 
       - name: Deploy backend to ECS
