@@ -3,7 +3,10 @@ require('dotenv').config();
 console.log('Database config loading...');
 console.log('NODE_ENV:', process.env.NODE_ENV);
 console.log('DATABASE_URL is set:', !!process.env.DATABASE_URL);
-console.log('DATABASE_URL length:', process.env.DATABASE_URL ? process.env.DATABASE_URL.length : 0);
+console.log(
+  'DATABASE_URL length:',
+  process.env.DATABASE_URL ? process.env.DATABASE_URL.length : 0
+);
 
 module.exports = {
   development: {
