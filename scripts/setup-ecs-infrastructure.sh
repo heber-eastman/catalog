@@ -139,6 +139,11 @@ EOF
     --role-name $TASK_ROLE_NAME \
     --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
+  # Add SSM permissions for secrets
+  aws iam attach-role-policy \
+    --role-name $TASK_ROLE_NAME \
+    --policy-arn arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess
+
   echo "✅ Created task execution role: $TASK_ROLE_NAME"
 fi
 
