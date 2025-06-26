@@ -9,17 +9,19 @@ console.log(
 );
 
 // Parse DATABASE_URL for production
-const parseDatabaseUrl = (url) => {
+const parseDatabaseUrl = url => {
   if (!url) return null;
-  
-  const match = url.match(/^postgres(?:ql)?:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)$/);
+
+  const match = url.match(
+    /^postgres(?:ql)?:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)$/
+  );
   if (!match) return null;
-  
+
   const [, username, password, host, port, database] = match;
   return { username, password, host, port: parseInt(port), database };
 };
 
-const productionDbConfig = process.env.DATABASE_URL 
+const productionDbConfig = process.env.DATABASE_URL
   ? parseDatabaseUrl(process.env.DATABASE_URL)
   : null;
 
@@ -28,7 +30,7 @@ if (productionDbConfig) {
     host: productionDbConfig.host,
     port: productionDbConfig.port,
     database: productionDbConfig.database,
-    username: productionDbConfig.username
+    username: productionDbConfig.username,
   });
 }
 
@@ -67,37 +69,39 @@ module.exports = {
       idle: 10000,
     },
   },
-  production: productionDbConfig ? {
-    username: productionDbConfig.username,
-    password: productionDbConfig.password,
-    database: productionDbConfig.database,
-    host: productionDbConfig.host,
-    port: productionDbConfig.port,
-    dialect: 'postgres',
-    logging: false,
-    define: {
-      underscored: true,
-      timestamps: true,
-    },
-    dialectOptions: {
-      ssl: {
-        require: true,
-        rejectUnauthorized: false,
+  production: productionDbConfig
+    ? {
+        username: productionDbConfig.username,
+        password: productionDbConfig.password,
+        database: productionDbConfig.database,
+        host: productionDbConfig.host,
+        port: productionDbConfig.port,
+        dialect: 'postgres',
+        logging: false,
+        define: {
+          underscored: true,
+          timestamps: true,
+        },
+        dialectOptions: {
+          ssl: {
+            require: true,
+            rejectUnauthorized: false,
+          },
+        },
+      }
+    : {
+        use_env_variable: 'DATABASE_URL',
+        dialect: 'postgres',
+        logging: false,
+        define: {
+          underscored: true,
+          timestamps: true,
+        },
+        dialectOptions: {
+          ssl: {
+            require: true,
+            rejectUnauthorized: false,
+          },
+        },
       },
-    },
-  } : {
-    use_env_variable: 'DATABASE_URL',
-    dialect: 'postgres',
-    logging: false,
-    define: {
-      underscored: true,
-      timestamps: true,
-    },
-    dialectOptions: {
-      ssl: {
-        require: true,
-        rejectUnauthorized: false,
-      },
-    },
-  },
 };
