@@ -26,8 +26,12 @@ console.log('NODE_ENV:', process.env.NODE_ENV);
 console.log('DATABASE_URL is set:', !!process.env.DATABASE_URL);
 
 // Debug ALL environment variables that might affect database connection
-const dbEnvVars = Object.keys(process.env).filter(key => 
-  key.includes('DB') || key.includes('DATABASE') || key.includes('POSTGRES') || key.includes('PG')
+const dbEnvVars = Object.keys(process.env).filter(
+  key =>
+    key.includes('DB') ||
+    key.includes('DATABASE') ||
+    key.includes('POSTGRES') ||
+    key.includes('PG')
 );
 console.log('Database-related environment variables:');
 dbEnvVars.forEach(key => {
@@ -71,10 +75,13 @@ if (productionDbConfig) {
     ...sequelizeConfig,
     password: '[HIDDEN]',
   });
-  
+
   sequelize = new Sequelize(sequelizeConfig);
 } else {
-  console.log('Creating Sequelize with DATABASE_URL:', process.env.DATABASE_URL);
+  console.log(
+    'Creating Sequelize with DATABASE_URL:',
+    process.env.DATABASE_URL
+  );
   sequelize = new Sequelize(process.env.DATABASE_URL, {
     dialect: 'postgres',
     logging: console.log,
