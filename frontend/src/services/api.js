@@ -35,32 +35,35 @@ api.interceptors.response.use(
   },
   async error => {
     const config = error.config;
-    
+
     // Enhanced retry logic for connection timeouts and network errors
     if (
       !config._retryCount &&
-      (error.code === 'ECONNABORTED' || 
-       error.code === 'ENOTFOUND' || 
-       error.code === 'ECONNREFUSED' ||
-       error.code === 'ETIMEDOUT' ||
-       error.message.includes('timeout') ||
-       error.message.includes('Network Error'))
+      (error.code === 'ECONNABORTED' ||
+        error.code === 'ENOTFOUND' ||
+        error.code === 'ECONNREFUSED' ||
+        error.code === 'ETIMEDOUT' ||
+        error.message.includes('timeout') ||
+        error.message.includes('Network Error'))
     ) {
       config._retryCount = 1;
       console.log('Retrying request due to network error:', error.message);
-      
+
       // Exponential backoff: wait longer for timeout errors
-      const waitTime = error.code === 'ECONNABORTED' || error.message.includes('timeout') ? 3000 : 1000;
+      const waitTime =
+        error.code === 'ECONNABORTED' || error.message.includes('timeout')
+          ? 3000
+          : 1000;
       await new Promise(resolve => setTimeout(resolve, waitTime));
-      
+
       // For timeout errors, try with a longer timeout on retry
       if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
         config.timeout = 35000; // Increase timeout to 35 seconds for retry
       }
-      
+
       return api(config);
     }
-    
+
     // Second retry for persistent timeout issues
     if (
       config._retryCount === 1 &&
@@ -68,16 +71,16 @@ api.interceptors.response.use(
     ) {
       config._retryCount = 2;
       console.log('Second retry attempt for timeout error');
-      
+
       // Wait even longer before second retry
       await new Promise(resolve => setTimeout(resolve, 5000));
-      
+
       // Use maximum timeout for final attempt
       config.timeout = 45000;
-      
+
       return api(config);
     }
-    
+
     // Handle authentication errors
     if (error.response?.status === 401) {
       // Clear invalid token and user data
@@ -97,7 +100,7 @@ api.interceptors.response.use(
         }
       }
     }
-    
+
     return Promise.reject(error);
   }
 );
