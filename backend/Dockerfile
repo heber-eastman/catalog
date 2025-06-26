@@ -14,7 +14,7 @@ WORKDIR /app
 COPY package*.json ./
 COPY src/ ./src/
 COPY migrations/ ./migrations/
-COPY models/ ./models/
+COPY config/ ./config/
 
 # Install production dependencies
 RUN npm ci --only=production && npm cache clean --force
