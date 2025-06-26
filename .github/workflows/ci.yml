@@ -339,6 +339,9 @@ jobs:
           echo "NODE_ENV: $NODE_ENV"
           echo "DATABASE_URL is set: $([ -n "$DATABASE_URL" ] && echo "YES" || echo "NO")"
           echo "DATABASE_URL length: ${#DATABASE_URL}"
+          echo "Testing raw database connection first..."
+          node scripts/test-connection.js
+          echo "If connection test passed, running migrations..."
           node scripts/migrate.js
 
       - name: Deploy backend to ECS
