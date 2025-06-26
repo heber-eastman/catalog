@@ -25,6 +25,20 @@ console.log('Migration script starting...');
 console.log('NODE_ENV:', process.env.NODE_ENV);
 console.log('DATABASE_URL is set:', !!process.env.DATABASE_URL);
 
+// Debug ALL environment variables that might affect database connection
+const dbEnvVars = Object.keys(process.env).filter(key => 
+  key.includes('DB') || key.includes('DATABASE') || key.includes('POSTGRES') || key.includes('PG')
+);
+console.log('Database-related environment variables:');
+dbEnvVars.forEach(key => {
+  const value = process.env[key];
+  if (key.includes('PASSWORD') || key.includes('PASS')) {
+    console.log(`${key}: [HIDDEN]`);
+  } else {
+    console.log(`${key}: ${value}`);
+  }
+});
+
 if (productionDbConfig) {
   console.log('Using parsed production DB config:', {
     host: productionDbConfig.host,
@@ -35,32 +49,43 @@ if (productionDbConfig) {
 }
 
 // Create Sequelize instance
-const sequelize = productionDbConfig
-  ? new Sequelize({
-      username: productionDbConfig.username,
-      password: productionDbConfig.password,
-      database: productionDbConfig.database,
-      host: productionDbConfig.host,
-      port: productionDbConfig.port,
-      dialect: 'postgres',
-      logging: console.log,
-      dialectOptions: {
-        ssl: {
-          require: true,
-          rejectUnauthorized: false,
-        },
+let sequelize;
+
+if (productionDbConfig) {
+  const sequelizeConfig = {
+    username: productionDbConfig.username,
+    password: productionDbConfig.password,
+    database: productionDbConfig.database,
+    host: productionDbConfig.host,
+    port: productionDbConfig.port,
+    dialect: 'postgres',
+    logging: console.log,
+    dialectOptions: {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false,
       },
-    })
-  : new Sequelize(process.env.DATABASE_URL, {
-      dialect: 'postgres',
-      logging: console.log,
-      dialectOptions: {
-        ssl: {
-          require: true,
-          rejectUnauthorized: false,
-        },
+    },
+  };
+  console.log('Creating Sequelize with config:', {
+    ...sequelizeConfig,
+    password: '[HIDDEN]',
+  });
+  
+  sequelize = new Sequelize(sequelizeConfig);
+} else {
+  console.log('Creating Sequelize with DATABASE_URL:', process.env.DATABASE_URL);
+  sequelize = new Sequelize(process.env.DATABASE_URL, {
+    dialect: 'postgres',
+    logging: console.log,
+    dialectOptions: {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false,
       },
-    });
+    },
+  });
+}
 
 async function createMigrationsTable() {
   const queryInterface = sequelize.getQueryInterface();
