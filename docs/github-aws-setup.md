@@ -60,6 +60,7 @@ The role needs permissions for:
 - CloudWatch Logs (for deployment monitoring)
 
 Example managed policies to attach:
+
 - `AmazonEC2ContainerRegistryPowerUser`
 - `AmazonECS_FullAccess`
 - `CloudWatchLogsFullAccess`
@@ -115,6 +116,7 @@ Or create a custom policy with minimal permissions:
 In your GitHub repository, go to Settings > Secrets and variables > Actions, and add:
 
 1. **AWS_ROLE_ARN**: The ARN of the IAM role created above
+
    ```
    arn:aws:iam::YOUR_ACCOUNT_ID:role/GitHubActionsRole
    ```
@@ -127,6 +129,7 @@ In your GitHub repository, go to Settings > Secrets and variables > Actions, and
 ### 5. Verify ECR Repositories Exist
 
 Make sure the following ECR repositories exist in your AWS account:
+
 - `catalog-golf-backend`
 - `catalog-golf-frontend`
 
@@ -140,6 +143,7 @@ aws ecr create-repository --repository-name catalog-golf-frontend
 ### 6. Verify ECS Resources
 
 Ensure the following ECS resources exist:
+
 - Cluster: `catalog-golf`
 - Services: `catalog-golf-backend`, `catalog-golf-frontend`
 - For staging: `catalog-golf-staging` cluster with `catalog-golf-backend-staging` and `catalog-golf-frontend-staging` services
@@ -155,6 +159,7 @@ Ensure the following ECS resources exist:
 ### "Credentials could not be loaded" Error
 
 This usually means:
+
 1. The OIDC provider is not set up correctly
 2. The IAM role trust policy is incorrect
 3. The `AWS_ROLE_ARN` secret is not set or incorrect
@@ -162,6 +167,7 @@ This usually means:
 ### "Access Denied" Errors
 
 This means the IAM role doesn't have sufficient permissions. Check that:
+
 1. The role has the necessary policies attached
 2. The ECR repositories exist
 3. The ECS resources exist and are in the correct region
@@ -169,6 +175,7 @@ This means the IAM role doesn't have sufficient permissions. Check that:
 ### Repository Condition Not Matching
 
 Make sure the trust policy condition matches your exact repository:
+
 ```
 "token.actions.githubusercontent.com:sub": "repo:YOUR_GITHUB_USERNAME/YOUR_REPO_NAME:*"
 ```
@@ -191,4 +198,4 @@ If OIDC setup is not possible, you can use traditional access keys:
    - `AWS_ACCESS_KEY_ID`
    - `AWS_SECRET_ACCESS_KEY`
 
-However, OIDC is strongly recommended for better security. 
+However, OIDC is strongly recommended for better security.
