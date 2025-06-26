@@ -106,6 +106,9 @@ const config = {
       },
 };
 
-console.log('Final config for production:', JSON.stringify(config.production, null, 2));
+console.log(
+  'Final config for production:',
+  JSON.stringify(config.production, null, 2)
+);
 
 module.exports = config;
