@@ -17,7 +17,7 @@ COPY migrations/ ./migrations/
 COPY config/ ./config/
 
 # Install production dependencies
-RUN npm ci --only=production && npm cache clean --force
+RUN npm install --production && npm cache clean --force
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
