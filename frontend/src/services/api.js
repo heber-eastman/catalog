@@ -3,7 +3,7 @@ import axios from 'axios';
 // Create axios instance with base configuration
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1',
-  timeout: 10000,
+  timeout: 25000,
   withCredentials: true, // Include cookies for JWT authentication
 });
 
@@ -22,7 +22,7 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor to handle JWT token refresh and auth errors
+// Response interceptor to handle JWT token refresh, auth errors, and retries
 api.interceptors.response.use(
   response => {
     // If response includes a new token, store it
@@ -33,7 +33,51 @@ api.interceptors.response.use(
     }
     return response;
   },
-  error => {
+  async error => {
+    const config = error.config;
+    
+    // Enhanced retry logic for connection timeouts and network errors
+    if (
+      !config._retryCount &&
+      (error.code === 'ECONNABORTED' || 
+       error.code === 'ENOTFOUND' || 
+       error.code === 'ECONNREFUSED' ||
+       error.code === 'ETIMEDOUT' ||
+       error.message.includes('timeout') ||
+       error.message.includes('Network Error'))
+    ) {
+      config._retryCount = 1;
+      console.log('Retrying request due to network error:', error.message);
+      
+      // Exponential backoff: wait longer for timeout errors
+      const waitTime = error.code === 'ECONNABORTED' || error.message.includes('timeout') ? 3000 : 1000;
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      
+      // For timeout errors, try with a longer timeout on retry
+      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        config.timeout = 35000; // Increase timeout to 35 seconds for retry
+      }
+      
+      return api(config);
+    }
+    
+    // Second retry for persistent timeout issues
+    if (
+      config._retryCount === 1 &&
+      (error.code === 'ECONNABORTED' || error.message.includes('timeout'))
+    ) {
+      config._retryCount = 2;
+      console.log('Second retry attempt for timeout error');
+      
+      // Wait even longer before second retry
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
+      // Use maximum timeout for final attempt
+      config.timeout = 45000;
+      
+      return api(config);
+    }
+    
     // Handle authentication errors
     if (error.response?.status === 401) {
       // Clear invalid token and user data
@@ -53,6 +97,7 @@ api.interceptors.response.use(
         }
       }
     }
+    
     return Promise.reject(error);
   }
 );

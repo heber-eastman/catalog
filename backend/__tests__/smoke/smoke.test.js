@@ -16,6 +16,7 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
   let serverAvailable = false;
 
   // Define test data at module level so it's accessible across tests
+  // eslint-disable-next-line no-unused-vars
   const superAdminData = {
     email: `smoke.super.admin.${Date.now()}@catalog.golf`,
     password: 'SmokeTest123!',
@@ -33,7 +34,9 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
       console.log('✅ Server is available for smoke tests');
     } catch (error) {
       console.log('⚠️  Server not available - smoke tests will be skipped');
-      console.log('   This is normal in CI environments without a running server');
+      console.log(
+        '   This is normal in CI environments without a running server'
+      );
       serverAvailable = false;
     }
 
@@ -41,6 +44,7 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
     if (BASE_URL.includes('localhost') && !serverAvailable) {
       try {
         const { createApp } = require('../../src/app');
+        // eslint-disable-next-line no-unused-vars
         const app = createApp();
         // Give the server a moment to start
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -146,7 +150,9 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
     conditionalTest('Super admin registration works', async () => {
       // Skip registration test since it requires invitation token
       // This test assumes a super admin already exists in the system
-      console.log('⏭️  Skipping super admin registration - requires invitation system');
+      console.log(
+        '⏭️  Skipping super admin registration - requires invitation system'
+      );
     });
 
     conditionalTest('Super admin login works', async () => {
@@ -173,15 +179,18 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
       }
     });
 
-    conditionalTest('Protected super admin endpoint works with token', async () => {
-      const response = await request(BASE_URL)
-        .get('/api/v1/super-admin/courses')
-        .set('Cookie', `jwt=${superAdminToken}`)
-        .expect(200);
+    conditionalTest(
+      'Protected super admin endpoint works with token',
+      async () => {
+        const response = await request(BASE_URL)
+          .get('/api/v1/super-admin/courses')
+          .set('Cookie', `jwt=${superAdminToken}`)
+          .expect(200);
 
-      expect(response.body).toHaveProperty('courses');
-      expect(Array.isArray(response.body.courses)).toBe(true);
-    });
+        expect(response.body).toHaveProperty('courses');
+        expect(Array.isArray(response.body.courses)).toBe(true);
+      }
+    );
 
     conditionalTest('Protected endpoint rejects invalid token', async () => {
       await request(BASE_URL)
@@ -261,6 +270,7 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
   });
 
   describe('👥 Staff Management', () => {
+    // eslint-disable-next-line no-unused-vars
     const staffData = {
       email: `smoke.staff.${Date.now()}@catalog.golf`,
       password: 'SmokeStaff123!',
@@ -272,7 +282,9 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
     conditionalTest('Staff registration works', async () => {
       // Skip staff registration since it requires invitation system
       // Use existing staff from seeders instead
-      console.log('⏭️  Skipping staff registration - requires invitation system');
+      console.log(
+        '⏭️  Skipping staff registration - requires invitation system'
+      );
     });
 
     conditionalTest('Staff login works', async () => {
@@ -297,7 +309,7 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
           staffToken = jwtCookie.split('jwt=')[1].split(';')[0];
         }
       }
-      
+
       if (!staffToken) {
         throw new Error('Failed to extract staff token from login response');
       }
@@ -344,9 +356,11 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
             console.log('✅ Staff token set for customer tests');
           }
         }
-        
+
         if (!staffToken) {
-          throw new Error('Failed to setup staff authentication for customer tests');
+          throw new Error(
+            'Failed to setup staff authentication for customer tests'
+          );
         }
       }
     });
@@ -361,10 +375,7 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
         .expect(201);
 
       expect(response.body).toHaveProperty('id');
-      expect(response.body).toHaveProperty(
-        'email',
-        customerData.email
-      );
+      expect(response.body).toHaveProperty('email', customerData.email);
 
       customerId = response.body.id;
     });
@@ -391,10 +402,7 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
         .expect(200);
 
       expect(response.body).toHaveProperty('id', customerId);
-      expect(response.body).toHaveProperty(
-        'email',
-        customerData.email
-      );
+      expect(response.body).toHaveProperty('email', customerData.email);
     });
 
     conditionalTest('Customer update works', async () => {
@@ -410,7 +418,10 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
         .expect(200);
 
       expect(response.body).toHaveProperty('phone', updateData.phone);
-      expect(response.body).toHaveProperty('membership_type', updateData.membership_type);
+      expect(response.body).toHaveProperty(
+        'membership_type',
+        updateData.membership_type
+      );
     });
 
     conditionalTest('Customer search works', async () => {
@@ -455,9 +466,11 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
             console.log('✅ Staff token set for notes tests');
           }
         }
-        
+
         if (!staffToken) {
-          throw new Error('Failed to setup staff authentication for notes tests');
+          throw new Error(
+            'Failed to setup staff authentication for notes tests'
+          );
         }
       }
 
@@ -513,7 +526,9 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
     beforeAll(async () => {
       // Ensure we have a staff token for export/import operations
       if (!staffToken) {
-        console.log('🔑 Setting up staff authentication for export/import tests...');
+        console.log(
+          '🔑 Setting up staff authentication for export/import tests...'
+        );
         const response = await request(BASE_URL)
           .post('/api/v1/auth/login')
           .send({
@@ -531,9 +546,11 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
             console.log('✅ Staff token set for export/import tests');
           }
         }
-        
+
         if (!staffToken) {
-          throw new Error('Failed to setup staff authentication for export/import tests');
+          throw new Error(
+            'Failed to setup staff authentication for export/import tests'
+          );
         }
       }
     });
@@ -584,9 +601,11 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
             console.log('✅ Staff token set for security tests');
           }
         }
-        
+
         if (!staffToken) {
-          throw new Error('Failed to setup staff authentication for security tests');
+          throw new Error(
+            'Failed to setup staff authentication for security tests'
+          );
         }
       }
     });
@@ -634,7 +653,9 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
     beforeAll(async () => {
       // Ensure we have a staff token for performance tests
       if (!staffToken) {
-        console.log('🔑 Setting up staff authentication for performance tests...');
+        console.log(
+          '🔑 Setting up staff authentication for performance tests...'
+        );
         const response = await request(BASE_URL)
           .post('/api/v1/auth/login')
           .send({
@@ -652,9 +673,11 @@ describe('🔥 Smoke Tests - Production Health Checks', () => {
             console.log('✅ Staff token set for performance tests');
           }
         }
-        
+
         if (!staffToken) {
-          throw new Error('Failed to setup staff authentication for performance tests');
+          throw new Error(
+            'Failed to setup staff authentication for performance tests'
+          );
         }
       }
     });
