@@ -1,5 +1,5 @@
 const { Sequelize } = require('sequelize');
-const { Umzug, SequelizeStorage } = require('umzug');
+const fs = require('fs');
 const path = require('path');
 
 require('dotenv').config();
@@ -62,27 +62,41 @@ const sequelize = productionDbConfig
       },
     });
 
-// Create Umzug instance for migrations
-const umzug = new Umzug({
-  migrations: {
-    glob: path.join(__dirname, '../migrations/*.js'),
-    resolve: ({ name, path, context }) => {
-      const migration = require(path);
-      return {
-        name,
-        up: async () => migration.up(context.queryInterface, context.Sequelize),
-        down: async () =>
-          migration.down(context.queryInterface, context.Sequelize),
-      };
+async function createMigrationsTable() {
+  const queryInterface = sequelize.getQueryInterface();
+  
+  // Create SequelizeMeta table if it doesn't exist
+  await queryInterface.createTable('SequelizeMeta', {
+    name: {
+      type: Sequelize.STRING,
+      allowNull: false,
+      unique: true,
+      primaryKey: true,
     },
-  },
-  context: {
-    queryInterface: sequelize.getQueryInterface(),
-    Sequelize,
-  },
-  storage: new SequelizeStorage({ sequelize }),
-  logger: console,
-});
+  });
+}
+
+async function getExecutedMigrations() {
+  try {
+    const [results] = await sequelize.query(
+      'SELECT name FROM "SequelizeMeta" ORDER BY name'
+    );
+    return results.map(row => row.name);
+  } catch (error) {
+    console.log('SequelizeMeta table does not exist, will create it');
+    return [];
+  }
+}
+
+async function markMigrationAsExecuted(migrationName) {
+  await sequelize.query(
+    'INSERT INTO "SequelizeMeta" (name) VALUES (?)',
+    {
+      replacements: [migrationName],
+      type: Sequelize.QueryTypes.INSERT,
+    }
+  );
+}
 
 async function runMigrations() {
   try {
@@ -90,16 +104,47 @@ async function runMigrations() {
     await sequelize.authenticate();
     console.log('Database connection successful!');
 
-    console.log('Running migrations...');
-    const migrations = await umzug.up();
+    console.log('Creating migrations table if needed...');
+    await createMigrationsTable();
 
-    if (migrations.length === 0) {
+    console.log('Getting executed migrations...');
+    const executedMigrations = await getExecutedMigrations();
+    console.log('Already executed migrations:', executedMigrations);
+
+    // Get all migration files
+    const migrationsDir = path.join(__dirname, '../migrations');
+    const migrationFiles = fs
+      .readdirSync(migrationsDir)
+      .filter(file => file.endsWith('.js'))
+      .sort();
+
+    console.log('Available migration files:', migrationFiles);
+
+    const pendingMigrations = migrationFiles.filter(
+      file => !executedMigrations.includes(file)
+    );
+
+    if (pendingMigrations.length === 0) {
       console.log('No migrations to run');
     } else {
-      console.log(
-        'Migrations completed:',
-        migrations.map(m => m.name)
-      );
+      console.log('Running pending migrations:', pendingMigrations);
+
+      for (const migrationFile of pendingMigrations) {
+        console.log(`Running migration: ${migrationFile}`);
+        
+        const migrationPath = path.join(migrationsDir, migrationFile);
+        const migration = require(migrationPath);
+        
+        // Run the migration
+        await migration.up(sequelize.getQueryInterface(), Sequelize);
+        
+        // Mark as executed
+        await markMigrationAsExecuted(migrationFile);
+        
+        console.log(`Completed migration: ${migrationFile}`);
+      }
+
+      console.log('All migrations completed successfully');
     }
 
     await sequelize.close();
