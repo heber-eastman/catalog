@@ -96,7 +96,10 @@ async function runMigrations() {
     if (migrations.length === 0) {
       console.log('No migrations to run');
     } else {
-      console.log('Migrations completed:', migrations.map(m => m.name));
+      console.log(
+        'Migrations completed:',
+        migrations.map(m => m.name)
+      );
     }
 
     await sequelize.close();
@@ -109,4 +112,4 @@ async function runMigrations() {
   }
 }
 
-runMigrations(); 
+runMigrations();
