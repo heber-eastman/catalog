@@ -8,6 +8,30 @@ console.log(
   process.env.DATABASE_URL ? process.env.DATABASE_URL.length : 0
 );
 
+// Parse DATABASE_URL for production
+const parseDatabaseUrl = (url) => {
+  if (!url) return null;
+  
+  const match = url.match(/^postgres(?:ql)?:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)$/);
+  if (!match) return null;
+  
+  const [, username, password, host, port, database] = match;
+  return { username, password, host, port: parseInt(port), database };
+};
+
+const productionDbConfig = process.env.DATABASE_URL 
+  ? parseDatabaseUrl(process.env.DATABASE_URL)
+  : null;
+
+if (productionDbConfig) {
+  console.log('Parsed production DB config:', {
+    host: productionDbConfig.host,
+    port: productionDbConfig.port,
+    database: productionDbConfig.database,
+    username: productionDbConfig.username
+  });
+}
+
 module.exports = {
   development: {
     url: process.env.DATABASE_URL,
@@ -43,7 +67,25 @@ module.exports = {
       idle: 10000,
     },
   },
-  production: {
+  production: productionDbConfig ? {
+    username: productionDbConfig.username,
+    password: productionDbConfig.password,
+    database: productionDbConfig.database,
+    host: productionDbConfig.host,
+    port: productionDbConfig.port,
+    dialect: 'postgres',
+    logging: false,
+    define: {
+      underscored: true,
+      timestamps: true,
+    },
+    dialectOptions: {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false,
+      },
+    },
+  } : {
     use_env_variable: 'DATABASE_URL',
     dialect: 'postgres',
     logging: false,
