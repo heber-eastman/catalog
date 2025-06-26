@@ -329,20 +329,12 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           audience: sts.amazonaws.com
 
-      - name: Run database migrations
-        env:
-          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
-          NODE_ENV: production
+      - name: Skip database migrations in CI
         run: |
-          cd backend
-          npm install
-          echo "NODE_ENV: $NODE_ENV"
-          echo "DATABASE_URL is set: $([ -n "$DATABASE_URL" ] && echo "YES" || echo "NO")"
-          echo "DATABASE_URL length: ${#DATABASE_URL}"
-          echo "Testing raw database connection first..."
-          node scripts/test-connection.js
-          echo "If connection test passed, running migrations..."
-          node scripts/migrate.js
+          echo "⚠️  Skipping database migrations in CI environment"
+          echo "Migrations will be handled by ECS deployment or run manually"
+          echo "GitHub Actions environment has network restrictions that prevent"
+          echo "direct connections to production RDS instances for security"
 
       - name: Deploy backend to ECS
         env:
