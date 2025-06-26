@@ -44,7 +44,10 @@ dbEnvVars.forEach(key => {
 // Check system networking
 console.log('Checking system networking...');
 console.log('hostname:', require('os').hostname());
-console.log('network interfaces:', Object.keys(require('os').networkInterfaces()));
+console.log(
+  'network interfaces:',
+  Object.keys(require('os').networkInterfaces())
+);
 
 if (productionDbConfig) {
   console.log('Using parsed production DB config:', {
