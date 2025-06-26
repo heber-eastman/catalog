@@ -12,7 +12,6 @@ RUN npm ci --only=production && npm cache clean --force
 
 # Copy source code
 COPY src/ ./src/
-COPY public/ ./public/
 COPY index.html ./
 COPY vite.config.js ./
 
