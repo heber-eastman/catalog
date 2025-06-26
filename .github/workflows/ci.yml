@@ -339,7 +339,7 @@ jobs:
           echo "NODE_ENV: $NODE_ENV"
           echo "DATABASE_URL is set: $([ -n "$DATABASE_URL" ] && echo "YES" || echo "NO")"
           echo "DATABASE_URL length: ${#DATABASE_URL}"
-          npm run db:migrate
+          node scripts/migrate.js
 
       - name: Deploy backend to ECS
         env:
