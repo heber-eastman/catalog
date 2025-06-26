@@ -28,8 +28,7 @@ COPY nginx.conf /etc/nginx/nginx.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 
 # Create non-root user
-RUN addgroup -g 1001 -S nginx && \
-    adduser -S catalog -u 1001 -G nginx
+RUN adduser -S catalog -u 1001 -G nginx
 
 # Change ownership of nginx directories
 RUN chown -R catalog:nginx /var/cache/nginx && \
