@@ -10,7 +10,7 @@ env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY_BACKEND: catalog-golf-backend
   ECR_REPOSITORY_FRONTEND: catalog-golf-frontend
-  ECS_CLUSTER: catalog-golf
+  ECS_CLUSTER: catalog-golf-cluster
   ECS_SERVICE_BACKEND: catalog-golf-backend
   ECS_SERVICE_FRONTEND: catalog-golf-frontend
 
