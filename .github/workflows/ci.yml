@@ -13,7 +13,8 @@ env:
   ECS_CLUSTER: catalog-golf-cluster
   ECS_SERVICE_BACKEND: catalog-golf-backend
   ECS_SERVICE_FRONTEND: catalog-golf-frontend
-  ALB_URL: catalog-golf-alb-958712322.us-east-1.elb.amazonaws.com
+  PRODUCTION_API_URL: https://api.catalog.golf
+  PRODUCTION_APP_URL: https://app.catalog.golf
 
 jobs:
   lint-and-test:
@@ -308,7 +309,9 @@ jobs:
 
           # Skip staging health checks - no staging environment set up yet
           echo "⚠️  Skipping staging smoke tests - staging environment not configured"
-          echo "Production deployment will run comprehensive health checks"
+          echo "Production deployment will test:"
+          echo "  • Frontend: $PRODUCTION_APP_URL"
+          echo "  • Backend: $PRODUCTION_API_URL/health"
 
   deploy-production:
     runs-on: ubuntu-latest
@@ -368,20 +371,24 @@ jobs:
           # Wait for services to be ready
           sleep 60
 
-          # Run comprehensive health checks using ALB URL
-          curl -f http://$ALB_URL/health || exit 1
-          curl -f http://$ALB_URL/api/v1/health || exit 1
+          # Run comprehensive health checks using production domains
+          curl -f $PRODUCTION_API_URL/health || exit 1
+          curl -f $PRODUCTION_API_URL/api/v1/health || exit 1
 
           # Test frontend is serving
-          curl -f http://$ALB_URL/ || echo "Frontend check failed but continuing"
+          curl -f $PRODUCTION_APP_URL/ || exit 1
+
+          # Test HTTPS is working
+          curl -f $PRODUCTION_API_URL/api/v1/ || echo "API base endpoint check"
 
       - name: Notify deployment success
         if: success()
         run: |
           echo "🚀 Production deployment successful!"
-          echo "Application is live at http://$ALB_URL"
-          echo "Backend health: http://$ALB_URL/health"
-          echo "API endpoint: http://$ALB_URL/api/v1/"
+          echo "🌐 Frontend: $PRODUCTION_APP_URL"
+          echo "🔗 Backend API: $PRODUCTION_API_URL"
+          echo "❤️  Health check: $PRODUCTION_API_URL/health"
+          echo "📡 API base: $PRODUCTION_API_URL/api/v1/"
 
       - name: Rollback on failure
         if: failure()
