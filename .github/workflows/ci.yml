@@ -371,7 +371,7 @@ jobs:
           # Run comprehensive health checks using ALB URL
           curl -f http://$ALB_URL/health || exit 1
           curl -f http://$ALB_URL/api/v1/health || exit 1
-          
+
           # Test frontend is serving
           curl -f http://$ALB_URL/ || echo "Frontend check failed but continuing"
 
