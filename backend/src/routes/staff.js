@@ -3,11 +3,11 @@ const bcrypt = require('bcrypt');
 const { Op } = require('sequelize');
 const router = express.Router();
 
-const { StaffUser } = require('../models');
+const { StaffUser, GolfCourseInstance } = require('../models');
 const { requireAuth } = require('../middleware/auth');
 
 const { generateTokenString } = require('../auth/tokenUtil');
-const { sendEmail } = require('../services/emailService');
+const { enqueueEmail } = require('../emailQueue');
 const {
   inviteStaffSchema,
   registerStaffSchema,
@@ -96,22 +96,21 @@ router.post('/invite', requireAuth(['Admin']), async (req, res) => {
       last_name,
     });
 
-    // Send invitation email
+    // Get course information for email template
+    const course = await GolfCourseInstance.findByPk(req.courseId);
+    if (!course) {
+      return res.status(400).json({ error: 'Course not found' });
+    }
+
+    // Send invitation email via SQS queue
     try {
-      await sendEmail({
-        to: email,
-        subject: 'Staff Invitation - Golf Course Management',
-        text: `You have been invited to join as ${role}. Use this link to complete your registration: /staff/register?token=${invitationToken}`,
-        html: `
-          <h2>Staff Invitation</h2>
-          <p>You have been invited to join as <strong>${role}</strong>.</p>
-          <p>Click the link below to complete your registration:</p>
-          <a href="/staff/register?token=${invitationToken}">Complete Registration</a>
-          <p>This invitation expires in 7 days.</p>
-        `,
+      const invitationLink = `https://${course.subdomain}.catalog.golf/staff/register?token=${invitationToken}`;
+      await enqueueEmail('StaffInvitation', email, {
+        invitation_link: invitationLink,
+        course_name: course.name,
       });
     } catch (emailError) {
-      console.error('Failed to send invitation email:', emailError);
+      console.error('Failed to enqueue staff invitation email:', emailError);
       // Continue with response even if email fails
     }
 
@@ -296,22 +295,21 @@ router.post('/resend-invite', requireAuth(['Admin']), async (req, res) => {
       token_expires_at: tokenExpiresAt,
     });
 
-    // Send invitation email
+    // Get course information for email template
+    const course = await GolfCourseInstance.findByPk(req.courseId);
+    if (!course) {
+      return res.status(400).json({ error: 'Course not found' });
+    }
+
+    // Send invitation email via SQS queue
     try {
-      await sendEmail({
-        to: staffUser.email,
-        subject: 'Staff Invitation - Golf Course Management (Resent)',
-        text: `Your invitation to join as ${staffUser.role} has been resent. Use this link to complete your registration: /staff/register?token=${invitationToken}`,
-        html: `
-          <h2>Staff Invitation (Resent)</h2>
-          <p>Your invitation to join as <strong>${staffUser.role}</strong> has been resent.</p>
-          <p>Click the link below to complete your registration:</p>
-          <a href="/staff/register?token=${invitationToken}">Complete Registration</a>
-          <p>This invitation expires in 7 days.</p>
-        `,
+      const invitationLink = `https://${course.subdomain}.catalog.golf/staff/register?token=${invitationToken}`;
+      await enqueueEmail('StaffInvitation', staffUser.email, {
+        invitation_link: invitationLink,
+        course_name: course.name,
       });
     } catch (emailError) {
-      console.error('Failed to send invitation email:', emailError);
+      console.error('Failed to enqueue staff invitation email:', emailError);
     }
 
     res.json({ message: 'Invitation resent' });

@@ -8,10 +8,16 @@ const {
   sequelize,
 } = require('../../src/models');
 
+// Mock the SQS client for email queue testing
+jest.mock('@aws-sdk/client-sqs');
+const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
+
 describe('Super Admin Management API', () => {
   let superAdminAuthToken;
   let superAdminUserId;
   let testCourseId;
+  let mockSend;
+  let mockSQSClient;
 
   beforeAll(async () => {
     try {
@@ -102,6 +108,23 @@ describe('Super Admin Management API', () => {
   });
 
   beforeEach(async () => {
+    // Set up SQS mocks
+    jest.clearAllMocks();
+    mockSend = jest.fn().mockResolvedValue({
+      MessageId: 'mock-message-id-999',
+      MD5OfBody: 'mock-md5-hash',
+    });
+
+    mockSQSClient = {
+      send: mockSend,
+    };
+    SQSClient.mockImplementation(() => mockSQSClient);
+
+    // Set up environment variables for email queue
+    process.env.EMAIL_QUEUE_URL =
+      'https://sqs.us-east-1.amazonaws.com/123456789/CatalogEmailQueue';
+    process.env.AWS_REGION = 'us-east-1';
+
     // Clean up any test data created during tests
     await SuperAdminUser.destroy({
       where: {
@@ -111,6 +134,12 @@ describe('Super Admin Management API', () => {
     await GolfCourseInstance.destroy({
       where: { id: { [sequelize.Sequelize.Op.ne]: testCourseId } },
     });
+  });
+
+  afterEach(() => {
+    // Clean up environment variables
+    delete process.env.EMAIL_QUEUE_URL;
+    delete process.env.AWS_REGION;
   });
 
   afterAll(async () => {
@@ -325,7 +354,7 @@ describe('Super Admin Management API', () => {
   });
 
   describe('POST /api/v1/super-admin/super-admins/invite', () => {
-    test('should invite new super admin', async () => {
+    test('should invite new super admin and enqueue invitation email', async () => {
       const inviteData = {
         email: 'newadmin@example.com',
         first_name: 'New',
@@ -341,6 +370,73 @@ describe('Super Admin Management API', () => {
       expect(response.status).toBe(201);
       expect(response.body.message).toContain('invitation sent successfully');
       expect(response.body.super_admin.email).toBe(inviteData.email);
+
+      // Verify that SQS send was called exactly once for super admin invitation
+      expect(mockSend).toHaveBeenCalledTimes(1);
+
+      // Verify the command was created with correct parameters
+      const command = mockSend.mock.calls[0][0];
+      expect(command).toBeInstanceOf(SendMessageCommand);
+
+      // Check that the command was constructed with the right parameters
+      expect(SendMessageCommand).toHaveBeenCalledWith({
+        QueueUrl:
+          'https://sqs.us-east-1.amazonaws.com/123456789/CatalogEmailQueue',
+        MessageBody: expect.stringContaining(
+          '"templateName":"SuperAdminInvitation"'
+        ),
+      });
+
+      // Parse the message body to verify the content
+      const messageBodyCall = SendMessageCommand.mock.calls[0][0];
+      const messageBody = JSON.parse(messageBodyCall.MessageBody);
+
+      expect(messageBody).toEqual({
+        templateName: 'SuperAdminInvitation',
+        toAddress: 'newadmin@example.com',
+        templateData: {
+          invitation_link: expect.stringMatching(
+            /\/super-admin\/register\?token=.+$/
+          ),
+        },
+      });
+
+      // Verify the invitation link contains a valid token
+      expect(messageBody.templateData.invitation_link).toMatch(
+        /token=[a-zA-Z0-9]+/
+      );
+    });
+
+    test('should handle SQS failures gracefully during super admin invitation', async () => {
+      // Mock SQS to throw an error
+      mockSend.mockRejectedValueOnce(new Error('SQS service unavailable'));
+
+      const inviteData = {
+        email: 'error-admin@example.com',
+        first_name: 'Error',
+        last_name: 'Admin',
+        phone: '+1234567890',
+      };
+
+      const response = await request(app)
+        .post('/api/v1/super-admin/super-admins/invite')
+        .set('Cookie', `jwt=${superAdminAuthToken}`)
+        .send(inviteData);
+
+      // Super admin invitation should still succeed even if email fails
+      expect(response.status).toBe(201);
+      expect(response.body.message).toContain('invitation sent successfully');
+      expect(response.body.super_admin.email).toBe(inviteData.email);
+
+      // Verify that SQS send was attempted
+      expect(mockSend).toHaveBeenCalledTimes(1);
+
+      // Verify user was still created in database
+      const invitedUser = await SuperAdminUser.findOne({
+        where: { email: 'error-admin@example.com' },
+      });
+      expect(invitedUser).toBeTruthy();
+      expect(invitedUser.invitation_token).toBeTruthy();
     });
 
     test('should return 400 for invalid email', async () => {

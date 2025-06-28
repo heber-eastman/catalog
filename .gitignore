@@ -3,6 +3,7 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 lerna-debug.log*
 
 # Runtime data
@@ -81,4 +82,57 @@ coverage/
 .jest/
 
 # Vite
-.vite/ 
+.vite/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Backend specific
+backend/node_modules/
+backend/coverage/
+
+# Frontend specific
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+
+# Test artifacts
+backend/cookies.txt
+backend/staff_cookies.txt
+cookies.txt
+test-cookies.txt
+heber_cookies.txt
+new-cookies.txt
+production_cookies.txt
+aws_cookies.txt
+
+# AWS and deployment artifacts
+*.pem
+*.key
+*.crt
+*.json.backup
+
+# Lambda artifacts
+lambda/sendEmailWorker.zip
+
+# Terraform
+infra/.terraform/
+infra/.terraform.lock.hcl
+infra/terraform.tfstate
+infra/terraform.tfstate.backup
+infra/*.tfvars
+infra/*.tfplan
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.staging 

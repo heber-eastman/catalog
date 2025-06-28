@@ -6,10 +6,16 @@ const app = require('../../src/app');
 const { sequelize } = require('../../src/models');
 const { StaffUser, GolfCourseInstance } = require('../../src/models');
 
+// Mock the SQS client for email queue testing
+jest.mock('@aws-sdk/client-sqs');
+const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
+
 describe('Staff Management API', () => {
   let adminAuthToken, staffAuthToken, managerAuthToken;
   let courseId, adminUserId, staffUserId, managerUserId;
   let testStaffUser;
+  let mockSend;
+  let mockSQSClient;
 
   beforeAll(async () => {
     console.log('Database connection established for staff tests');
@@ -92,6 +98,23 @@ describe('Staff Management API', () => {
   });
 
   beforeEach(async () => {
+    // Set up SQS mocks
+    jest.clearAllMocks();
+    mockSend = jest.fn().mockResolvedValue({
+      MessageId: 'mock-message-id-789',
+      MD5OfBody: 'mock-md5-hash',
+    });
+
+    mockSQSClient = {
+      send: mockSend,
+    };
+    SQSClient.mockImplementation(() => mockSQSClient);
+
+    // Set up environment variables for email queue
+    process.env.EMAIL_QUEUE_URL =
+      'https://sqs.us-east-1.amazonaws.com/123456789/CatalogEmailQueue';
+    process.env.AWS_REGION = 'us-east-1';
+
     // Create a fresh test staff user for each test
     testStaffUser = await StaffUser.create({
       course_id: courseId,
@@ -105,6 +128,10 @@ describe('Staff Management API', () => {
   });
 
   afterEach(async () => {
+    // Clean up environment variables
+    delete process.env.EMAIL_QUEUE_URL;
+    delete process.env.AWS_REGION;
+
     // Clean up test staff users
     try {
       await StaffUser.destroy({
@@ -162,7 +189,7 @@ describe('Staff Management API', () => {
   });
 
   describe('POST /api/v1/staff/invite', () => {
-    test('should invite new staff member as admin', async () => {
+    test('should invite new staff member as admin and enqueue invitation email', async () => {
       const inviteData = {
         email: 'invited@example.com',
         role: 'Staff',
@@ -188,6 +215,77 @@ describe('Staff Management API', () => {
       });
       expect(invitedUser).toBeTruthy();
       expect(invitedUser.invitation_token).toBeTruthy();
+
+      // Verify that SQS send was called exactly once for staff invitation
+      expect(mockSend).toHaveBeenCalledTimes(1);
+
+      // Verify the command was created with correct parameters
+      const command = mockSend.mock.calls[0][0];
+      expect(command).toBeInstanceOf(SendMessageCommand);
+
+      // Check that the command was constructed with the right parameters
+      expect(SendMessageCommand).toHaveBeenCalledWith({
+        QueueUrl:
+          'https://sqs.us-east-1.amazonaws.com/123456789/CatalogEmailQueue',
+        MessageBody: expect.stringContaining(
+          '"templateName":"StaffInvitation"'
+        ),
+      });
+
+      // Parse the message body to verify the content
+      const messageBodyCall = SendMessageCommand.mock.calls[0][0];
+      const messageBody = JSON.parse(messageBodyCall.MessageBody);
+
+      expect(messageBody).toEqual({
+        templateName: 'StaffInvitation',
+        toAddress: 'invited@example.com',
+        templateData: {
+          invitation_link: expect.stringMatching(
+            /^https:\/\/test-golf-staff\.catalog\.golf\/staff\/register\?token=.+$/
+          ),
+          course_name: 'Test Golf Club',
+        },
+      });
+
+      // Verify the invitation link contains a valid token
+      expect(messageBody.templateData.invitation_link).toMatch(
+        /token=[a-zA-Z0-9]+/
+      );
+    });
+
+    test('should handle SQS failures gracefully during staff invitation', async () => {
+      // Mock SQS to throw an error
+      mockSend.mockRejectedValueOnce(new Error('SQS service unavailable'));
+
+      const inviteData = {
+        email: 'invited-error@example.com',
+        role: 'Staff',
+        first_name: 'Error',
+        last_name: 'Test',
+      };
+
+      const response = await request(app)
+        .post('/api/v1/staff/invite')
+        .set('Cookie', `jwt=${adminAuthToken}`)
+        .send(inviteData);
+
+      // Staff invitation should still succeed even if email fails
+      expect(response.status).toBe(201);
+      expect(response.body).toHaveProperty('id');
+      expect(response.body.email).toBe(inviteData.email);
+
+      // Verify that SQS send was attempted
+      expect(mockSend).toHaveBeenCalledTimes(1);
+
+      // Verify user was still created in database
+      const invitedUser = await StaffUser.findOne({
+        where: { email: 'invited-error@example.com' },
+      });
+      expect(invitedUser).toBeTruthy();
+      expect(invitedUser.invitation_token).toBeTruthy();
+
+      // Clean up
+      await invitedUser.destroy();
     });
 
     test('should return 400 for invalid email', async () => {

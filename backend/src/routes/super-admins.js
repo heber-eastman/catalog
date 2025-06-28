@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const { GolfCourseInstance, SuperAdminUser, sequelize } = require('../models');
 const { requireSuperAdmin } = require('../middleware/auth');
-const { sendEmail } = require('../services/emailService');
+const { enqueueEmail } = require('../emailQueue');
 const { generateTokenString } = require('../auth/tokenUtil');
 const {
   inviteSuperAdminSchema: superAdminInviteSchema,
@@ -290,30 +290,19 @@ router.post('/super-admins/invite', requireSuperAdmin(), async (req, res) => {
       token_expires_at: tokenExpiresAt,
     });
 
-    // Send invitation email
-    const registrationUrl = `${process.env.FRONTEND_URL || 'https://admin.catalog.golf'}/super-admin/register?token=${invitationToken}`;
-
-    await sendEmail({
-      to: value.email,
-      subject: 'Super Admin Invitation - Golf Course Management Platform',
-      text: `You have been invited to join as a Super Admin.
-      
-Please complete your registration using the following link:
-${registrationUrl}
-
-This invitation will expire in 7 days.
-
-Best regards,
-Golf Course Management Team`,
-      html: `
-        <h2>Super Admin Invitation</h2>
-        <p>You have been invited to join as a Super Admin on the Golf Course Management Platform.</p>
-        <p>Please complete your registration by clicking the link below:</p>
-        <p><a href="${registrationUrl}" style="background: #1976d2; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Complete Registration</a></p>
-        <p>This invitation will expire in 7 days.</p>
-        <p>Best regards,<br>Golf Course Management Team</p>
-      `,
-    });
+    // Send invitation email via SQS queue
+    try {
+      const invitationLink = `${process.env.FRONTEND_URL || 'https://admin.catalog.golf'}/super-admin/register?token=${invitationToken}`;
+      await enqueueEmail('SuperAdminInvitation', value.email, {
+        invitation_link: invitationLink,
+      });
+    } catch (emailError) {
+      console.error(
+        'Failed to enqueue super admin invitation email:',
+        emailError
+      );
+      // Continue with response even if email fails
+    }
 
     res.status(201).json({
       message: 'Super admin invitation sent successfully',
@@ -415,31 +404,19 @@ router.post(
         token_expires_at: tokenExpiresAt,
       });
 
-      // Send invitation email
-      const registrationUrl = `${process.env.FRONTEND_URL || 'https://admin.catalog.golf'}/super-admin/register?token=${invitationToken}`;
-
-      await sendEmail({
-        to: email,
-        subject:
-          'Super Admin Invitation - Golf Course Management Platform (Resent)',
-        text: `Your super admin invitation has been resent.
-      
-Please complete your registration using the following link:
-${registrationUrl}
-
-This invitation will expire in 7 days.
-
-Best regards,
-Golf Course Management Team`,
-        html: `
-        <h2>Super Admin Invitation (Resent)</h2>
-        <p>Your super admin invitation has been resent.</p>
-        <p>Please complete your registration by clicking the link below:</p>
-        <p><a href="${registrationUrl}" style="background: #1976d2; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Complete Registration</a></p>
-        <p>This invitation will expire in 7 days.</p>
-        <p>Best regards,<br>Golf Course Management Team</p>
-      `,
-      });
+      // Send invitation email via SQS queue
+      try {
+        const invitationLink = `${process.env.FRONTEND_URL || 'https://admin.catalog.golf'}/super-admin/register?token=${invitationToken}`;
+        await enqueueEmail('SuperAdminInvitation', email, {
+          invitation_link: invitationLink,
+        });
+      } catch (emailError) {
+        console.error(
+          'Failed to enqueue super admin invitation email:',
+          emailError
+        );
+        // Continue with response even if email fails
+      }
 
       res.json({ message: 'Invitation resent successfully' });
     } catch (error) {

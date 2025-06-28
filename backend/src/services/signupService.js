@@ -3,7 +3,7 @@ const slugify = require('slugify');
 const { v4: uuidv4 } = require('uuid');
 const { GolfCourseInstance, StaffUser } = require('../models');
 const { generateTokenString } = require('../auth/tokenUtil');
-const { sendConfirmationEmail } = require('./emailService');
+const { enqueueEmail } = require('../emailQueue');
 
 /**
  * Generate unique subdomain from course name
@@ -87,8 +87,12 @@ async function createCourseAndAdmin(signupData) {
       token_expires_at: tokenExpiresAt,
     });
 
-    // Send confirmation email
-    await sendConfirmationEmail(admin.email, subdomain, invitationToken);
+    // Send confirmation email via SQS queue
+    const confirmationLink = `https://${subdomain}.catalog.golf/confirm?token=${invitationToken}`;
+    await enqueueEmail('SignupConfirmation', admin.email, {
+      confirmation_link: confirmationLink,
+      course_name: course.name,
+    });
 
     return {
       course: golfCourse,
