@@ -41,11 +41,15 @@ describe('Localstack End-to-End Email Flow', () => {
     // Check if Localstack is available
     try {
       // Simple connectivity test to Localstack
-      await sqsClient.send(new GetQueueUrlCommand({ QueueName: 'test-connectivity' }));
+      await sqsClient.send(
+        new GetQueueUrlCommand({ QueueName: 'test-connectivity' })
+      );
       localstackAvailable = true;
     } catch (error) {
       console.log('⚠️ Localstack not available - E2E tests will be skipped');
-      console.log('   To run these tests, start Localstack with: docker-compose up localstack');
+      console.log(
+        '   To run these tests, start Localstack with: docker-compose up localstack'
+      );
       localstackAvailable = false;
     }
   });
