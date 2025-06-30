@@ -1,11 +1,11 @@
-const { 
-  SQSClient, 
+const {
+  SQSClient,
   CreateQueueCommand,
-  GetQueueUrlCommand 
+  GetQueueUrlCommand,
 } = require('@aws-sdk/client-sqs');
-const { 
-  SESClient, 
-  VerifyEmailIdentityCommand
+const {
+  SESClient,
+  VerifyEmailIdentityCommand,
 } = require('@aws-sdk/client-ses');
 
 // Import Lambda handler
@@ -18,8 +18,8 @@ const AWS_CONFIG = {
   endpoint: LOCALSTACK_ENDPOINT,
   credentials: {
     accessKeyId: 'test',
-    secretAccessKey: 'test'
-  }
+    secretAccessKey: 'test',
+  },
 };
 
 describe('Localstack End-to-End Email Flow', () => {
@@ -38,7 +38,8 @@ describe('Localstack End-to-End Email Flow', () => {
 
   beforeEach(async () => {
     // Set up environment variables
-    process.env.EMAIL_QUEUE_URL = 'http://localhost:4566/000000000000/CatalogEmailQueue';
+    process.env.EMAIL_QUEUE_URL =
+      'http://localhost:4566/000000000000/CatalogEmailQueue';
     process.env.AWS_REGION = 'us-east-1';
     process.env.AWS_ENDPOINT = LOCALSTACK_ENDPOINT;
     process.env.AWS_ACCESS_KEY_ID = 'test';
@@ -48,16 +49,20 @@ describe('Localstack End-to-End Email Flow', () => {
 
     // Create SQS queue
     try {
-      const result = await sqsClient.send(new CreateQueueCommand({
-        QueueName: 'CatalogEmailQueue'
-      }));
+      const result = await sqsClient.send(
+        new CreateQueueCommand({
+          QueueName: 'CatalogEmailQueue',
+        })
+      );
       queueUrl = result.QueueUrl;
       console.log('✅ SQS Queue ready:', queueUrl);
     } catch (error) {
       if (error.name === 'QueueAlreadyExists') {
-        const result = await sqsClient.send(new GetQueueUrlCommand({ 
-          QueueName: 'CatalogEmailQueue' 
-        }));
+        const result = await sqsClient.send(
+          new GetQueueUrlCommand({
+            QueueName: 'CatalogEmailQueue',
+          })
+        );
         queueUrl = result.QueueUrl;
         console.log('✅ Using existing SQS Queue:', queueUrl);
       } else {
@@ -67,9 +72,11 @@ describe('Localstack End-to-End Email Flow', () => {
 
     // Verify email address in SES (Localstack auto-accepts)
     try {
-      await sesClient.send(new VerifyEmailIdentityCommand({ 
-        EmailAddress: 'noreply@catalog.golf' 
-      }));
+      await sesClient.send(
+        new VerifyEmailIdentityCommand({
+          EmailAddress: 'noreply@catalog.golf',
+        })
+      );
       console.log('✅ Email address verified in Localstack SES');
     } catch (error) {
       console.log('⚠️ Email verification skipped:', error.message);
@@ -84,10 +91,10 @@ describe('Localstack End-to-End Email Flow', () => {
       const emailJob = {
         templateName: 'SignupConfirmation',
         toAddress: 'test@example.com',
-        templateData: { 
+        templateData: {
           confirmation_link: 'https://test.catalog.golf/confirm?token=abc123',
-          course_name: 'Test Golf Club'
-        }
+          course_name: 'Test Golf Club',
+        },
       };
 
       // Create Lambda event (simulating SQS trigger)
@@ -101,35 +108,39 @@ describe('Localstack End-to-End Email Flow', () => {
               ApproximateReceiveCount: '1',
               SentTimestamp: Date.now().toString(),
               SenderId: 'test',
-              ApproximateFirstReceiveTimestamp: Date.now().toString()
+              ApproximateFirstReceiveTimestamp: Date.now().toString(),
             },
             messageAttributes: {},
             md5OfBody: 'test-md5',
             eventSource: 'aws:sqs',
-            eventSourceARN: 'arn:aws:sqs:us-east-1:000000000000:CatalogEmailQueue',
-            awsRegion: 'us-east-1'
-          }
-        ]
+            eventSourceARN:
+              'arn:aws:sqs:us-east-1:000000000000:CatalogEmailQueue',
+            awsRegion: 'us-east-1',
+          },
+        ],
       };
 
       // Invoke Lambda handler
       const result = await lambdaHandler(lambdaEvent);
-      
+
       // Verify successful processing
       expect(result).toHaveProperty('statusCode', 200);
       expect(result).toHaveProperty('body');
-      
+
       const responseBody = JSON.parse(result.body);
       expect(responseBody).toHaveProperty('processedCount', 1);
       expect(responseBody).toHaveProperty('failedCount', 0);
-      expect(responseBody).toHaveProperty('message', 'Successfully processed 1 email(s)');
+      expect(responseBody).toHaveProperty(
+        'message',
+        'Successfully processed 1 email(s)'
+      );
 
       console.log('✅ Lambda successfully processed email via Localstack SES');
       console.log('📧 Email details:', {
         template: emailJob.templateName,
         recipient: emailJob.toAddress,
         processed: responseBody.processedCount,
-        failed: responseBody.failedCount
+        failed: responseBody.failedCount,
       });
     });
 
@@ -141,19 +152,20 @@ describe('Localstack End-to-End Email Flow', () => {
         {
           templateName: 'SignupConfirmation',
           toAddress: 'user1@example.com',
-          templateData: { 
-            confirmation_link: 'https://test1.catalog.golf/confirm?token=abc123',
-            course_name: 'Golf Club 1'
-          }
+          templateData: {
+            confirmation_link:
+              'https://test1.catalog.golf/confirm?token=abc123',
+            course_name: 'Golf Club 1',
+          },
         },
         {
           templateName: 'WelcomeEmail',
           toAddress: 'user2@example.com',
-          templateData: { 
+          templateData: {
             user_name: 'John Doe',
-            course_name: 'Golf Club 2'
-          }
-        }
+            course_name: 'Golf Club 2',
+          },
+        },
       ];
 
       // Create Lambda event with multiple records
@@ -166,33 +178,39 @@ describe('Localstack End-to-End Email Flow', () => {
             ApproximateReceiveCount: '1',
             SentTimestamp: Date.now().toString(),
             SenderId: 'test',
-            ApproximateFirstReceiveTimestamp: Date.now().toString()
+            ApproximateFirstReceiveTimestamp: Date.now().toString(),
           },
           messageAttributes: {},
           md5OfBody: `test-md5-${index}`,
           eventSource: 'aws:sqs',
-          eventSourceARN: 'arn:aws:sqs:us-east-1:000000000000:CatalogEmailQueue',
-          awsRegion: 'us-east-1'
-        }))
+          eventSourceARN:
+            'arn:aws:sqs:us-east-1:000000000000:CatalogEmailQueue',
+          awsRegion: 'us-east-1',
+        })),
       };
 
       // Invoke Lambda handler
       const result = await lambdaHandler(lambdaEvent);
-      
+
       // Verify successful batch processing
       expect(result).toHaveProperty('statusCode', 200);
       expect(result).toHaveProperty('body');
-      
+
       const responseBody = JSON.parse(result.body);
       expect(responseBody).toHaveProperty('processedCount', 2);
       expect(responseBody).toHaveProperty('failedCount', 0);
-      expect(responseBody).toHaveProperty('message', 'Successfully processed 2 email(s)');
+      expect(responseBody).toHaveProperty(
+        'message',
+        'Successfully processed 2 email(s)'
+      );
 
-      console.log('✅ Lambda successfully processed batch emails via Localstack');
+      console.log(
+        '✅ Lambda successfully processed batch emails via Localstack'
+      );
       console.log('📧 Batch results:', {
         totalJobs: emailJobs.length,
         processed: responseBody.processedCount,
-        failed: responseBody.failedCount
+        failed: responseBody.failedCount,
       });
     });
 
@@ -203,7 +221,7 @@ describe('Localstack End-to-End Email Flow', () => {
       const invalidEmailJob = {
         templateName: 'NonExistentTemplate',
         toAddress: 'test@example.com',
-        templateData: { test: 'data' }
+        templateData: { test: 'data' },
       };
 
       // Create Lambda event
@@ -217,24 +235,25 @@ describe('Localstack End-to-End Email Flow', () => {
               ApproximateReceiveCount: '1',
               SentTimestamp: Date.now().toString(),
               SenderId: 'test',
-              ApproximateFirstReceiveTimestamp: Date.now().toString()
+              ApproximateFirstReceiveTimestamp: Date.now().toString(),
             },
             messageAttributes: {},
             md5OfBody: 'test-error-md5',
             eventSource: 'aws:sqs',
-            eventSourceARN: 'arn:aws:sqs:us-east-1:000000000000:CatalogEmailQueue',
-            awsRegion: 'us-east-1'
-          }
-        ]
+            eventSourceARN:
+              'arn:aws:sqs:us-east-1:000000000000:CatalogEmailQueue',
+            awsRegion: 'us-east-1',
+          },
+        ],
       };
 
       // Invoke Lambda handler
       const result = await lambdaHandler(lambdaEvent);
-      
+
       // Verify error handling
       expect(result).toHaveProperty('statusCode', 207); // Partial success
       expect(result).toHaveProperty('body');
-      
+
       const responseBody = JSON.parse(result.body);
       expect(responseBody).toHaveProperty('processedCount', 0);
       expect(responseBody).toHaveProperty('failedCount', 1);
@@ -245,7 +264,7 @@ describe('Localstack End-to-End Email Flow', () => {
       console.log('❌ Error details:', {
         processed: responseBody.processedCount,
         failed: responseBody.failedCount,
-        errorMessage: responseBody.errors[0]
+        errorMessage: responseBody.errors[0],
       });
     });
   });
@@ -261,9 +280,11 @@ describe('Localstack End-to-End Email Flow', () => {
 
       // Test SES connectivity by verifying another email
       try {
-        await sesClient.send(new VerifyEmailIdentityCommand({ 
-          EmailAddress: 'test-verify@example.com' 
-        }));
+        await sesClient.send(
+          new VerifyEmailIdentityCommand({
+            EmailAddress: 'test-verify@example.com',
+          })
+        );
         console.log('✅ SES service accessible and responding');
       } catch (error) {
         console.log('⚠️ SES verification test skipped:', error.message);
@@ -272,4 +293,4 @@ describe('Localstack End-to-End Email Flow', () => {
       console.log('🎉 Localstack infrastructure verification complete');
     });
   });
-}); 
+});
