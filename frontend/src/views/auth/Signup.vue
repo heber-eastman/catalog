@@ -25,6 +25,8 @@
               <v-text-field
                 v-model="form.street"
                 label="Street Address"
+                :rules="streetRules"
+                required
                 variant="outlined"
                 class="mb-3"
                 data-cy="street-input"
@@ -32,25 +34,31 @@
 
               <v-row>
                 <v-col cols="6">
-                  <v-text-field
-                    v-model="form.city"
-                    label="City"
-                    variant="outlined"
-                    data-cy="city-input"
-                  />
+                                  <v-text-field
+                  v-model="form.city"
+                  label="City"
+                  :rules="cityRules"
+                  required
+                  variant="outlined"
+                  data-cy="city-input"
+                />
                 </v-col>
                 <v-col cols="3">
-                  <v-text-field
-                    v-model="form.state"
-                    label="State"
-                    variant="outlined"
-                    data-cy="state-input"
-                  />
+                                  <v-text-field
+                  v-model="form.state"
+                  label="State"
+                  :rules="stateRules"
+                  required
+                  variant="outlined"
+                  data-cy="state-input"
+                />
                 </v-col>
                 <v-col cols="3">
                   <v-text-field
                     v-model="form.postal_code"
                     label="Zip Code"
+                    :rules="postalCodeRules"
+                    required
                     variant="outlined"
                     data-cy="postal-code-input"
                   />
@@ -185,6 +193,24 @@ export default {
         v =>
           (v && v.length >= 2) || 'Course name must be at least 2 characters',
       ],
+      streetRules: [
+        v => !!v || 'Street address is required',
+        v =>
+          (v && v.length >= 5) || 'Street address must be at least 5 characters long',
+      ],
+      postalCodeRules: [
+        v => !!v || 'Postal code is required',
+        v =>
+          /^[A-Za-z0-9\s-]{3,10}$/.test(v) || 'Please provide a valid postal code',
+      ],
+      cityRules: [
+        v => !!v || 'City is required',
+        v => (v && v.length >= 2) || 'City must be at least 2 characters long',
+      ],
+      stateRules: [
+        v => !!v || 'State is required',
+        v => (v && v.length >= 2) || 'State must be at least 2 characters long',
+      ],
       nameRules: [
         v => !!v || 'Name is required',
         v => (v && v.length >= 2) || 'Name must be at least 2 characters',
@@ -203,6 +229,9 @@ export default {
           /(?=.*[A-Z])/.test(v) ||
           'Password must contain at least one uppercase letter',
         v => /(?=.*\d)/.test(v) || 'Password must contain at least one number',
+        v =>
+          /(?=.*[!@#$%^&*])/.test(v) ||
+          'Password must contain at least one special character (!@#$%^&*)',
       ],
     };
   },
@@ -215,6 +244,7 @@ export default {
       this.successMessage = '';
 
       try {
+        console.log('Sending signup data:', this.form);
         const response = await authAPI.signup(this.form);
         console.log('Signup response:', response.data);
 
@@ -224,8 +254,26 @@ export default {
         this.$refs.form.reset();
       } catch (error) {
         console.error('Signup error:', error);
-        this.errorMessage =
-          error.response?.data?.error || 'An error occurred during signup';
+        console.error('Error response:', error.response?.data);
+        console.error('Error status:', error.response?.status);
+        
+        // Show detailed error message
+        let errorMessage = 'An error occurred during signup';
+        if (error.response?.data?.error) {
+          errorMessage = error.response.data.error;
+          
+          // If there are validation details, show them
+          if (error.response.data.details) {
+            errorMessage += ': ';
+            if (Array.isArray(error.response.data.details)) {
+              errorMessage += error.response.data.details.map(d => d.message || d).join(', ');
+            } else {
+              errorMessage += JSON.stringify(error.response.data.details);
+            }
+          }
+        }
+        
+        this.errorMessage = errorMessage;
       } finally {
         this.loading = false;
       }

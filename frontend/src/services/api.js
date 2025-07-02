@@ -125,6 +125,8 @@ export const authAPI = {
         last_name: data.admin_last_name,
       },
     };
+    console.log('Original form data:', data);
+    console.log('Transformed data for backend:', transformedData);
     return api.post('/signup', transformedData);
   },
   confirm: token => api.get(`/confirm?token=${token}`),
