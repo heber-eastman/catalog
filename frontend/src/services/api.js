@@ -107,7 +107,26 @@ api.interceptors.response.use(
 
 // Auth API methods
 export const authAPI = {
-  signup: data => api.post('/signup', data),
+  signup: data => {
+    // Transform frontend form data to backend expected format
+    const transformedData = {
+      course: {
+        name: data.course_name,
+        street: data.street,
+        city: data.city,
+        state: data.state,
+        postal_code: data.postal_code,
+        country: 'US', // Default to US, can be made configurable later
+      },
+      admin: {
+        email: data.admin_email,
+        password: data.admin_password,
+        first_name: data.admin_first_name,
+        last_name: data.admin_last_name,
+      },
+    };
+    return api.post('/signup', transformedData);
+  },
   confirm: token => api.get(`/confirm?token=${token}`),
   login: credentials => api.post('/auth/login', credentials),
   superAdminLogin: credentials =>
