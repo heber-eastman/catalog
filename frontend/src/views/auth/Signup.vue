@@ -34,24 +34,24 @@
 
               <v-row>
                 <v-col cols="6">
-                                  <v-text-field
-                  v-model="form.city"
-                  label="City"
-                  :rules="cityRules"
-                  required
-                  variant="outlined"
-                  data-cy="city-input"
-                />
+                  <v-text-field
+                    v-model="form.city"
+                    label="City"
+                    :rules="cityRules"
+                    required
+                    variant="outlined"
+                    data-cy="city-input"
+                  />
                 </v-col>
                 <v-col cols="3">
-                                  <v-text-field
-                  v-model="form.state"
-                  label="State"
-                  :rules="stateRules"
-                  required
-                  variant="outlined"
-                  data-cy="state-input"
-                />
+                  <v-text-field
+                    v-model="form.state"
+                    label="State"
+                    :rules="stateRules"
+                    required
+                    variant="outlined"
+                    data-cy="state-input"
+                  />
                 </v-col>
                 <v-col cols="3">
                   <v-text-field
@@ -196,12 +196,14 @@ export default {
       streetRules: [
         v => !!v || 'Street address is required',
         v =>
-          (v && v.length >= 5) || 'Street address must be at least 5 characters long',
+          (v && v.length >= 5) ||
+          'Street address must be at least 5 characters long',
       ],
       postalCodeRules: [
         v => !!v || 'Postal code is required',
         v =>
-          /^[A-Za-z0-9\s-]{3,10}$/.test(v) || 'Please provide a valid postal code',
+          /^[A-Za-z0-9\s-]{3,10}$/.test(v) ||
+          'Please provide a valid postal code',
       ],
       cityRules: [
         v => !!v || 'City is required',
@@ -256,23 +258,25 @@ export default {
         console.error('Signup error:', error);
         console.error('Error response:', error.response?.data);
         console.error('Error status:', error.response?.status);
-        
+
         // Show detailed error message
         let errorMessage = 'An error occurred during signup';
         if (error.response?.data?.error) {
           errorMessage = error.response.data.error;
-          
+
           // If there are validation details, show them
           if (error.response.data.details) {
             errorMessage += ': ';
             if (Array.isArray(error.response.data.details)) {
-              errorMessage += error.response.data.details.map(d => d.message || d).join(', ');
+              errorMessage += error.response.data.details
+                .map(d => d.message || d)
+                .join(', ');
             } else {
               errorMessage += JSON.stringify(error.response.data.details);
             }
           }
         }
-        
+
         this.errorMessage = errorMessage;
       } finally {
         this.loading = false;
