@@ -52,17 +52,27 @@ function validateEnvironment() {
 }
 
 /**
- * Creates a promise that rejects after a specified timeout
+ * Creates a promise that rejects after the specified timeout
  * @param {number} ms - Timeout in milliseconds
- * @returns {Promise} A promise that rejects with a timeout error
+ * @returns {Promise} Promise that rejects with timeout error
  */
 function timeoutPromise(ms) {
-  return new Promise((_, reject) => {
-    setTimeout(
+  let timeoutId;
+  const promise = new Promise((_, reject) => {
+    timeoutId = setTimeout(
       () => reject(new Error(`Operation timed out after ${ms}ms`)),
       ms
     );
   });
+
+  // Attach cleanup function to the promise
+  promise.clearTimeout = () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  };
+
+  return promise;
 }
 
 /**
@@ -74,54 +84,58 @@ function timeoutPromise(ms) {
  * @throws {Error} If validation fails or SQS operation fails
  */
 async function enqueueEmail(templateName, toAddress, templateData) {
-  console.log(`Enqueuing email: ${templateName} to ${toAddress}`);
-
   // Validate input parameters
   validateInput(templateName, toAddress, templateData);
 
   // Validate environment variables
   validateEnvironment();
 
-  // Initialize SQS client with timeout configuration
-  const sqsClientConfig = {
-    region: process.env.AWS_REGION,
-    requestHandler: {
-      requestTimeout: 10000, // 10 second timeout for SQS requests
-      connectionTimeout: 5000, // 5 second connection timeout
-    },
-  };
-
-  // Support custom endpoint for Localstack testing
-  if (process.env.AWS_ENDPOINT) {
-    sqsClientConfig.endpoint = process.env.AWS_ENDPOINT;
-    sqsClientConfig.credentials = {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'test',
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'test',
-    };
-  }
-
-  const sqsClient = new SQSClient(sqsClientConfig);
-
-  // Create the email job payload
-  const emailJob = {
-    templateName,
-    toAddress,
-    templateData,
-  };
-
-  // Create the SQS command
-  const command = new SendMessageCommand({
-    QueueUrl: process.env.EMAIL_QUEUE_URL,
-    MessageBody: JSON.stringify(emailJob),
-  });
-
   try {
-    // Send the message to SQS with a 15-second overall timeout
-    const sqsOperation = sqsClient.send(command);
-    const result = await Promise.race([
-      sqsOperation,
-      timeoutPromise(15000), // 15 second timeout
-    ]);
+    console.log(`Enqueuing email: ${templateName} to ${toAddress}`);
+
+    // Initialize SQS client with timeout configuration
+    const sqsClientConfig = {
+      region: process.env.AWS_REGION,
+      requestHandler: {
+        requestTimeout: 10000, // 10 second timeout for SQS requests
+        connectionTimeout: 5000, // 5 second connection timeout
+      },
+    };
+
+    // Support custom endpoint for Localstack testing
+    if (process.env.AWS_ENDPOINT) {
+      sqsClientConfig.endpoint = process.env.AWS_ENDPOINT;
+      sqsClientConfig.credentials = {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'test',
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'test',
+      };
+    }
+
+    const sqsClient = new SQSClient(sqsClientConfig);
+
+    const command = new SendMessageCommand({
+      QueueUrl: process.env.EMAIL_QUEUE_URL,
+      MessageBody: JSON.stringify({
+        templateName,
+        toAddress,
+        templateData,
+      }),
+    });
+
+    // Create timeout promise with cleanup capability
+    const timeout = timeoutPromise(15000);
+    const sqsPromise = sqsClient.send(command);
+
+    let result;
+    try {
+      result = await Promise.race([sqsPromise, timeout]);
+      // Clear the timeout since the operation completed successfully
+      timeout.clearTimeout();
+    } catch (error) {
+      // Clear the timeout on error as well
+      timeout.clearTimeout();
+      throw error;
+    }
 
     console.log(
       `Email job enqueued successfully. MessageId: ${result.MessageId}`

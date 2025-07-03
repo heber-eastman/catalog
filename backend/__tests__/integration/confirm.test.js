@@ -173,6 +173,7 @@ describe('GET /api/v1/confirm', () => {
         templateData: {
           user_name: 'John Doe',
           course_name: 'Test Golf Course',
+          subdomain: 'test-golf-course',
         },
       });
     });

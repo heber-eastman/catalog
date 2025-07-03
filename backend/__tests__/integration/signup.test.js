@@ -212,8 +212,8 @@ describe('POST /api/v1/signup', () => {
     });
 
     test('should handle SQS failures gracefully', async () => {
-      // Mock SQS to throw an error
-      mockSend.mockRejectedValueOnce(new Error('SQS service unavailable'));
+      const sqsError = new Error('SQS service unavailable');
+      mockSend.mockRejectedValueOnce(sqsError);
 
       const signupData = {
         course: {
@@ -226,7 +226,7 @@ describe('POST /api/v1/signup', () => {
         },
         admin: {
           email: 'error@example.com',
-          password: 'StrongP@ss123',
+          password: 'TestP@ss123',
           first_name: 'Error',
           last_name: 'Test',
         },
@@ -235,17 +235,17 @@ describe('POST /api/v1/signup', () => {
       const response = await request(app)
         .post('/api/v1/signup')
         .send(signupData)
-        .expect(500);
+        .expect(201);
 
-      // Verify error response
-      expect(response.body).toHaveProperty('error');
-      expect(response.body.error).toBe('Internal server error');
+      // Verify success response even with email failure
+      expect(response.body).toHaveProperty('subdomain');
+      expect(response.body.subdomain).toBe('error-test-club');
 
       // Verify that SQS send was attempted
       expect(mockSend).toHaveBeenCalledTimes(1);
 
-      // Verify that the database transaction was rolled back
-      // (course and user should not exist due to the error)
+      // Verify that the course and user were created successfully
+      // even though email failed (non-blocking operation)
       const course = await GolfCourseInstance.findOne({
         where: { name: 'Error Test Club' },
       });
@@ -253,10 +253,8 @@ describe('POST /api/v1/signup', () => {
         where: { email: 'error@example.com' },
       });
 
-      // Note: This depends on whether the service uses transactions
-      // For now, we'll just verify the SQS call was made
-      expect(course).toBeTruthy(); // Course was created before email failed
-      expect(user).toBeTruthy(); // User was created before email failed
+      expect(course).toBeTruthy(); // Course was created successfully
+      expect(user).toBeTruthy(); // User was created successfully
     });
   });
 

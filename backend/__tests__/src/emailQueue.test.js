@@ -303,6 +303,10 @@ describe('enqueueEmail Utility', () => {
 
       expect(SQSClient).toHaveBeenCalledWith({
         region: 'us-east-1',
+        requestHandler: {
+          connectionTimeout: 5000,
+          requestTimeout: 10000,
+        },
       });
     });
   });
