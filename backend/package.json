@@ -28,6 +28,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-ses": "^3.839.0",
+    "@aws-sdk/client-sqs": "^3.839.0",
     "aws-sdk": "^2.1565.0",
     "bcrypt": "^5.1.1",
     "cookie-parser": "^1.4.6",
@@ -50,8 +52,6 @@
     "uuid": "^8.0.0"
   },
   "devDependencies": {
-    "@aws-sdk/client-ses": "^3.839.0",
-    "@aws-sdk/client-sqs": "^3.839.0",
     "@testcontainers/localstack": "^11.0.3",
     "@types/jest": "^29.5.0",
     "aws-sdk-client-mock": "^4.1.0",
