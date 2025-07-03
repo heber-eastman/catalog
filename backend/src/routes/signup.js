@@ -9,13 +9,18 @@ const router = express.Router();
  * Create new golf course and admin user
  */
 router.post('/signup', async (req, res) => {
+  const requestStart = Date.now();
+  console.log('Signup request started...');
+
   try {
-    // Validate request body
+    // Step 1: Validate request body
+    const validationStart = Date.now();
     const { error, value } = signupSchema.validate(req.body, {
       abortEarly: false,
     });
 
     if (error) {
+      console.log(`Validation took ${Date.now() - validationStart}ms`);
       // Get the first validation error
       const firstError = error.details[0];
       const errorField = firstError.path.join('.');
@@ -28,22 +33,36 @@ router.post('/signup', async (req, res) => {
         })),
       });
     }
+    console.log(`Validation took ${Date.now() - validationStart}ms`);
 
-    // Check if email already exists
+    // Step 2: Check if email already exists
+    const emailCheckStart = Date.now();
     const { StaffUser } = require('../models');
     const existingUser = await StaffUser.findOne({
       where: { email: value.admin.email },
+      attributes: ['id'], // Only fetch the ID for performance
     });
 
     if (existingUser) {
+      console.log(
+        `Email check took ${Date.now() - emailCheckStart}ms - email exists`
+      );
       return res.status(409).json({
         error: 'Email already registered',
         message: 'An account with this email address already exists',
       });
     }
+    console.log(
+      `Email check took ${Date.now() - emailCheckStart}ms - email available`
+    );
 
-    // Create course and admin user
+    // Step 3: Create course and admin user
+    const creationStart = Date.now();
     const result = await createCourseAndAdmin(value);
+    console.log(`Course creation took ${Date.now() - creationStart}ms`);
+
+    const totalRequestTime = Date.now() - requestStart;
+    console.log(`Total signup request time: ${totalRequestTime}ms`);
 
     // Return success response
     res.status(201).json({
@@ -52,7 +71,8 @@ router.post('/signup', async (req, res) => {
         'Account created successfully. Please check your email for confirmation instructions.',
     });
   } catch (error) {
-    console.error('Signup error:', error);
+    const totalRequestTime = Date.now() - requestStart;
+    console.error(`Signup error after ${totalRequestTime}ms:`, error);
 
     // Handle specific database errors
     if (error.name === 'SequelizeUniqueConstraintError') {

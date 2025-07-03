@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const { GolfCourseInstance, SuperAdminUser, sequelize } = require('../models');
 const { requireSuperAdmin } = require('../middleware/auth');
-const { enqueueEmail } = require('../emailQueue');
+const { enqueueEmailNonBlocking } = require('../emailQueue');
 const { generateTokenString } = require('../auth/tokenUtil');
 const {
   inviteSuperAdminSchema: superAdminInviteSchema,
@@ -290,19 +290,11 @@ router.post('/super-admins/invite', requireSuperAdmin(), async (req, res) => {
       token_expires_at: tokenExpiresAt,
     });
 
-    // Send invitation email via SQS queue
-    try {
-      const invitationLink = `${process.env.FRONTEND_URL || 'https://admin.catalog.golf'}/super-admin/register?token=${invitationToken}`;
-      await enqueueEmail('SuperAdminInvitation', value.email, {
-        invitation_link: invitationLink,
-      });
-    } catch (emailError) {
-      console.error(
-        'Failed to enqueue super admin invitation email:',
-        emailError
-      );
-      // Continue with response even if email fails
-    }
+    // Send invitation email via SQS queue (non-blocking)
+    const invitationLink = `${process.env.FRONTEND_URL || 'https://admin.catalog.golf'}/super-admin/register?token=${invitationToken}`;
+    enqueueEmailNonBlocking('SuperAdminInvitation', value.email, {
+      invitation_link: invitationLink,
+    });
 
     res.status(201).json({
       message: 'Super admin invitation sent successfully',
@@ -404,19 +396,11 @@ router.post(
         token_expires_at: tokenExpiresAt,
       });
 
-      // Send invitation email via SQS queue
-      try {
-        const invitationLink = `${process.env.FRONTEND_URL || 'https://admin.catalog.golf'}/super-admin/register?token=${invitationToken}`;
-        await enqueueEmail('SuperAdminInvitation', email, {
-          invitation_link: invitationLink,
-        });
-      } catch (emailError) {
-        console.error(
-          'Failed to enqueue super admin invitation email:',
-          emailError
-        );
-        // Continue with response even if email fails
-      }
+      // Send invitation email via SQS queue (non-blocking)
+      const invitationLink = `${process.env.FRONTEND_URL || 'https://admin.catalog.golf'}/super-admin/register?token=${invitationToken}`;
+      enqueueEmailNonBlocking('SuperAdminInvitation', email, {
+        invitation_link: invitationLink,
+      });
 
       res.json({ message: 'Invitation resent successfully' });
     } catch (error) {

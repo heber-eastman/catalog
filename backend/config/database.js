@@ -82,11 +82,19 @@ const config = {
           underscored: true,
           timestamps: true,
         },
+        pool: {
+          max: 10,
+          min: 2,
+          acquire: 30000,
+          idle: 10000,
+        },
         dialectOptions: {
           ssl: {
             require: true,
             rejectUnauthorized: false,
           },
+          statement_timeout: 30000,
+          query_timeout: 30000,
         },
       }
     : {
@@ -97,11 +105,19 @@ const config = {
           underscored: true,
           timestamps: true,
         },
+        pool: {
+          max: 10,
+          min: 2,
+          acquire: 30000,
+          idle: 10000,
+        },
         dialectOptions: {
           ssl: {
             require: true,
             rejectUnauthorized: false,
           },
+          statement_timeout: 30000,
+          query_timeout: 30000,
         },
       },
 };

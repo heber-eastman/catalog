@@ -52,6 +52,20 @@ function validateEnvironment() {
 }
 
 /**
+ * Creates a promise that rejects after a specified timeout
+ * @param {number} ms - Timeout in milliseconds
+ * @returns {Promise} A promise that rejects with a timeout error
+ */
+function timeoutPromise(ms) {
+  return new Promise((_, reject) => {
+    setTimeout(
+      () => reject(new Error(`Operation timed out after ${ms}ms`)),
+      ms
+    );
+  });
+}
+
+/**
  * Enqueues an email job to the SQS queue for processing by the Lambda function
  * @param {string} templateName - The name of the SES template to use
  * @param {string} toAddress - The recipient email address
@@ -68,9 +82,13 @@ async function enqueueEmail(templateName, toAddress, templateData) {
   // Validate environment variables
   validateEnvironment();
 
-  // Initialize SQS client
+  // Initialize SQS client with timeout configuration
   const sqsClientConfig = {
     region: process.env.AWS_REGION,
+    requestHandler: {
+      requestTimeout: 10000, // 10 second timeout for SQS requests
+      connectionTimeout: 5000, // 5 second connection timeout
+    },
   };
 
   // Support custom endpoint for Localstack testing
@@ -98,8 +116,13 @@ async function enqueueEmail(templateName, toAddress, templateData) {
   });
 
   try {
-    // Send the message to SQS
-    const result = await sqsClient.send(command);
+    // Send the message to SQS with a 15-second overall timeout
+    const sqsOperation = sqsClient.send(command);
+    const result = await Promise.race([
+      sqsOperation,
+      timeoutPromise(15000), // 15 second timeout
+    ]);
+
     console.log(
       `Email job enqueued successfully. MessageId: ${result.MessageId}`
     );
@@ -116,6 +139,32 @@ async function enqueueEmail(templateName, toAddress, templateData) {
   }
 }
 
+/**
+ * Enqueues an email job without blocking the calling operation
+ * Logs errors but doesn't throw them to prevent blocking critical operations
+ * @param {string} templateName - The name of the SES template to use
+ * @param {string} toAddress - The recipient email address
+ * @param {Object} templateData - The data to populate the email template
+ * @returns {Promise<void>} Resolves when email is queued or fails silently
+ */
+async function enqueueEmailNonBlocking(templateName, toAddress, templateData) {
+  try {
+    await enqueueEmail(templateName, toAddress, templateData);
+    console.log(`Email successfully queued for ${toAddress}`);
+  } catch (error) {
+    console.error(
+      `Email queue operation failed for ${toAddress}, but continuing with request:`,
+      {
+        templateName,
+        toAddress,
+        error: error.message,
+      }
+    );
+    // Don't throw - allow the calling operation to continue
+  }
+}
+
 module.exports = {
   enqueueEmail,
+  enqueueEmailNonBlocking,
 };

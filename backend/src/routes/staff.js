@@ -7,7 +7,7 @@ const { StaffUser, GolfCourseInstance } = require('../models');
 const { requireAuth } = require('../middleware/auth');
 
 const { generateTokenString } = require('../auth/tokenUtil');
-const { enqueueEmail } = require('../emailQueue');
+const { enqueueEmailNonBlocking } = require('../emailQueue');
 const {
   inviteStaffSchema,
   registerStaffSchema,
@@ -102,17 +102,12 @@ router.post('/invite', requireAuth(['Admin']), async (req, res) => {
       return res.status(400).json({ error: 'Course not found' });
     }
 
-    // Send invitation email via SQS queue
-    try {
-      const invitationLink = `https://${course.subdomain}.catalog.golf/staff/register?token=${invitationToken}`;
-      await enqueueEmail('StaffInvitation', email, {
-        invitation_link: invitationLink,
-        course_name: course.name,
-      });
-    } catch (emailError) {
-      console.error('Failed to enqueue staff invitation email:', emailError);
-      // Continue with response even if email fails
-    }
+    // Send invitation email via SQS queue (non-blocking)
+    const invitationLink = `https://${course.subdomain}.catalog.golf/staff/register?token=${invitationToken}`;
+    enqueueEmailNonBlocking('StaffInvitation', email, {
+      invitation_link: invitationLink,
+      course_name: course.name,
+    });
 
     // Return staff user data (excluding sensitive info)
     const responseData = {
@@ -301,16 +296,12 @@ router.post('/resend-invite', requireAuth(['Admin']), async (req, res) => {
       return res.status(400).json({ error: 'Course not found' });
     }
 
-    // Send invitation email via SQS queue
-    try {
-      const invitationLink = `https://${course.subdomain}.catalog.golf/staff/register?token=${invitationToken}`;
-      await enqueueEmail('StaffInvitation', staffUser.email, {
-        invitation_link: invitationLink,
-        course_name: course.name,
-      });
-    } catch (emailError) {
-      console.error('Failed to enqueue staff invitation email:', emailError);
-    }
+    // Send invitation email via SQS queue (non-blocking)
+    const invitationLink = `https://${course.subdomain}.catalog.golf/staff/register?token=${invitationToken}`;
+    enqueueEmailNonBlocking('StaffInvitation', staffUser.email, {
+      invitation_link: invitationLink,
+      course_name: course.name,
+    });
 
     res.json({ message: 'Invitation resent' });
   } catch (error) {

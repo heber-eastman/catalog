@@ -3,7 +3,7 @@ const slugify = require('slugify');
 const { v4: uuidv4 } = require('uuid');
 const { GolfCourseInstance, StaffUser } = require('../models');
 const { generateTokenString } = require('../auth/tokenUtil');
-const { enqueueEmail } = require('../emailQueue');
+const { enqueueEmailNonBlocking } = require('../emailQueue');
 
 /**
  * Generate unique subdomain from course name
@@ -25,17 +25,43 @@ async function generateUniqueSubdomain(courseName) {
 
   let subdomain = truncatedBaseSlug;
   let counter = 2;
+  let attempts = 0;
+  const maxAttempts = 10; // Prevent infinite loops
 
   // Check for collisions and append counter if needed
-  while (await GolfCourseInstance.findOne({ where: { subdomain } })) {
+  while (attempts < maxAttempts) {
+    const queryStart = Date.now();
+    const existingCourse = await GolfCourseInstance.findOne({
+      where: { subdomain },
+      attributes: ['id'], // Only fetch ID for performance
+    });
+    console.log(
+      `Subdomain check (${subdomain}) took ${Date.now() - queryStart}ms`
+    );
+
+    if (!existingCourse) {
+      console.log(
+        `Found unique subdomain: ${subdomain} after ${attempts + 1} attempts`
+      );
+      return subdomain;
+    }
+
     // Calculate the maximum length for the base part to accommodate the counter
     const counterStr = `-${counter}`;
     const maxBaseLength = MAX_SUBDOMAIN_LENGTH - counterStr.length;
     subdomain = `${truncatedBaseSlug.slice(0, maxBaseLength)}${counterStr}`;
     counter++;
+    attempts++;
   }
 
-  return subdomain;
+  // Fallback to UUID suffix if we can't find a unique subdomain
+  const uuidSuffix = uuidv4().substring(0, 8);
+  const fallbackSubdomain = `${truncatedBaseSlug.slice(0, MAX_SUBDOMAIN_LENGTH - 9)}-${uuidSuffix}`;
+  console.log(
+    `Using fallback subdomain: ${fallbackSubdomain} after ${maxAttempts} attempts`
+  );
+
+  return fallbackSubdomain;
 }
 
 /**
@@ -44,21 +70,31 @@ async function generateUniqueSubdomain(courseName) {
  * @returns {Promise<Object>} Created course and user data
  */
 async function createCourseAndAdmin(signupData) {
+  const startTime = Date.now();
+  console.log('Starting signup process...');
+
   const { admin, course } = signupData;
 
-  // Generate unique subdomain
-  const subdomain = await generateUniqueSubdomain(course.name);
-
-  // Hash password
-  const saltRounds = 12;
-  const passwordHash = await bcrypt.hash(admin.password, saltRounds);
-
-  // Generate invitation token and expiry
-  const invitationToken = generateTokenString();
-  const invitedAt = new Date();
-  const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-
   try {
+    // Step 1: Generate unique subdomain
+    const subdomainStart = Date.now();
+    const subdomain = await generateUniqueSubdomain(course.name);
+    console.log(`Subdomain generation took ${Date.now() - subdomainStart}ms`);
+
+    // Step 2: Hash password (reduced salt rounds for better performance)
+    const hashStart = Date.now();
+    const saltRounds = 10; // Reduced from 12 to 10 for better performance while maintaining security
+    const passwordHash = await bcrypt.hash(admin.password, saltRounds);
+    console.log(`Password hashing took ${Date.now() - hashStart}ms`);
+
+    // Step 3: Generate invitation token and expiry
+    const invitationToken = generateTokenString();
+    const invitedAt = new Date();
+    const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Step 4: Database operations
+    const dbStart = Date.now();
+
     // Create golf course instance with UUID
     const golfCourse = await GolfCourseInstance.create({
       id: uuidv4(),
@@ -87,12 +123,22 @@ async function createCourseAndAdmin(signupData) {
       token_expires_at: tokenExpiresAt,
     });
 
-    // Send confirmation email via SQS queue
+    console.log(`Database operations took ${Date.now() - dbStart}ms`);
+
+    // Step 5: Send confirmation email via SQS queue (non-blocking)
+    // This won't block the response if email service is slow or unavailable
+    const emailStart = Date.now();
     const confirmationLink = `https://${subdomain}.catalog.golf/confirm?token=${invitationToken}`;
-    await enqueueEmail('SignupConfirmation', admin.email, {
+    enqueueEmailNonBlocking('SignupConfirmation', admin.email, {
       confirmation_link: confirmationLink,
       course_name: course.name,
     });
+    console.log(`Email queue operation took ${Date.now() - emailStart}ms`);
+
+    const totalTime = Date.now() - startTime;
+    console.log(
+      `Course ${course.name} and admin ${admin.email} created successfully. Subdomain: ${subdomain}. Total time: ${totalTime}ms`
+    );
 
     return {
       course: golfCourse,
@@ -100,7 +146,11 @@ async function createCourseAndAdmin(signupData) {
       subdomain,
     };
   } catch (error) {
-    console.error('Error creating course and admin:', error);
+    const totalTime = Date.now() - startTime;
+    console.error(
+      `Error creating course and admin after ${totalTime}ms:`,
+      error
+    );
     throw error;
   }
 }

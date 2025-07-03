@@ -1,7 +1,7 @@
 const express = require('express');
 const { GolfCourseInstance, StaffUser } = require('../models');
 const { signToken } = require('../auth/jwt');
-const { enqueueEmail } = require('../emailQueue');
+const { enqueueEmailNonBlocking } = require('../emailQueue');
 
 const router = express.Router();
 
@@ -62,18 +62,13 @@ router.get('/confirm', async (req, res) => {
       // Commit transaction
       await transaction.commit();
 
-      // Send welcome email (after transaction is committed)
-      try {
-        const userName = `${staffUser.first_name} ${staffUser.last_name}`;
-        await enqueueEmail('WelcomeEmail', staffUser.email, {
-          user_name: userName,
-          course_name: golfCourse.name,
-        });
-      } catch (emailError) {
-        // Log email error but don't fail the confirmation process
-        console.error('Failed to send welcome email:', emailError);
-        // Continue with the confirmation process
-      }
+      // Send welcome email via SQS queue (non-blocking)
+      // This won't block the response if email service is slow or unavailable
+      enqueueEmailNonBlocking('WelcomeEmail', staffUser.email, {
+        user_name: `${staffUser.first_name} ${staffUser.last_name}`,
+        course_name: golfCourse.name,
+        subdomain: golfCourse.subdomain,
+      });
 
       // For API testing, return JSON response
       if (
