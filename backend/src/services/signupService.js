@@ -106,7 +106,6 @@ async function createCourseAndAdmin(signupData) {
       country: course.country,
       subdomain,
       status: 'Pending',
-      date_created: new Date(),
     });
 
     // Create staff user (admin)
