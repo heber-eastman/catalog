@@ -1,6 +1,7 @@
 const express = require('express');
 const { signupSchema } = require('../validation/signupValidation');
 const { createCourseAndAdmin } = require('../services/signupService');
+const { StaffUser } = require('../models');
 
 const router = express.Router();
 
@@ -37,7 +38,6 @@ router.post('/signup', async (req, res) => {
 
     // Step 2: Check if email already exists
     const emailCheckStart = Date.now();
-    const { StaffUser } = require('../models');
     const existingUser = await StaffUser.findOne({
       where: { email: value.admin.email },
       attributes: ['id'], // Only fetch the ID for performance
