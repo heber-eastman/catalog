@@ -49,26 +49,41 @@ const config = {
       timestamps: true,
     },
   },
-  test: {
-    url: process.env.DATABASE_URL,
-    username: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'postgres',
-    database: process.env.TEST_DB_NAME || 'catalog_test',
-    host: process.env.DB_HOST || '127.0.0.1',
-    port: process.env.DB_PORT || 5432,
-    dialect: 'postgres',
-    logging: false,
-    define: {
-      underscored: true,
-      timestamps: true,
-    },
-    pool: {
-      max: 5,
-      min: 0,
-      acquire: 30000,
-      idle: 10000,
-    },
-  },
+  test: process.env.DATABASE_URL
+    ? {
+        url: process.env.DATABASE_URL,
+        dialect: 'postgres',
+        logging: false,
+        define: {
+          underscored: true,
+          timestamps: true,
+        },
+        pool: {
+          max: 5,
+          min: 0,
+          acquire: 30000,
+          idle: 10000,
+        },
+      }
+    : {
+        username: process.env.DB_USER || 'postgres',
+        password: process.env.DB_PASSWORD || 'postgres',
+        database: process.env.TEST_DB_NAME || 'catalog_test',
+        host: process.env.DB_HOST || '127.0.0.1',
+        port: process.env.DB_PORT || 5432,
+        dialect: 'postgres',
+        logging: false,
+        define: {
+          underscored: true,
+          timestamps: true,
+        },
+        pool: {
+          max: 5,
+          min: 0,
+          acquire: 30000,
+          idle: 10000,
+        },
+      },
   production: productionDbConfig
     ? {
         username: productionDbConfig.username,
