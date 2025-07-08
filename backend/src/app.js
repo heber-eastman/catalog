@@ -65,7 +65,7 @@ app.get('/', (req, res) => {
 
 // Mount routes
 app.use('/api/v1/auth', authRouter);
-app.use('/api/v1', strictRateLimitMiddleware, signupRouter); // Stricter rate limiting for signup
+app.use('/api/v1/signup', strictRateLimitMiddleware, signupRouter); // Stricter rate limiting for signup
 app.use('/api/v1', confirmRouter);
 app.use('/api/v1', customersRouter);
 app.use('/api/v1', notesRouter);

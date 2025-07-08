@@ -73,7 +73,7 @@ router.post('/', signupLimiter, async (req, res) => {
 
     // Step 3: Create course and admin user
     const creationStart = Date.now();
-    const result = await signupService.createAccount(value);
+    const result = await signupService.createCourseAndAdmin(value);
     console.log(`Course creation took ${Date.now() - creationStart}ms`);
 
     const totalRequestTime = Date.now() - requestStart;
