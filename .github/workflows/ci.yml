@@ -58,6 +58,16 @@ jobs:
       - name: Run Prettier check
         run: npm run format:check
 
+      - name: Set up test database
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/catalog_test
+          NODE_ENV: test
+          JWT_SECRET: test-secret-key-for-ci-at-least-32-characters
+          SESSION_SECRET: test-session-secret
+        run: |
+          cd backend
+          npm run db:migrate
+
       - name: Run backend tests
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/catalog_test
