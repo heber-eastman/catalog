@@ -10,10 +10,7 @@ const staffRouter = require('./routes/staff');
 const superAdminsRouter = require('./routes/super-admins');
 const authRouter = require('./routes/auth');
 const healthRouter = require('./routes/health');
-const {
-  rateLimitMiddleware,
-  strictRateLimitMiddleware,
-} = require('./middleware/rateLimit');
+const { rateLimitMiddleware } = require('./middleware/rateLimit');
 const { extractSubdomainOptional } = require('./middleware/subdomain');
 
 const app = express();
