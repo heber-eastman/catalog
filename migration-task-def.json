@@ -1,0 +1,51 @@
+{
+    "family": "catalog-golf-migration",
+    "taskRoleArn": "arn:aws:iam::722895251763:role/ecsTaskExecutionRole-catalog-golf",
+    "executionRoleArn": "arn:aws:iam::722895251763:role/ecsTaskExecutionRole-catalog-golf",
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "cpu": "256",
+    "memory": "512",
+    "containerDefinitions": [
+        {
+            "name": "catalog-golf-migration",
+            "image": "722895251763.dkr.ecr.us-east-1.amazonaws.com/catalog-golf-backend:latest",
+            "essential": true,
+            "command": ["node", "diagnostic.js"],
+            "environment": [
+                {
+                    "name": "NODE_ENV",
+                    "value": "production"
+                }
+            ],
+            "secrets": [
+                {
+                    "name": "DATABASE_URL",
+                    "valueFrom": "arn:aws:ssm:us-east-1:722895251763:parameter/catalog-golf/database-url"
+                },
+                {
+                    "name": "EMAIL_QUEUE_URL",
+                    "valueFrom": "arn:aws:ssm:us-east-1:722895251763:parameter/catalog-golf/email-queue-url"
+                },
+                {
+                    "name": "AWS_REGION",
+                    "valueFrom": "arn:aws:ssm:us-east-1:722895251763:parameter/catalog-golf/aws-region"
+                },
+                {
+                    "name": "JWT_SECRET",
+                    "valueFrom": "arn:aws:ssm:us-east-1:722895251763:parameter/catalog-golf/jwt-secret"
+                }
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/catalog-golf-migration",
+                    "awslogs-region": "us-east-1",
+                    "awslogs-stream-prefix": "ecs"
+                }
+            }
+        }
+    ]
+} 
