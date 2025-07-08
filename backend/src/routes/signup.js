@@ -1,22 +1,37 @@
 const express = require('express');
-const { signupSchema } = require('../validation/signupValidation');
-const { createCourseAndAdmin } = require('../services/signupService');
+const rateLimit = require('express-rate-limit');
+const { signupValidationRules, validate } = require('../validation/signupValidation');
+const signupService = require('../services/signupService');
 const { StaffUser } = require('../models');
 
 const router = express.Router();
+
+// Rate limiting for signup
+const signupLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // limit each IP to 10 requests per windowMs
+  message: 'Too many signup attempts from this IP, please try again later.'
+});
 
 /**
  * POST /api/v1/signup
  * Create new golf course and admin user
  */
-router.post('/signup', async (req, res) => {
+router.post('/', signupLimiter, signupValidationRules(), validate, async (req, res) => {
+  // Enhanced debugging for production
+  console.log('🚀 SIGNUP ROUTE CALLED - Request received');
+  console.log('📝 Request body keys:', Object.keys(req.body));
+  console.log('🌐 Environment:', process.env.NODE_ENV);
+  console.log('💾 Database URL exists:', !!process.env.DATABASE_URL);
+  console.log('📨 Email queue URL exists:', !!process.env.EMAIL_QUEUE_URL);
+  
   const requestStart = Date.now();
   console.log('Signup request started...');
 
   try {
     // Step 1: Validate request body
     const validationStart = Date.now();
-    const { error, value } = signupSchema.validate(req.body, {
+    const { error, value } = signupValidationRules().validate(req.body, {
       abortEarly: false,
     });
 
@@ -58,7 +73,7 @@ router.post('/signup', async (req, res) => {
 
     // Step 3: Create course and admin user
     const creationStart = Date.now();
-    const result = await createCourseAndAdmin(value);
+    const result = await signupService.createAccount(value);
     console.log(`Course creation took ${Date.now() - creationStart}ms`);
 
     const totalRequestTime = Date.now() - requestStart;
@@ -71,6 +86,18 @@ router.post('/signup', async (req, res) => {
         'Account created successfully. Please check your email for confirmation instructions.',
     });
   } catch (error) {
+    console.error('❌ SIGNUP ERROR - Full error details:');
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', error);
+    
+    // Additional database-specific error logging
+    if (error.name === 'SequelizeConnectionError') {
+      console.error('🔌 DATABASE CONNECTION ERROR detected');
+      console.error('Connection error details:', error.parent);
+    }
+
     const totalRequestTime = Date.now() - requestStart;
     console.error(`Signup error after ${totalRequestTime}ms:`, error);
 
