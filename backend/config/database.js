@@ -35,20 +35,32 @@ if (productionDbConfig) {
 }
 
 const config = {
-  development: {
-    url: process.env.DATABASE_URL,
-    username: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'postgres',
-    database: process.env.DB_NAME || 'catalog_dev',
-    host: process.env.DB_HOST || '127.0.0.1',
-    port: process.env.DB_PORT || 5432,
-    dialect: 'postgres',
-    logging: false,
-    define: {
-      underscored: true,
-      timestamps: true,
-    },
-  },
+  development: process.env.DATABASE_URL
+    ? {
+        url: process.env.DATABASE_URL,
+        dialect: 'postgres',
+        logging: false,
+        define: {
+          underscored: true,
+          timestamps: true,
+        },
+        dialectOptions: {
+          // No SSL for local development
+        },
+      }
+    : {
+        username: process.env.DB_USER || 'postgres',
+        password: process.env.DB_PASSWORD || 'postgres',
+        database: process.env.DB_NAME || 'catalog_dev',
+        host: process.env.DB_HOST || '127.0.0.1',
+        port: process.env.DB_PORT || 5432,
+        dialect: 'postgres',
+        logging: false,
+        define: {
+          underscored: true,
+          timestamps: true,
+        },
+      },
   test: process.env.DATABASE_URL
     ? {
         url: process.env.DATABASE_URL,
@@ -137,9 +149,11 @@ const config = {
       },
 };
 
+console.log('NODE_ENV being used:', process.env.NODE_ENV || 'development');
+const envToShow = process.env.NODE_ENV || 'development';
 console.log(
-  'Final config for production:',
-  JSON.stringify(config.production, null, 2)
+  `Final config for ${envToShow}:`,
+  JSON.stringify(config[envToShow], null, 2)
 );
 
 module.exports = config;
