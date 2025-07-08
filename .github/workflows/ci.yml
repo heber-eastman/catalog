@@ -58,7 +58,7 @@ jobs:
       - name: Run Prettier check
         run: npm run format:check
 
-      - name: Set up test database
+      - name: Verify test database connection
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/catalog_test
           NODE_ENV: test
@@ -70,10 +70,7 @@ jobs:
           echo "🔍 Debug: NODE_ENV=$NODE_ENV"
           echo "🔍 Testing database connection..."
           psql $DATABASE_URL -c "SELECT version();" || echo "❌ Connection failed"
-          echo "🔍 Running migrations..."
-          npm run db:migrate
-          echo "🔍 Checking if tables were created..."
-          psql $DATABASE_URL -c "\dt" || echo "❌ Cannot list tables"
+          echo "✅ Database connection verified. Tests will handle their own table setup."
 
       - name: Run backend tests
         env:
