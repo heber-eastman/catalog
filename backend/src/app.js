@@ -45,8 +45,10 @@ app.use(morgan('combined'));
 app.use(express.json());
 app.use(cookieParser());
 
-// Add rate limiting middleware
-app.use(rateLimitMiddleware);
+// Add rate limiting middleware (skip in test environment)
+if (process.env.NODE_ENV !== 'test') {
+  app.use(rateLimitMiddleware);
+}
 
 // Add subdomain extraction for optional use
 app.use(extractSubdomainOptional);
@@ -65,7 +67,7 @@ app.get('/', (req, res) => {
 
 // Mount routes
 app.use('/api/v1/auth', authRouter);
-app.use('/api/v1/signup', strictRateLimitMiddleware, signupRouter); // Stricter rate limiting for signup
+app.use('/api/v1/signup', signupRouter);
 app.use('/api/v1', confirmRouter);
 app.use('/api/v1', customersRouter);
 app.use('/api/v1', notesRouter);

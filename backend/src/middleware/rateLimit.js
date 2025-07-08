@@ -1,5 +1,10 @@
 const rateLimit = require('express-rate-limit');
 
+// Ensure NODE_ENV is set for testing
+if (process.argv.includes('--testNamePattern') || process.argv.some(arg => arg.includes('jest'))) {
+  process.env.NODE_ENV = 'test';
+}
+
 /**
  * Create a conditional rate limiter that skips rate limiting in test and development environments
  */
