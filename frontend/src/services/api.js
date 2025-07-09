@@ -3,7 +3,8 @@ import axios from 'axios';
 // Build timestamp: 2025-07-09T20:47:00Z - Force cache bust
 // Create axios instance with base configuration
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://api.catalog.golf/api/v1',
+  baseURL:
+    import.meta.env.VITE_API_BASE_URL || 'https://api.catalog.golf/api/v1',
   timeout: 80000,
   withCredentials: true, // Include cookies for JWT authentication
 });
