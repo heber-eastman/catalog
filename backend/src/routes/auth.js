@@ -69,6 +69,7 @@ router.post('/login', async (req, res) => {
 
     // Return success response
     res.json({
+      token: token,
       id: user.id,
       email: user.email,
       role: user.role,
@@ -141,6 +142,7 @@ router.post('/super-admin/login', async (req, res) => {
 
     // Return success response
     res.json({
+      token: token,
       id: user.id,
       email: user.email,
       role: 'SuperAdmin',

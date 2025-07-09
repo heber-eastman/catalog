@@ -1,5 +1,13 @@
 {
-    "taskDefinitionArn": "arn:aws:ecs:us-east-1:722895251763:task-definition/catalog-golf-backend:3",
+    "family": "catalog-golf-backend",
+    "taskRoleArn": "arn:aws:iam::722895251763:role/ecsTaskExecutionRole-catalog-golf",
+    "executionRoleArn": "arn:aws:iam::722895251763:role/ecsTaskExecutionRole-catalog-golf",
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "cpu": "512",
+    "memory": "1024",
     "containerDefinitions": [
         {
             "name": "catalog-golf-backend",
@@ -54,52 +62,6 @@
             "systemControls": []
         }
     ],
-    "family": "catalog-golf-backend",
-    "taskRoleArn": "arn:aws:iam::722895251763:role/ecsTaskExecutionRole-catalog-golf",
-    "executionRoleArn": "arn:aws:iam::722895251763:role/ecsTaskExecutionRole-catalog-golf",
-    "networkMode": "awsvpc",
-    "revision": 3,
     "volumes": [],
-    "status": "ACTIVE",
-    "requiresAttributes": [
-        {
-            "name": "com.amazonaws.ecs.capability.logging-driver.awslogs"
-        },
-        {
-            "name": "ecs.capability.execution-role-awslogs"
-        },
-        {
-            "name": "com.amazonaws.ecs.capability.ecr-auth"
-        },
-        {
-            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.19"
-        },
-        {
-            "name": "com.amazonaws.ecs.capability.task-iam-role"
-        },
-        {
-            "name": "ecs.capability.execution-role-ecr-pull"
-        },
-        {
-            "name": "ecs.capability.secrets.ssm.environment-variables"
-        },
-        {
-            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.18"
-        },
-        {
-            "name": "ecs.capability.task-eni"
-        }
-    ],
-    "placementConstraints": [],
-    "compatibilities": [
-        "EC2",
-        "FARGATE"
-    ],
-    "requiresCompatibilities": [
-        "FARGATE"
-    ],
-    "cpu": "512",
-    "memory": "1024",
-    "registeredAt": "2025-07-07T17:48:31.859000-06:00",
-    "registeredBy": "arn:aws:iam::722895251763:user/cursor"
-}
+    "placementConstraints": []
+} 

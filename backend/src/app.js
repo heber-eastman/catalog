@@ -15,6 +15,11 @@ const { extractSubdomainOptional } = require('./middleware/subdomain');
 
 const app = express();
 
+// Trust proxy for load balancer (fixes rate limiting X-Forwarded-For header warning)
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // CORS configuration - Updated for deployed frontend
 const allowedOrigins = [
   'http://localhost:5173',

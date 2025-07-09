@@ -1,4 +1,7 @@
-require('dotenv').config();
+// Only load .env file in development - production uses ECS environment variables
+if (process.env.NODE_ENV !== 'production') {
+  require('dotenv').config();
+}
 
 console.log('Database config loading...');
 console.log('NODE_ENV:', process.env.NODE_ENV);
@@ -110,18 +113,19 @@ const config = {
           timestamps: true,
         },
         pool: {
-          max: 10,
-          min: 2,
-          acquire: 30000,
-          idle: 10000,
+          max: 5, // Reduced from 10 to prevent pool exhaustion on small instance
+          min: 1, // Keep minimum connections alive
+          acquire: 10000, // Reduced from 30000 to fail faster
+          idle: 30000, // Increased from 10000 to keep connections longer
+          evict: 5000, // Add connection validation interval
         },
         dialectOptions: {
           ssl: {
             require: true,
             rejectUnauthorized: false,
           },
-          statement_timeout: 30000,
-          query_timeout: 30000,
+          // Removed statement_timeout and query_timeout as they may interfere
+          // Let application handle timeouts instead
         },
       }
     : {
@@ -133,18 +137,17 @@ const config = {
           timestamps: true,
         },
         pool: {
-          max: 10,
-          min: 2,
-          acquire: 30000,
-          idle: 10000,
+          max: 5, // Reduced from 10
+          min: 1, // Keep minimum connections alive
+          acquire: 10000, // Reduced from 30000
+          idle: 30000, // Increased from 10000
+          evict: 5000, // Add connection validation
         },
         dialectOptions: {
           ssl: {
             require: true,
             rejectUnauthorized: false,
           },
-          statement_timeout: 30000,
-          query_timeout: 30000,
         },
       },
 };

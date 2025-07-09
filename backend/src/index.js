@@ -1,4 +1,7 @@
-require('dotenv').config();
+// Only load .env file in development - production uses ECS environment variables
+if (process.env.NODE_ENV !== 'production') {
+  require('dotenv').config();
+}
 
 console.log('🚀 APPLICATION STARTING...');
 console.log('🌐 NODE_ENV:', process.env.NODE_ENV);

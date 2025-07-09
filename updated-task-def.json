@@ -4,8 +4,8 @@
   "executionRoleArn": "arn:aws:iam::722895251763:role/ecsTaskExecutionRole-catalog-golf",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
-  "cpu": "256",
-  "memory": "512",
+  "cpu": "512",
+  "memory": "1024",
   "containerDefinitions": [
     {
       "name": "catalog-golf-backend",
