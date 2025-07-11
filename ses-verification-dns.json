@@ -1,43 +1,43 @@
 {
-    "Changes": [
-        {
-            "Action": "CREATE",
-            "ResourceRecordSet": {
-                "Name": "4ng2ffjvlzrj5me4s27aoq435wlb3oxx._domainkey.catalog.golf",
-                "Type": "CNAME",
-                "TTL": 300,
-                "ResourceRecords": [
-                    {
-                        "Value": "4ng2ffjvlzrj5me4s27aoq435wlb3oxx.dkim.amazonses.com"
-                    }
-                ]
-            }
-        },
-        {
-            "Action": "CREATE",
-            "ResourceRecordSet": {
-                "Name": "55tgusrm6stahyd4jrvsrqt43fcfftop._domainkey.catalog.golf",
-                "Type": "CNAME",
-                "TTL": 300,
-                "ResourceRecords": [
-                    {
-                        "Value": "55tgusrm6stahyd4jrvsrqt43fcfftop.dkim.amazonses.com"
-                    }
-                ]
-            }
-        },
-        {
-            "Action": "CREATE",
-            "ResourceRecordSet": {
-                "Name": "d23l533hwolqpuj3xjnofeccth5zwtu2._domainkey.catalog.golf",
-                "Type": "CNAME",
-                "TTL": 300,
-                "ResourceRecords": [
-                    {
-                        "Value": "d23l533hwolqpuj3xjnofeccth5zwtu2.dkim.amazonses.com"
-                    }
-                ]
-            }
-        }
-    ]
+  "Changes": [
+    {
+      "Action": "CREATE",
+      "ResourceRecordSet": {
+        "Name": "4ng2ffjvlzrj5me4s27aoq435wlb3oxx._domainkey.catalog.golf",
+        "Type": "CNAME",
+        "TTL": 300,
+        "ResourceRecords": [
+          {
+            "Value": "4ng2ffjvlzrj5me4s27aoq435wlb3oxx.dkim.amazonses.com"
+          }
+        ]
+      }
+    },
+    {
+      "Action": "CREATE",
+      "ResourceRecordSet": {
+        "Name": "55tgusrm6stahyd4jrvsrqt43fcfftop._domainkey.catalog.golf",
+        "Type": "CNAME",
+        "TTL": 300,
+        "ResourceRecords": [
+          {
+            "Value": "55tgusrm6stahyd4jrvsrqt43fcfftop.dkim.amazonses.com"
+          }
+        ]
+      }
+    },
+    {
+      "Action": "CREATE",
+      "ResourceRecordSet": {
+        "Name": "d23l533hwolqpuj3xjnofeccth5zwtu2._domainkey.catalog.golf",
+        "Type": "CNAME",
+        "TTL": 300,
+        "ResourceRecords": [
+          {
+            "Value": "d23l533hwolqpuj3xjnofeccth5zwtu2.dkim.amazonses.com"
+          }
+        ]
+      }
+    }
+  ]
 }
