@@ -221,7 +221,8 @@ describe('GET /api/v1/confirm', () => {
         .expect(400);
 
       expect(response.body).toEqual({
-        error: 'This confirmation link has expired. Please request a new confirmation email.',
+        error:
+          'This confirmation link has expired. Please request a new confirmation email.',
       });
     });
   });
