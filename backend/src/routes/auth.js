@@ -1,6 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
-const { StaffUser, SuperAdminUser } = require('../models');
+const { StaffUser, SuperAdminUser, GolfCourseInstance } = require('../models');
 const { signToken } = require('../auth/jwt');
 
 const router = express.Router();
@@ -28,9 +28,9 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Find user by email
+    // Find user by email (only active users can login)
     const user = await StaffUser.findOne({
-      where: { email },
+      where: { email, is_active: true },
     });
 
     if (!user) {
@@ -49,6 +49,13 @@ router.post('/login', async (req, res) => {
       });
     }
 
+    // Get the associated golf course for subdomain
+    const golfCourse = await GolfCourseInstance.findByPk(user.course_id);
+
+    if (!golfCourse) {
+      return res.status(400).json({ error: 'Golf course not found' });
+    }
+
     // Generate JWT token
     const token = await signToken({
       user_id: user.id,
@@ -59,15 +66,16 @@ router.post('/login', async (req, res) => {
       last_name: user.last_name,
     });
 
-    // Set cookie
+    // Set cookie with cross-subdomain support
     res.cookie('jwt', token, {
       httpOnly: true,
-      secure: false, // Set to false since we're not using HTTPS
-      sameSite: 'strict',
+      secure: true, // Use HTTPS in production
+      sameSite: 'lax', // Allow cross-site requests for subdomain navigation
+      domain: '.catalog.golf', // Share cookie across all subdomains
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     });
 
-    // Return success response
+    // Return success response with course subdomain
     res.json({
       token: token,
       id: user.id,
@@ -76,6 +84,7 @@ router.post('/login', async (req, res) => {
       first_name: user.first_name,
       last_name: user.last_name,
       course_id: user.course_id,
+      course_subdomain: golfCourse.subdomain,
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -132,11 +141,12 @@ router.post('/super-admin/login', async (req, res) => {
       last_name: user.last_name,
     });
 
-    // Set cookie
+    // Set cookie with cross-subdomain support
     res.cookie('jwt', token, {
       httpOnly: true,
-      secure: false, // Set to false since we're not using HTTPS
-      sameSite: 'strict',
+      secure: true, // Use HTTPS in production
+      sameSite: 'lax', // Allow cross-site requests for subdomain navigation
+      domain: '.catalog.golf', // Share cookie across all subdomains
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     });
 
@@ -164,11 +174,12 @@ router.post('/super-admin/login', async (req, res) => {
  */
 router.post('/logout', (req, res) => {
   try {
-    // Clear the JWT cookie
+    // Clear the JWT cookie with matching domain settings
     res.clearCookie('jwt', {
       httpOnly: true,
-      secure: false, // Set to false since we're not using HTTPS
-      sameSite: 'strict',
+      secure: true, // Use HTTPS in production
+      sameSite: 'lax',
+      domain: '.catalog.golf', // Must match the domain used when setting the cookie
     });
 
     res.json({ message: 'Logged out successfully' });
@@ -178,6 +189,67 @@ router.post('/logout', (req, res) => {
       error: 'Internal server error',
       message: 'An unexpected error occurred during logout.',
     });
+  }
+});
+
+/**
+ * GET /api/v1/auth/me
+ * Get current authenticated user information
+ */
+router.get('/me', async (req, res) => {
+  try {
+    // Get token from cookie or Authorization header
+    let token = req.cookies.jwt;
+
+    // If no cookie, check Authorization header
+    if (!token) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      }
+    }
+
+    if (!token) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Verify token
+    const { verifyToken } = require('../auth/jwt');
+    const decoded = await verifyToken(token);
+    if (!decoded) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    // For staff users, include course subdomain
+    if (decoded.course_id) {
+      const golfCourse = await GolfCourseInstance.findByPk(decoded.course_id);
+
+      if (!golfCourse) {
+        return res.status(400).json({ error: 'Golf course not found' });
+      }
+
+      return res.json({
+        id: decoded.user_id,
+        email: decoded.email,
+        role: decoded.role,
+        first_name: decoded.first_name,
+        last_name: decoded.last_name,
+        course_id: decoded.course_id,
+        course_subdomain: golfCourse.subdomain,
+      });
+    }
+
+    // For super admin users
+    return res.json({
+      id: decoded.user_id,
+      email: decoded.email,
+      role: decoded.role,
+      first_name: decoded.first_name,
+      last_name: decoded.last_name,
+    });
+  } catch (error) {
+    console.error('Get current user error:', error);
+    res.status(401).json({ error: 'Authentication failed' });
   }
 });
 

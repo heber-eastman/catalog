@@ -54,18 +54,20 @@
         />
 
         <!-- Super Admin Section -->
-        <v-divider class="my-2" />
-        <v-list-subheader>Super Admin</v-list-subheader>
-        <v-list-item
-          to="/super-admin/courses"
-          prepend-icon="mdi-golf"
-          title="Golf Courses"
-        />
-        <v-list-item
-          to="/super-admin/super-admins"
-          prepend-icon="mdi-shield-account"
-          title="Super Admins"
-        />
+        <template v-if="isSuperAdmin">
+          <v-divider class="my-2" />
+          <v-list-subheader>Super Admin</v-list-subheader>
+          <v-list-item
+            to="/super-admin/courses"
+            prepend-icon="mdi-golf"
+            title="Golf Courses"
+          />
+          <v-list-item
+            to="/super-admin/super-admins"
+            prepend-icon="mdi-shield-account"
+            title="Super Admins"
+          />
+        </template>
       </v-list>
     </v-navigation-drawer>
 
@@ -85,6 +87,8 @@
 </template>
 
 <script setup>
+console.log('🚀 NEW APP.VUE LOADED - DEBUG VERSION!', new Date().toISOString());
+
 import { ref, computed, onMounted, watch } from 'vue';
 import { useTheme } from 'vuetify';
 import { useRouter, useRoute } from 'vue-router';
@@ -95,6 +99,7 @@ const router = useRouter();
 const route = useRoute();
 
 const isAuthenticated = ref(false);
+const isSuperAdmin = ref(false);
 
 // Check if current page is an auth page (login, signup, confirm)
 const isAuthPage = computed(() => {
@@ -110,18 +115,67 @@ const logout = async () => {
   try {
     await authAPI.logout();
     isAuthenticated.value = false;
+    isSuperAdmin.value = false;
     router.push('/login');
   } catch (error) {
     console.error('Logout error:', error);
     // Even if logout fails, clear local state
     apiUtils.clearToken();
     isAuthenticated.value = false;
+    isSuperAdmin.value = false;
     router.push('/login');
   }
 };
 
-const checkAuthStatus = () => {
-  isAuthenticated.value = apiUtils.isAuthenticated();
+const checkAuthStatus = async () => {
+  console.log('🔍 checkAuthStatus called');
+
+  // First check localStorage for immediate response
+  if (apiUtils.isAuthenticated()) {
+    isAuthenticated.value = true;
+    console.log('✅ User is authenticated via localStorage');
+
+    // Check user role from localStorage first
+    let userInfo = apiUtils.getUser();
+    console.log('👤 User info from localStorage:', userInfo);
+
+    if (userInfo && userInfo.role) {
+      console.log('🔑 User role:', userInfo.role, 'Checking if SuperAdmin...');
+      isSuperAdmin.value = userInfo.role === 'SuperAdmin';
+      console.log('🎯 isSuperAdmin set to:', isSuperAdmin.value);
+    } else {
+      console.log('⚠️ No user role in localStorage, fetching from backend...');
+      // If no user info in localStorage, fetch from backend
+      userInfo = await apiUtils.getCurrentUser();
+      console.log('👤 User info from backend:', userInfo);
+      if (userInfo) {
+        apiUtils.setUser(userInfo);
+        isSuperAdmin.value = userInfo.role === 'SuperAdmin';
+        console.log(
+          '🎯 isSuperAdmin set to (from backend):',
+          isSuperAdmin.value
+        );
+      }
+    }
+    return;
+  }
+
+  console.log('🍪 Checking authentication via cookie...');
+  // Then check with backend using HTTP-only cookie
+  const { isAuthenticated: cookieAuth, user } =
+    await apiUtils.checkAuthenticationStatus();
+  isAuthenticated.value = cookieAuth;
+  console.log('🍪 Cookie auth result:', cookieAuth, 'User:', user);
+
+  if (cookieAuth && user) {
+    // Store user info and check role
+    apiUtils.setUser(user);
+    isSuperAdmin.value = user.role === 'SuperAdmin';
+    console.log('🎯 isSuperAdmin set to (from cookie):', isSuperAdmin.value);
+  } else {
+    isSuperAdmin.value = false;
+    console.log('🎯 isSuperAdmin set to false (no auth)');
+  }
 };
 
 // Watch for route changes to update auth status

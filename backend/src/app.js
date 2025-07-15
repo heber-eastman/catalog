@@ -36,7 +36,23 @@ const validOrigins = allowedOrigins.filter(
 
 app.use(
   cors({
-    origin: validOrigins,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+
+      // Check if origin is in the allowed list
+      if (validOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // Check if origin is a valid catalog.golf subdomain
+      if (origin.match(/^https:\/\/[a-zA-Z0-9-]+\.catalog\.golf$/)) {
+        return callback(null, true);
+      }
+
+      // Reject other origins
+      callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],

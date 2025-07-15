@@ -22,6 +22,13 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        entryFileNames: `assets/[name]-${Date.now()}.[hash].js`,
+        chunkFileNames: `assets/[name]-${Date.now()}.[hash].js`,
+        assetFileNames: `assets/[name]-${Date.now()}.[hash].[ext]`,
+      },
+    },
   },
   test: {
     globals: true,

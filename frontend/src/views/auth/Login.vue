@@ -147,14 +147,24 @@ export default {
         // Store user data (for cookie-based auth)
         apiUtils.setUser(response.data);
 
-        // Redirect based on user role
-        let redirectPath = '/dashboard';
-        if (this.isSuperAdmin || response.data.role === 'SuperAdmin') {
-          redirectPath = '/super-admin/courses';
+        // Redirect based on actual user role from server response
+        if (response.data.role === 'SuperAdmin') {
+          // Super admin stays on app.catalog.golf
+          const finalPath =
+            this.$route.query.redirect || '/super-admin/courses';
+          this.$router.push(finalPath);
+        } else {
+          // Staff users redirect to their course subdomain
+          const subdomain = response.data.course_subdomain;
+          if (subdomain) {
+            // Redirect to the user's course subdomain
+            window.location.href = `https://${subdomain}.catalog.golf/dashboard`;
+          } else {
+            // Fallback to dashboard if no subdomain
+            const finalPath = this.$route.query.redirect || '/dashboard';
+            this.$router.push(finalPath);
+          }
         }
-
-        const finalPath = this.$route.query.redirect || redirectPath;
-        this.$router.push(finalPath);
       } catch (error) {
         console.error('Login error:', error);
         this.errorMessage =

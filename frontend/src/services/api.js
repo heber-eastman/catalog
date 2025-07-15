@@ -224,6 +224,15 @@ export const apiUtils = {
       !!localStorage.getItem('current_user')
     );
   },
+  // Check authentication using HTTP-only cookie (async)
+  checkAuthenticationStatus: async () => {
+    try {
+      const response = await api.get('/auth/me');
+      return { isAuthenticated: true, user: response.data };
+    } catch (error) {
+      return { isAuthenticated: false, user: null };
+    }
+  },
   getToken: () => localStorage.getItem('jwt_token'),
   setToken: token => localStorage.setItem('jwt_token', token),
   clearToken: () => {
@@ -234,6 +243,15 @@ export const apiUtils = {
   getUser: () => {
     const user = localStorage.getItem('current_user');
     return user ? JSON.parse(user) : null;
+  },
+  // Add method to get current user from backend
+  getCurrentUser: async () => {
+    try {
+      const response = await api.get('/auth/me');
+      return response.data;
+    } catch (error) {
+      return null;
+    }
   },
 };
 

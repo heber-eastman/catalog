@@ -99,16 +99,22 @@ export default {
       loading: false,
       confirmed: false,
       error: null,
+      confirmationAttempted: false,
     };
   },
   async mounted() {
     const token = this.$route.query.token;
-    if (token) {
+    if (token && !this.confirmationAttempted) {
       await this.confirmAccount(token);
     }
   },
   methods: {
     async confirmAccount(token) {
+      if (this.confirmationAttempted) {
+        return;
+      }
+
+      this.confirmationAttempted = true;
       this.loading = true;
       this.error = null;
 
@@ -118,7 +124,6 @@ export default {
 
         this.confirmed = true;
 
-        // Optional: Auto-redirect to login after a few seconds
         setTimeout(() => {
           this.$router.push('/login');
         }, 3000);
@@ -134,18 +139,9 @@ export default {
     async retryConfirmation() {
       const token = this.$route.query.token;
       if (token) {
+        this.confirmationAttempted = false;
         await this.confirmAccount(token);
       }
-    },
-  },
-  watch: {
-    '$route.query.token': {
-      handler(newToken) {
-        if (newToken && !this.confirmed) {
-          this.confirmAccount(newToken);
-        }
-      },
-      immediate: true,
     },
   },
 };

@@ -102,10 +102,18 @@ const router = createRouter({
 });
 
 // Navigation guards
-router.beforeEach((to, from, next) => {
-  const isAuthenticated = apiUtils.isAuthenticated();
+router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
   const requiresGuest = to.matched.some(record => record.meta.requiresGuest);
+
+  // Check authentication status (both localStorage and cookie)
+  let isAuthenticated = apiUtils.isAuthenticated(); // Check localStorage first
+
+  if (!isAuthenticated) {
+    // If not found in localStorage, check with backend using HTTP-only cookie
+    const authStatus = await apiUtils.checkAuthenticationStatus();
+    isAuthenticated = authStatus.isAuthenticated;
+  }
 
   if (requiresAuth && !isAuthenticated) {
     // Redirect to login if authentication is required but user is not authenticated

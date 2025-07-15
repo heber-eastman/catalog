@@ -19,12 +19,42 @@ router.get('/confirm', async (req, res) => {
     });
 
     if (!staffUser) {
+      // Check if there's a user with this token that's already active (token was used)
+      const alreadyActiveUser = await StaffUser.findOne({
+        where: {
+          invitation_token: null,
+          is_active: true,
+        },
+        // We can't search by the token since it's null, but we can check recent confirmations
+        order: [['updated_at', 'DESC']],
+        limit: 10,
+      });
+
+      // If we find recently activated users, it's likely the token was already used
+      if (alreadyActiveUser) {
+        return res.status(400).json({
+          error:
+            'This confirmation link has already been used. If you have an account, please try logging in.',
+        });
+      }
+
       return res.status(400).json({ error: 'Invalid or expired token' });
+    }
+
+    // Check if user is already active
+    if (staffUser.is_active) {
+      return res.status(400).json({
+        error:
+          'This account has already been confirmed. Please try logging in.',
+      });
     }
 
     // Check if token has expired
     if (staffUser.token_expires_at < new Date()) {
-      return res.status(400).json({ error: 'Invalid or expired token' });
+      return res.status(400).json({
+        error:
+          'This confirmation link has expired. Please request a new confirmation email.',
+      });
     }
 
     // Get the associated golf course
@@ -88,11 +118,12 @@ router.get('/confirm', async (req, res) => {
         course_id: staffUser.course_id,
       });
 
-      // Set JWT as HTTP-only cookie and redirect
+      // Set JWT as HTTP-only cookie with cross-subdomain support and redirect
       res.cookie('jwt', jwt, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: true, // Use HTTPS in production
+        sameSite: 'lax', // Allow cross-site requests for subdomain navigation
+        domain: '.catalog.golf', // Share cookie across all subdomains
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
       });
 
