@@ -85,6 +85,7 @@ router.post('/login', async (req, res) => {
       last_name: user.last_name,
       course_id: user.course_id,
       course_subdomain: golfCourse.subdomain,
+      course_name: golfCourse.name,
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -220,7 +221,7 @@ router.get('/me', async (req, res) => {
       return res.status(401).json({ error: 'Invalid token' });
     }
 
-    // For staff users, include course subdomain
+    // For staff users, include course subdomain and course name
     if (decoded.course_id) {
       const golfCourse = await GolfCourseInstance.findByPk(decoded.course_id);
 
@@ -236,6 +237,7 @@ router.get('/me', async (req, res) => {
         last_name: decoded.last_name,
         course_id: decoded.course_id,
         course_subdomain: golfCourse.subdomain,
+        course_name: golfCourse.name,
       });
     }
 

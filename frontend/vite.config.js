@@ -3,6 +3,9 @@ import vue from '@vitejs/plugin-vue';
 import vuetify from 'vite-plugin-vuetify';
 import { fileURLToPath, URL } from 'node:url';
 
+// Add timestamp for cache busting
+const timestamp = new Date().getTime();
+
 export default defineConfig({
   plugins: [vue(), vuetify()],
   resolve: {
@@ -18,17 +21,23 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+    hmr: {
+      overlay: false,
+    },
   },
   build: {
     outDir: 'dist',
     sourcemap: true,
     rollupOptions: {
       output: {
-        entryFileNames: `assets/[name]-${Date.now()}.[hash].js`,
-        chunkFileNames: `assets/[name]-${Date.now()}.[hash].js`,
-        assetFileNames: `assets/[name]-${Date.now()}.[hash].[ext]`,
+        // Add timestamp to chunk names for aggressive cache busting
+        chunkFileNames: `assets/[name]-${timestamp}-[hash].js`,
+        entryFileNames: `assets/[name]-${timestamp}-[hash].js`,
+        assetFileNames: `assets/[name]-${timestamp}-[hash].[ext]`,
       },
     },
+    // Force assets to have unique names
+    assetsDir: `assets-${timestamp}`,
   },
   test: {
     globals: true,

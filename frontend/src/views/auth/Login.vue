@@ -156,8 +156,14 @@ export default {
         } else {
           // Staff users redirect to their course subdomain
           const subdomain = response.data.course_subdomain;
-          if (subdomain) {
-            // Redirect to the user's course subdomain
+
+          // TEMPORARY: If we're on S3 domain (for testing), stay here
+          if (window.location.hostname.includes('s3-website')) {
+            console.log('🧪 TESTING MODE: Staying on S3 domain');
+            const finalPath = this.$route.query.redirect || '/dashboard';
+            this.$router.push(finalPath);
+          } else if (subdomain) {
+            // Normal production: Redirect to the user's course subdomain
             window.location.href = `https://${subdomain}.catalog.golf/dashboard`;
           } else {
             // Fallback to dashboard if no subdomain

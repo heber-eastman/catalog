@@ -67,7 +67,7 @@ router.post('/invite', requireAuth(['Admin']), async (req, res) => {
       });
     }
 
-    const { email, role, first_name, last_name } = value;
+    const { email, role, first_name, last_name, phone } = value;
 
     // Check if email already exists
     const existingUser = await StaffUser.findOne({
@@ -94,6 +94,7 @@ router.post('/invite', requireAuth(['Admin']), async (req, res) => {
       token_expires_at: tokenExpiresAt,
       first_name,
       last_name,
+      phone,
     });
 
     // Get course information for email template
@@ -117,6 +118,7 @@ router.post('/invite', requireAuth(['Admin']), async (req, res) => {
       is_active: staffUser.is_active,
       first_name: staffUser.first_name,
       last_name: staffUser.last_name,
+      phone: staffUser.phone,
       invitation_token: staffUser.invitation_token,
       invited_at: staffUser.invited_at,
       token_expires_at: staffUser.token_expires_at,

@@ -1,20 +1,5 @@
 <template>
   <v-container>
-    <!-- Welcome Section -->
-    <v-row>
-      <v-col cols="12">
-        <v-card class="pa-6 text-center mb-4">
-          <v-card-title class="text-h4 mb-4">
-            Welcome to Golf Course Management
-          </v-card-title>
-          <v-card-text class="text-h6">
-            Your comprehensive platform for managing customers, staff, and
-            operations.
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
-
     <!-- Status Cards Row -->
     <v-row class="mb-4">
       <v-col cols="12" sm="6" md="3">

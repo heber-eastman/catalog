@@ -5,6 +5,7 @@ const inviteStaffSchema = Joi.object({
   role: Joi.string().valid('Admin', 'Manager', 'Staff').required(),
   first_name: Joi.string().min(1).max(50).optional(),
   last_name: Joi.string().min(1).max(50).optional(),
+  phone: Joi.string().min(10).max(20).optional(),
 });
 
 const registerStaffSchema = Joi.object({
