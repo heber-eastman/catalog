@@ -267,6 +267,7 @@ router.get('/customers', requireAuth(ALL_ROLES), async (req, res) => {
       order: [[sort, order]],
       limit: parseInt(limit),
       offset: parseInt(offset),
+      attributes: { include: ['created_at', 'updated_at'] },
     });
 
     res.json(rows);

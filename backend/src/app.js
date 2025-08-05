@@ -23,6 +23,8 @@ if (process.env.NODE_ENV === 'production') {
 // CORS configuration - Updated for deployed frontend
 const allowedOrigins = [
   'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
   'http://localhost:3000',
   'https://app.catalog.golf', // Production frontend domain
   'http://catalog-golf-frontend-simple-1750793998.s3-website-us-east-1.amazonaws.com',

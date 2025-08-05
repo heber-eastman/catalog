@@ -157,8 +157,15 @@ export default {
           // Staff users redirect to their course subdomain
           const subdomain = response.data.course_subdomain;
 
-          // TEMPORARY: If we're on S3 domain (for testing), stay here
-          if (window.location.hostname.includes('s3-website')) {
+          // Check if we're in local development environment
+          if (
+            window.location.hostname === 'localhost' ||
+            window.location.hostname.includes('127.0.0.1')
+          ) {
+            console.log('🧪 LOCAL DEVELOPMENT MODE: Staying on localhost');
+            const finalPath = this.$route.query.redirect || '/dashboard';
+            this.$router.push(finalPath);
+          } else if (window.location.hostname.includes('s3-website')) {
             console.log('🧪 TESTING MODE: Staying on S3 domain');
             const finalPath = this.$route.query.redirect || '/dashboard';
             this.$router.push(finalPath);

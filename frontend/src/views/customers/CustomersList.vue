@@ -116,57 +116,48 @@
             item-value="id"
             data-cy="customers-table"
           >
-            <template #item.full_name="{ item }">
-              <div class="d-flex align-center">
-                <v-avatar size="32" class="mr-2" color="primary">
-                  <v-icon icon="mdi-account" />
-                </v-avatar>
-                <div>
-                  <div class="font-weight-medium">{{ item.full_name }}</div>
-                  <div class="text-caption text-medium-emphasis">
-                    ID: {{ item.id }}
-                  </div>
-                </div>
-              </div>
-            </template>
-
-            <template #item.membership_type="{ item }">
-              <v-chip
-                :color="getMembershipTypeColor(item.membership_type)"
-                size="small"
-                data-cy="customer-membership-chip"
-              >
-                {{ item.membership_type || 'Trial' }}
-              </v-chip>
-            </template>
-
-            <template #item.created_at="{ item }">
-              {{ formatDate(item.created_at) }}
-            </template>
-
-            <template #item.actions="{ item }">
-              <v-btn
-                icon="mdi-eye"
-                size="small"
-                variant="text"
+            <template #item="{ item }">
+              <tr
+                class="clickable-row"
                 @click="viewCustomer(item)"
-                data-cy="view-customer-btn"
-              />
-              <v-btn
-                icon="mdi-pencil"
-                size="small"
-                variant="text"
-                @click="editCustomer(item)"
-                data-cy="edit-customer-btn"
-              />
-              <v-btn
-                icon="mdi-delete"
-                size="small"
-                variant="text"
-                color="error"
-                @click="deleteCustomer(item)"
-                data-cy="delete-customer-btn"
-              />
+                data-cy="customer-row"
+              >
+                <td>
+                  <v-checkbox-btn
+                    :model-value="selectedCustomers.includes(item.id)"
+                    @update:model-value="
+                      toggleCustomerSelection(item.id, $event)
+                    "
+                    @click.stop
+                    data-cy="customer-checkbox"
+                  />
+                </td>
+                <td>
+                  <div class="d-flex align-center">
+                    <v-avatar size="32" class="mr-2" color="primary">
+                      <v-icon icon="mdi-account" />
+                    </v-avatar>
+                    <div>
+                      <div class="font-weight-medium">{{ item.full_name }}</div>
+                      <div class="text-caption text-medium-emphasis">
+                        ID: {{ item.id }}
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td>{{ item.email }}</td>
+                <td>{{ item.phone }}</td>
+                <td>
+                  <v-chip
+                    :color="getMembershipTypeColor(item.membership_type)"
+                    size="small"
+                    data-cy="customer-membership-chip"
+                  >
+                    {{ item.membership_type || 'Trial' }}
+                  </v-chip>
+                </td>
+                <td>{{ formatDate(item.created_at) }}</td>
+              </tr>
             </template>
 
             <template #no-data>
@@ -490,7 +481,6 @@ export default {
         { title: 'Phone', key: 'phone', sortable: true },
         { title: 'Membership', key: 'membership_type', sortable: true },
         { title: 'Created', key: 'created_at', sortable: true },
-        { title: 'Actions', key: 'actions', sortable: false, width: 120 },
       ],
     };
   },
@@ -880,6 +870,19 @@ export default {
       this.snackbarColor = color;
       this.showSnackbar = true;
     },
+
+    toggleCustomerSelection(customerId, isSelected) {
+      const index = this.selectedCustomers.indexOf(customerId);
+      if (isSelected) {
+        if (index === -1) {
+          this.selectedCustomers.push(customerId);
+        }
+      } else {
+        if (index !== -1) {
+          this.selectedCustomers.splice(index, 1);
+        }
+      }
+    },
   },
 };
 </script>
@@ -887,5 +890,30 @@ export default {
 <style scoped>
 .v-data-table {
   background: transparent;
+}
+
+/* Clickable row styles */
+.clickable-row {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.clickable-row:hover {
+  background-color: rgba(var(--v-theme-on-surface), 0.04) !important;
+  box-shadow: inset 2px 0 0 rgba(var(--v-theme-primary), 0.3);
+}
+
+/* Ensure checkbox area doesn't interfere with row click */
+.clickable-row td:first-child {
+  pointer-events: auto;
+}
+
+.clickable-row td:first-child .v-checkbox-btn {
+  pointer-events: auto;
+}
+
+/* Make sure the row styling works with Vuetify's table */
+.v-data-table__wrapper table tbody tr.clickable-row:hover {
+  background-color: rgba(var(--v-theme-on-surface), 0.04) !important;
 }
 </style>
