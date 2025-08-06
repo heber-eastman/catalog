@@ -91,6 +91,8 @@ jobs:
         run: npm run build:backend
 
       - name: Build frontend
+        env:
+          VITE_API_BASE_URL: ${{ env.PRODUCTION_API_URL }}/api/v1
         run: npm run build:frontend
 
   e2e-tests:
@@ -250,6 +252,7 @@ jobs:
         run: |
           docker build \
             --file frontend/Dockerfile \
+            --build-arg VITE_API_BASE_URL=${{ env.PRODUCTION_API_URL }}/api/v1 \
             --tag $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG \
             --tag $ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:latest \
             ./frontend
@@ -368,7 +371,7 @@ jobs:
 
   deploy-production:
     runs-on: ubuntu-latest
-    needs: build-docker
+    needs: [lint-and-test, e2e-tests, security, build-docker]
     if: github.ref == 'refs/heads/main'
     environment: production
     permissions:
@@ -386,37 +389,77 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           audience: sts.amazonaws.com
 
-      - name: Skip database migrations in CI
+      - name: Get ECR registry
+        id: get-ecr
         run: |
-          echo "⚠️  Skipping database migrations in CI environment"
-          echo "Migrations will be handled by ECS deployment or run manually"
-          echo "GitHub Actions environment has network restrictions that prevent"
-          echo "direct connections to production RDS instances for security"
+          echo "registry=$(aws sts get-caller-identity --query Account --output text).dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com" >> $GITHUB_OUTPUT
 
-      - name: Deploy backend to ECS
+      - name: Update backend task definition
         env:
           IMAGE_TAG: ${{ github.sha }}
+          ECR_REGISTRY: ${{ steps.get-ecr.outputs.registry }}
         run: |
-          # Update ECS service with new image
+          # Get current task definition
+          aws ecs describe-task-definition \
+            --task-definition $ECS_SERVICE_BACKEND \
+            --query 'taskDefinition' > task-def-backend.json
+          
+          # Update image URI in task definition
+          jq --arg IMAGE_URI "$ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG" \
+            '.containerDefinitions[0].image = $IMAGE_URI | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy)' \
+            task-def-backend.json > updated-task-def-backend.json
+          
+          # Register new task definition
+          NEW_TASK_DEF=$(aws ecs register-task-definition \
+            --cli-input-json file://updated-task-def-backend.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          
+          echo "NEW_BACKEND_TASK_DEF=$NEW_TASK_DEF" >> $GITHUB_ENV
+
+      - name: Update frontend task definition
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          ECR_REGISTRY: ${{ steps.get-ecr.outputs.registry }}
+        run: |
+          # Get current task definition
+          aws ecs describe-task-definition \
+            --task-definition $ECS_SERVICE_FRONTEND \
+            --query 'taskDefinition' > task-def-frontend.json
+          
+          # Update image URI in task definition
+          jq --arg IMAGE_URI "$ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG" \
+            '.containerDefinitions[0].image = $IMAGE_URI | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy)' \
+            task-def-frontend.json > updated-task-def-frontend.json
+          
+          # Register new task definition
+          NEW_TASK_DEF=$(aws ecs register-task-definition \
+            --cli-input-json file://updated-task-def-frontend.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          
+          echo "NEW_FRONTEND_TASK_DEF=$NEW_TASK_DEF" >> $GITHUB_ENV
+
+      - name: Deploy backend to ECS
+        run: |
+          # Update ECS service with new task definition
           aws ecs update-service \
             --cluster $ECS_CLUSTER \
             --service $ECS_SERVICE_BACKEND \
+            --task-definition $NEW_BACKEND_TASK_DEF \
             --force-new-deployment
 
       - name: Deploy frontend to ECS
-        env:
-          IMAGE_TAG: ${{ github.sha }}
         run: |
-          # Update ECS service with new image
+          # Update ECS service with new task definition
           aws ecs update-service \
             --cluster $ECS_CLUSTER \
             --service $ECS_SERVICE_FRONTEND \
+            --task-definition $NEW_FRONTEND_TASK_DEF \
             --force-new-deployment
 
       - name: Wait for deployment to complete
         run: |
           export AWS_PAGER=""
-          echo "Waiting for services to stabilize (max 15 minutes)..."
+          echo "Waiting for services to stabilize (max 20 minutes)..."
 
           # Check initial status
           echo "Initial service status:"
@@ -426,11 +469,11 @@ jobs:
             --query 'services[*].{Name:serviceName,Running:runningCount,Desired:desiredCount,Status:status,TaskDefinition:taskDefinition}' \
             --output table
 
-          # Wait for services with timeout
-          timeout 900 aws ecs wait services-stable \
+          # Wait for services with extended timeout
+          timeout 1200 aws ecs wait services-stable \
             --cluster $ECS_CLUSTER \
             --services $ECS_SERVICE_BACKEND $ECS_SERVICE_FRONTEND || {
-            echo "⚠️  Services didn't stabilize within 15 minutes"
+            echo "⚠️  Services didn't stabilize within 20 minutes"
             echo "Final service status:"
             aws ecs describe-services \
               --cluster $ECS_CLUSTER \
@@ -445,18 +488,50 @@ jobs:
             if [ "$BACKEND_TASKS" != "None" ] && [ -n "$BACKEND_TASKS" ]; then
               echo "Backend task details:"
               aws ecs describe-tasks --cluster $ECS_CLUSTER --tasks $BACKEND_TASKS --query 'tasks[0].{LastStatus:lastStatus,HealthStatus:healthStatus,StoppedReason:stoppedReason}' --output table
+              
+              echo "Backend task logs (last 50 lines):"
+              aws logs tail /ecs/catalog-golf-backend --since 10m --follow=false | head -50 || echo "Could not fetch logs"
             fi
             
             if [ "$FRONTEND_TASKS" != "None" ] && [ -n "$FRONTEND_TASKS" ]; then
               echo "Frontend task details:"
               aws ecs describe-tasks --cluster $ECS_CLUSTER --tasks $FRONTEND_TASKS --query 'tasks[0].{LastStatus:lastStatus,HealthStatus:healthStatus,StoppedReason:stoppedReason}' --output table
+              
+              echo "Frontend task logs (last 50 lines):"
+              aws logs tail /ecs/catalog-golf-frontend --since 10m --follow=false | head -50 || echo "Could not fetch logs"
             fi
             
-            # Services are running but not stabilizing - this is often due to health check issues
-            # Continue with deployment since services are active
-            echo "⚠️  Services are running but not marked as stable. This may be due to health check configuration."
-            echo "Continuing with smoke tests to verify actual functionality..."
+            # If deployment is failing, exit with error
+            echo "🚨 Deployment failed - services not stable"
+            exit 1
           }
+
+      - name: Invalidate CloudFront cache
+        run: |
+          # Get CloudFront distribution ID for app.catalog.golf
+          DISTRIBUTION_ID=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Aliases.Items[0]=='app.catalog.golf'].Id" \
+            --output text)
+          
+          if [ -n "$DISTRIBUTION_ID" ] && [ "$DISTRIBUTION_ID" != "None" ]; then
+            echo "Invalidating CloudFront cache for distribution: $DISTRIBUTION_ID"
+            INVALIDATION_ID=$(aws cloudfront create-invalidation \
+              --distribution-id $DISTRIBUTION_ID \
+              --paths "/*" \
+              --query 'Invalidation.Id' --output text)
+            
+            echo "CloudFront invalidation started: $INVALIDATION_ID"
+            
+            # Wait for invalidation to complete (optional)
+            echo "Waiting for CloudFront invalidation to complete..."
+            aws cloudfront wait invalidation-completed \
+              --distribution-id $DISTRIBUTION_ID \
+              --id $INVALIDATION_ID
+            
+            echo "✅ CloudFront cache invalidated successfully"
+          else
+            echo "⚠️  CloudFront distribution not found for app.catalog.golf"
+          fi
 
       - name: Run production smoke tests
         run: |
@@ -464,14 +539,16 @@ jobs:
           sleep 60
 
           # Run comprehensive health checks using production domains
+          echo "Testing backend health..."
           curl -f $PRODUCTION_API_URL/health || exit 1
-          curl -f $PRODUCTION_API_URL/api/v1/health || exit 1
-
-          # Test frontend is serving
+          
+          echo "Testing frontend availability..."
           curl -f $PRODUCTION_APP_URL/ || exit 1
 
-          # Test HTTPS is working
+          echo "Testing API endpoints..."
           curl -f $PRODUCTION_API_URL/api/v1/ || echo "API base endpoint check"
+
+          echo "✅ All smoke tests passed!"
 
       - name: Notify deployment success
         if: success()
@@ -481,16 +558,86 @@ jobs:
           echo "🔗 Backend API: $PRODUCTION_API_URL"
           echo "❤️  Health check: $PRODUCTION_API_URL/health"
           echo "📡 API base: $PRODUCTION_API_URL/api/v1/"
+          echo "🎯 Commit: ${{ github.sha }}"
+          echo "📝 Task definitions updated with latest images"
+          echo "🔄 CloudFront cache invalidated"
 
       - name: Rollback on failure
         if: failure()
         run: |
-          echo "🚨 Deployment failed, rolling back..."
-          aws ecs update-service \
+          echo "🚨 Deployment failed, attempting rollback..."
+          
+          # Get previous task definition revisions
+          PREV_BACKEND=$(aws ecs describe-services \
             --cluster $ECS_CLUSTER \
-            --service $ECS_SERVICE_BACKEND \
-            --task-definition $ECS_SERVICE_BACKEND:PREVIOUS
-          aws ecs update-service \
+            --services $ECS_SERVICE_BACKEND \
+            --query 'services[0].deployments[1].taskDefinition' --output text)
+          
+          PREV_FRONTEND=$(aws ecs describe-services \
             --cluster $ECS_CLUSTER \
-            --service $ECS_SERVICE_FRONTEND \
-            --task-definition $ECS_SERVICE_FRONTEND:PREVIOUS
+            --services $ECS_SERVICE_FRONTEND \
+            --query 'services[0].deployments[1].taskDefinition' --output text)
+          
+          if [ "$PREV_BACKEND" != "None" ] && [ -n "$PREV_BACKEND" ]; then
+            aws ecs update-service \
+              --cluster $ECS_CLUSTER \
+              --service $ECS_SERVICE_BACKEND \
+              --task-definition $PREV_BACKEND
+            echo "🔄 Backend rolled back to: $PREV_BACKEND"
+          fi
+          
+          if [ "$PREV_FRONTEND" != "None" ] && [ -n "$PREV_FRONTEND" ]; then
+            aws ecs update-service \
+              --cluster $ECS_CLUSTER \
+              --service $ECS_SERVICE_FRONTEND \
+              --task-definition $PREV_FRONTEND
+            echo "🔄 Frontend rolled back to: $PREV_FRONTEND"
+          fi
+          
+          echo "🚨 Deployment failed and rollback attempted"
+          exit 1
+
+  # Add deployment monitoring for better visibility
+  deployment-status:
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    if: always() && github.ref == 'refs/heads/main'
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Check deployment status
+        run: |
+          echo "🔍 Final Deployment Status Check"
+          echo "=================================="
+          
+          # Get current service status
+          aws ecs describe-services \
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE_BACKEND $ECS_SERVICE_FRONTEND \
+            --query 'services[*].{Name:serviceName,Running:runningCount,Desired:desiredCount,Status:status,TaskDefinition:taskDefinition,Deployments:deployments[0].status}' \
+            --output table
+          
+          # Check if services are healthy
+          BACKEND_RUNNING=$(aws ecs describe-services --cluster $ECS_CLUSTER --services $ECS_SERVICE_BACKEND --query 'services[0].runningCount' --output text)
+          FRONTEND_RUNNING=$(aws ecs describe-services --cluster $ECS_CLUSTER --services $ECS_SERVICE_FRONTEND --query 'services[0].runningCount' --output text)
+          
+          if [ "$BACKEND_RUNNING" -gt 0 ] && [ "$FRONTEND_RUNNING" -gt 0 ]; then
+            echo "✅ Both services are running"
+          else
+            echo "❌ One or more services are not running properly"
+          fi
+          
+          echo ""
+          echo "🌐 Application URLs:"
+          echo "Frontend: $PRODUCTION_APP_URL"
+          echo "Backend API: $PRODUCTION_API_URL"
+          echo "Health Check: $PRODUCTION_API_URL/health"

@@ -2,15 +2,18 @@
   "CallerReference": "catalog-golf-frontend-1750797409",
   "Aliases": {
     "Quantity": 2,
-    "Items": ["app.catalog.golf", "*.catalog.golf"]
+    "Items": [
+      "app.catalog.golf",
+      "*.catalog.golf"
+    ]
   },
   "DefaultRootObject": "index.html",
   "Origins": {
     "Quantity": 1,
     "Items": [
       {
-        "Id": "catalog-golf-frontend-1752103044.s3-website-us-east-1.amazonaws.com",
-        "DomainName": "catalog-golf-frontend-1752103044.s3-website-us-east-1.amazonaws.com",
+        "Id": "catalog-golf-frontend-1754518030.s3-website-us-east-1.amazonaws.com",
+        "DomainName": "catalog-golf-frontend-1754518030.s3-website-us-east-1.amazonaws.com",
         "OriginPath": "",
         "CustomHeaders": {
           "Quantity": 0
@@ -21,7 +24,11 @@
           "OriginProtocolPolicy": "http-only",
           "OriginSslProtocols": {
             "Quantity": 3,
-            "Items": ["TLSv1", "TLSv1.1", "TLSv1.2"]
+            "Items": [
+              "TLSv1",
+              "TLSv1.1",
+              "TLSv1.2"
+            ]
           },
           "OriginReadTimeout": 30,
           "OriginKeepaliveTimeout": 5
@@ -39,7 +46,7 @@
     "Quantity": 0
   },
   "DefaultCacheBehavior": {
-    "TargetOriginId": "catalog-golf-frontend-1752103044.s3-website-us-east-1.amazonaws.com",
+    "TargetOriginId": "catalog-golf-frontend-1754518030.s3-website-us-east-1.amazonaws.com",
     "TrustedSigners": {
       "Enabled": false,
       "Quantity": 0
@@ -51,10 +58,16 @@
     "ViewerProtocolPolicy": "redirect-to-https",
     "AllowedMethods": {
       "Quantity": 2,
-      "Items": ["HEAD", "GET"],
+      "Items": [
+        "HEAD",
+        "GET"
+      ],
       "CachedMethods": {
         "Quantity": 2,
-        "Items": ["HEAD", "GET"]
+        "Items": [
+          "HEAD",
+          "GET"
+        ]
       }
     },
     "SmoothStreaming": false,

@@ -2,6 +2,10 @@
 # Build stage
 FROM node:18-alpine AS build
 
+# Accept build arguments
+ARG VITE_API_BASE_URL=https://api.catalog.golf/api/v1
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+
 WORKDIR /app
 
 # Copy package files

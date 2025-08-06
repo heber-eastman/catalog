@@ -51,7 +51,7 @@ cd frontend
 # Create production environment file
 echo "🔨 Creating production environment configuration..."
 cat > .env.production << EOF
-VITE_API_BASE_URL=http://$BACKEND_IP:3000/api/v1
+VITE_API_BASE_URL=https://api.catalog.golf/api/v1
 VITE_APP_TITLE=Catalog Golf
 VITE_APP_DESCRIPTION=Golf Course Management System
 EOF
