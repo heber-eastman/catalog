@@ -403,17 +403,17 @@ jobs:
           aws ecs describe-task-definition \
             --task-definition $ECS_SERVICE_BACKEND \
             --query 'taskDefinition' > task-def-backend.json
-          
+
           # Update image URI in task definition
           jq --arg IMAGE_URI "$ECR_REGISTRY/$ECR_REPOSITORY_BACKEND:$IMAGE_TAG" \
             '.containerDefinitions[0].image = $IMAGE_URI | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy)' \
             task-def-backend.json > updated-task-def-backend.json
-          
+
           # Register new task definition
           NEW_TASK_DEF=$(aws ecs register-task-definition \
             --cli-input-json file://updated-task-def-backend.json \
             --query 'taskDefinition.taskDefinitionArn' --output text)
-          
+
           echo "NEW_BACKEND_TASK_DEF=$NEW_TASK_DEF" >> $GITHUB_ENV
 
       - name: Update frontend task definition
@@ -425,17 +425,17 @@ jobs:
           aws ecs describe-task-definition \
             --task-definition $ECS_SERVICE_FRONTEND \
             --query 'taskDefinition' > task-def-frontend.json
-          
+
           # Update image URI in task definition
           jq --arg IMAGE_URI "$ECR_REGISTRY/$ECR_REPOSITORY_FRONTEND:$IMAGE_TAG" \
             '.containerDefinitions[0].image = $IMAGE_URI | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy)' \
             task-def-frontend.json > updated-task-def-frontend.json
-          
+
           # Register new task definition
           NEW_TASK_DEF=$(aws ecs register-task-definition \
             --cli-input-json file://updated-task-def-frontend.json \
             --query 'taskDefinition.taskDefinitionArn' --output text)
-          
+
           echo "NEW_FRONTEND_TASK_DEF=$NEW_TASK_DEF" >> $GITHUB_ENV
 
       - name: Deploy backend to ECS
@@ -512,7 +512,7 @@ jobs:
           DISTRIBUTION_ID=$(aws cloudfront list-distributions \
             --query "DistributionList.Items[?Aliases.Items[0]=='app.catalog.golf'].Id" \
             --output text)
-          
+
           if [ -n "$DISTRIBUTION_ID" ] && [ "$DISTRIBUTION_ID" != "None" ]; then
             echo "Invalidating CloudFront cache for distribution: $DISTRIBUTION_ID"
             INVALIDATION_ID=$(aws cloudfront create-invalidation \
@@ -541,7 +541,7 @@ jobs:
           # Run comprehensive health checks using production domains
           echo "Testing backend health..."
           curl -f $PRODUCTION_API_URL/health || exit 1
-          
+
           echo "Testing frontend availability..."
           curl -f $PRODUCTION_APP_URL/ || exit 1
 
@@ -566,18 +566,18 @@ jobs:
         if: failure()
         run: |
           echo "🚨 Deployment failed, attempting rollback..."
-          
+
           # Get previous task definition revisions
           PREV_BACKEND=$(aws ecs describe-services \
             --cluster $ECS_CLUSTER \
             --services $ECS_SERVICE_BACKEND \
             --query 'services[0].deployments[1].taskDefinition' --output text)
-          
+
           PREV_FRONTEND=$(aws ecs describe-services \
             --cluster $ECS_CLUSTER \
             --services $ECS_SERVICE_FRONTEND \
             --query 'services[0].deployments[1].taskDefinition' --output text)
-          
+
           if [ "$PREV_BACKEND" != "None" ] && [ -n "$PREV_BACKEND" ]; then
             aws ecs update-service \
               --cluster $ECS_CLUSTER \
@@ -585,7 +585,7 @@ jobs:
               --task-definition $PREV_BACKEND
             echo "🔄 Backend rolled back to: $PREV_BACKEND"
           fi
-          
+
           if [ "$PREV_FRONTEND" != "None" ] && [ -n "$PREV_FRONTEND" ]; then
             aws ecs update-service \
               --cluster $ECS_CLUSTER \
@@ -593,7 +593,7 @@ jobs:
               --task-definition $PREV_FRONTEND
             echo "🔄 Frontend rolled back to: $PREV_FRONTEND"
           fi
-          
+
           echo "🚨 Deployment failed and rollback attempted"
           exit 1
 
@@ -618,24 +618,24 @@ jobs:
         run: |
           echo "🔍 Final Deployment Status Check"
           echo "=================================="
-          
+
           # Get current service status
           aws ecs describe-services \
             --cluster $ECS_CLUSTER \
             --services $ECS_SERVICE_BACKEND $ECS_SERVICE_FRONTEND \
             --query 'services[*].{Name:serviceName,Running:runningCount,Desired:desiredCount,Status:status,TaskDefinition:taskDefinition,Deployments:deployments[0].status}' \
             --output table
-          
+
           # Check if services are healthy
           BACKEND_RUNNING=$(aws ecs describe-services --cluster $ECS_CLUSTER --services $ECS_SERVICE_BACKEND --query 'services[0].runningCount' --output text)
           FRONTEND_RUNNING=$(aws ecs describe-services --cluster $ECS_CLUSTER --services $ECS_SERVICE_FRONTEND --query 'services[0].runningCount' --output text)
-          
+
           if [ "$BACKEND_RUNNING" -gt 0 ] && [ "$FRONTEND_RUNNING" -gt 0 ]; then
             echo "✅ Both services are running"
           else
             echo "❌ One or more services are not running properly"
           fi
-          
+
           echo ""
           echo "🌐 Application URLs:"
           echo "Frontend: $PRODUCTION_APP_URL"
