@@ -8,6 +8,7 @@ const customersRouter = require('./routes/customers');
 const notesRouter = require('./routes/notes');
 const staffRouter = require('./routes/staff');
 const superAdminsRouter = require('./routes/super-admins');
+const teeSheetsRouter = require('./routes/teeSheets');
 const authRouter = require('./routes/auth');
 const healthRouter = require('./routes/health');
 const { rateLimitMiddleware } = require('./middleware/rateLimit');
@@ -93,6 +94,7 @@ app.use('/api/v1', customersRouter);
 app.use('/api/v1', notesRouter);
 app.use('/api/v1/staff', staffRouter);
 app.use('/api/v1/super-admin', superAdminsRouter);
+app.use('/api/v1', teeSheetsRouter);
 
 // 404 handler
 app.use((req, res) => {
