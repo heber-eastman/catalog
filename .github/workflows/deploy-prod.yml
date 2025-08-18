@@ -1,0 +1,50 @@
+name: Deploy Production
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch: {}
+
+concurrency:
+  group: prod-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://app.catalog.golf
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Backend build/test
+        run: |
+          npm ci
+          npm test
+        working-directory: backend
+
+      - name: Frontend build/test
+        run: |
+          npm ci
+          npm run build
+        working-directory: frontend
+
+      - name: Deploy Backend
+        if: ${{ success() }}
+        run: |
+          bash ./deploy-backend-update.sh
+
+      - name: Deploy Frontend
+        if: ${{ success() }}
+        run: |
+          bash ./deploy-frontend-aws.sh
+
+

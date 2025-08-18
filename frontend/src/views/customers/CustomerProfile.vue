@@ -1,424 +1,534 @@
 <template>
-  <v-container>
-    <v-row>
-      <v-col cols="12">
-        <!-- Header -->
-        <div class="d-flex align-center mb-4">
-          <v-btn
-            icon="mdi-arrow-left"
-            variant="text"
-            @click="$router.back()"
-            class="mr-2"
-            data-cy="back-btn"
-          />
-          <div class="flex-grow-1">
-            <h1 class="text-h4" data-cy="customer-name">
-              {{ customer.first_name }} {{ customer.last_name }}
-            </h1>
-            <p class="text-medium-emphasis">Customer ID: {{ customerId }}</p>
+  <v-container fluid class="pa-0">
+    <!-- Header Section -->
+    <div class="customer-header">
+      <!-- Breadcrumb -->
+      <v-breadcrumbs
+        :items="breadcrumbItems"
+        class="pa-0 mb-2"
+        density="compact"
+      >
+        <template v-slot:item="{ item }">
+          <v-breadcrumbs-item
+            :to="item.to"
+            :disabled="item.disabled"
+            class="text-body-2"
+          >
+            {{ item.title }}
+          </v-breadcrumbs-item>
+        </template>
+        <template v-slot:divider>
+          <v-icon icon="mdi-chevron-right" size="small" />
+        </template>
+      </v-breadcrumbs>
+
+      <!-- Header Content -->
+      <div class="d-flex justify-space-between align-start mb-4">
+        <div>
+          <h1 class="text-h4 font-weight-bold mb-1">
+            {{ customer.first_name }} {{ customer.last_name }}
+          </h1>
+          <div class="text-body-2 text-medium-emphasis">
+            ID: {{ customer.id }}
           </div>
         </div>
-      </v-col>
-    </v-row>
 
-    <v-row v-if="loading">
-      <v-col cols="12" class="text-center">
-        <v-progress-circular indeterminate size="64" />
-        <p class="mt-4">Loading customer details...</p>
-      </v-col>
-    </v-row>
+        <!-- Desktop Action Buttons -->
+        <div class="d-none d-sm-flex ga-2">
+          <v-btn
+            icon="mdi-pencil"
+            variant="outlined"
+            size="small"
+            @click="openEditModal"
+            :loading="loading"
+          />
+          <v-btn
+            icon="mdi-delete"
+            variant="outlined"
+            size="small"
+            color="error"
+            @click="confirmDelete"
+            :loading="loading"
+          />
+        </div>
 
-    <v-row v-else-if="customer.id">
-      <!-- Customer Information Card -->
-      <v-col cols="12" md="6">
-        <v-card>
-          <v-card-title class="d-flex align-center">
-            <v-icon icon="mdi-account" class="mr-2" />
-            Customer Information
-          </v-card-title>
-          <v-card-text>
+        <!-- Mobile Action Menu -->
+        <div class="d-flex d-sm-none">
+          <v-menu>
+            <template v-slot:activator="{ props }">
+              <v-btn
+                icon="mdi-dots-vertical"
+                variant="text"
+                size="small"
+                v-bind="props"
+              />
+            </template>
             <v-list density="compact">
-              <v-list-item>
-                <template #prepend>
-                  <v-icon icon="mdi-email" />
+              <v-list-item @click="openEditModal" :disabled="loading">
+                <template v-slot:prepend>
+                  <v-icon icon="mdi-pencil" />
                 </template>
-                <v-list-item-title>{{ customer.email }}</v-list-item-title>
-                <v-list-item-subtitle>Email</v-list-item-subtitle>
+                <v-list-item-title>Edit Customer</v-list-item-title>
               </v-list-item>
-
-              <v-list-item v-if="customer.phone">
-                <template #prepend>
-                  <v-icon icon="mdi-phone" />
+              <v-list-item @click="confirmDelete" :disabled="loading">
+                <template v-slot:prepend>
+                  <v-icon icon="mdi-delete" color="error" />
                 </template>
-                <v-list-item-title>{{ customer.phone }}</v-list-item-title>
-                <v-list-item-subtitle>Phone</v-list-item-subtitle>
-              </v-list-item>
-
-              <v-list-item v-if="customer.membership_type">
-                <template #prepend>
-                  <v-icon icon="mdi-card-account-details" />
-                </template>
-                <v-list-item-title>
-                  <v-chip
-                    :color="getMembershipTypeColor(customer.membership_type)"
-                    size="small"
-                  >
-                    {{ customer.membership_type }}
-                  </v-chip>
-                </v-list-item-title>
-                <v-list-item-subtitle>Membership Type</v-list-item-subtitle>
-              </v-list-item>
-
-              <v-list-item v-if="customer.notes">
-                <template #prepend>
-                  <v-icon icon="mdi-note-text" />
-                </template>
-                <v-list-item-title>{{ customer.notes }}</v-list-item-title>
-                <v-list-item-subtitle>Notes</v-list-item-subtitle>
-              </v-list-item>
-
-              <v-list-item>
-                <template #prepend>
-                  <v-icon icon="mdi-calendar" />
-                </template>
-                <v-list-item-title>{{
-                  formatDate(customer.created_at)
-                }}</v-list-item-title>
-                <v-list-item-subtitle>Member Since</v-list-item-subtitle>
+                <v-list-item-title class="text-error">Delete Customer</v-list-item-title>
               </v-list-item>
             </v-list>
-          </v-card-text>
-        </v-card>
-      </v-col>
+          </v-menu>
+        </div>
+      </div>
+    </div>
 
-      <v-col cols="12" md="6">
-        <v-card>
-          <v-card-title>Actions</v-card-title>
-          <v-card-text>
-            <div class="d-flex flex-column ga-2">
-              <v-btn
-                color="primary"
-                prepend-icon="mdi-pencil"
-                @click="openEditDialog"
-                data-cy="edit-customer-btn"
-              >
-                Edit Customer
-              </v-btn>
-              <v-btn
-                color="error"
-                variant="outlined"
-                prepend-icon="mdi-delete"
-                @click="confirmDelete"
-                data-cy="delete-customer-btn"
-              >
-                Delete Customer
-              </v-btn>
-            </div>
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
+    <!-- Tab Navigation -->
+    <div class="tab-section">
+      <!-- Desktop Tabs -->
+      <v-tabs
+        v-model="activeTab"
+        class="d-none d-sm-flex"
+        color="primary"
+        slider-color="primary"
+      >
+        <v-tab value="personal">Personal Information</v-tab>
+        <v-tab value="notes">Notes</v-tab>
+      </v-tabs>
 
-    <!-- Customer not found -->
-    <v-row v-else>
-      <v-col cols="12" class="text-center">
-        <v-icon
-          icon="mdi-account-off"
-          size="64"
-          class="mb-2 text-medium-emphasis"
+      <!-- Mobile Tab Dropdown -->
+      <div class="d-flex d-sm-none">
+        <v-select
+          v-model="activeTab"
+          :items="tabItems"
+          item-title="title"
+          item-value="value"
+          variant="outlined"
+          density="compact"
+          hide-details
+          class="tab-dropdown"
         />
-        <h2 class="mb-2">Customer Not Found</h2>
-        <p class="text-medium-emphasis mb-4">
-          The customer you're looking for doesn't exist or may have been
-          deleted.
-        </p>
-        <v-btn color="primary" @click="$router.push('/customers')">
-          Back to Customers
-        </v-btn>
-      </v-col>
-    </v-row>
+      </div>
+    </div>
 
-    <!-- Edit Customer Dialog -->
-    <v-dialog v-model="showEditDialog" max-width="700px">
+    <!-- Tab Content -->
+    <v-card flat class="mt-4">
+      <v-card-text class="pa-6">
+        <v-window v-model="activeTab">
+          <!-- Personal Information Tab -->
+          <v-window-item value="personal">
+            <div class="personal-info-grid">
+              <div class="info-item">
+                <v-icon icon="mdi-email" class="mr-3" color="primary" />
+                <span>{{ customer.email }}</span>
+              </div>
+              
+              <div class="info-item">
+                <v-icon icon="mdi-phone" class="mr-3" color="primary" />
+                <span>{{ customer.phone || 'Not provided' }}</span>
+              </div>
+              
+              <div class="info-item">
+                <v-icon icon="mdi-calendar" class="mr-3" color="primary" />
+                <span>{{ getMemberSinceYear() }}</span>
+              </div>
+              
+              <div class="info-item" v-if="customer.membership_type">
+                <v-icon icon="mdi-card-account-details" class="mr-3" color="primary" />
+                <v-chip
+                  :color="getMembershipTypeColor(customer.membership_type)"
+                  size="small"
+                  class="ml-0"
+                >
+                  {{ customer.membership_type }}
+                </v-chip>
+              </div>
+            </div>
+          </v-window-item>
+
+          <!-- Notes Tab -->
+          <v-window-item value="notes">
+            <div class="personal-info-grid" v-if="customer.notes">
+              <div class="info-item">
+                <v-icon icon="mdi-note-text" class="mr-3" color="primary" />
+                <div class="note-content">
+                  <div class="text-body-1">{{ customer.notes }}</div>
+                  <div class="text-caption text-medium-emphasis mt-1">
+                    Last updated: {{ formatDate(customer.updated_at) }}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else class="text-center py-8 text-medium-emphasis">
+              <v-icon icon="mdi-information" size="48" class="mb-2" />
+              <div class="text-h6">No Notes</div>
+              <div class="text-body-2">No notes have been added for this customer yet.</div>
+            </div>
+          </v-window-item>
+        </v-window>
+      </v-card-text>
+    </v-card>
+
+    <!-- Edit Customer Modal -->
+    <v-dialog v-model="editDialog" max-width="600px" persistent>
       <v-card>
-        <v-card-title>Edit Customer</v-card-title>
+        <v-card-title class="text-h5">Edit Customer</v-card-title>
+        
         <v-card-text>
-          <v-form ref="customerForm" v-model="customerFormValid">
+          <v-container>
             <v-row>
-              <v-col cols="6">
+              <v-col cols="12" sm="6">
                 <v-text-field
-                  v-model="customerData.first_name"
-                  label="First Name *"
+                  v-model="editForm.first_name"
+                  label="First Name*"
                   :rules="[v => !!v || 'First name is required']"
                   required
-                  data-cy="edit-customer-first-name"
                 />
               </v-col>
-              <v-col cols="6">
+              <v-col cols="12" sm="6">
                 <v-text-field
-                  v-model="customerData.last_name"
-                  label="Last Name *"
+                  v-model="editForm.last_name"
+                  label="Last Name*"
                   :rules="[v => !!v || 'Last name is required']"
                   required
-                  data-cy="edit-customer-last-name"
                 />
               </v-col>
-            </v-row>
-            <v-text-field
-              v-model="customerData.email"
-              label="Email *"
-              type="email"
-              :rules="[
-                v => !!v || 'Email is required',
-                v => /.+@.+\..+/.test(v) || 'Email must be valid',
-              ]"
-              required
-              data-cy="edit-customer-email"
-            />
-            <v-row>
-              <v-col cols="6">
+              <v-col cols="12">
                 <v-text-field
-                  v-model="customerData.phone"
-                  label="Phone"
-                  data-cy="edit-customer-phone"
+                  v-model="editForm.email"
+                  label="Email*"
+                  type="email"
+                  :rules="[
+                    v => !!v || 'Email is required',
+                    v => /.+@.+\..+/.test(v) || 'Email must be valid'
+                  ]"
+                  required
                 />
               </v-col>
-              <v-col cols="6">
+              <v-col cols="12">
+                <v-text-field
+                  v-model="editForm.phone"
+                  label="Phone Number"
+                  type="tel"
+                />
+              </v-col>
+              <v-col cols="12">
                 <v-select
-                  v-model="customerData.membership_type"
-                  :items="membershipTypeOptions"
-                  label="Membership Type *"
-                  :rules="[v => !!v || 'Membership type is required']"
-                  required
-                  data-cy="edit-customer-membership-type-select"
+                  v-model="editForm.membership_type"
+                  :items="membershipTypes"
+                  label="Membership Type"
                 />
               </v-col>
             </v-row>
-            <v-textarea
-              v-model="customerData.notes"
-              label="Notes"
-              rows="3"
-              data-cy="edit-customer-notes"
-            />
-          </v-form>
+          </v-container>
         </v-card-text>
+
         <v-card-actions>
           <v-spacer />
-          <v-btn @click="closeEditDialog" data-cy="cancel-edit-customer-btn">
-            Cancel
-          </v-btn>
-          <v-btn
-            color="primary"
+          <v-btn text @click="closeEditModal">Cancel</v-btn>
+          <v-btn 
+            color="primary" 
             @click="saveCustomer"
-            :disabled="!customerFormValid"
             :loading="saving"
-            data-cy="save-edit-customer-btn"
           >
-            Update Customer
+            Save Changes
           </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
     <!-- Delete Confirmation Dialog -->
-    <v-dialog v-model="showDeleteDialog" max-width="500px">
+    <v-dialog v-model="deleteDialog" max-width="400px">
       <v-card>
-        <v-card-title class="text-h5">Confirm Deletion</v-card-title>
+        <v-card-title class="text-h6">Delete Customer</v-card-title>
         <v-card-text>
-          Are you sure you want to delete
-          <strong>{{ customer.first_name }} {{ customer.last_name }}</strong
-          >? <br /><br />
+          Are you sure you want to delete <strong>{{ customer.first_name }} {{ customer.last_name }}</strong>? 
           This action cannot be undone.
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn @click="showDeleteDialog = false" data-cy="cancel-delete-btn">
-            Cancel
-          </v-btn>
-          <v-btn
-            color="error"
+          <v-btn text @click="deleteDialog = false">Cancel</v-btn>
+          <v-btn 
+            color="error" 
             @click="deleteCustomer"
             :loading="deleting"
-            data-cy="confirm-delete-btn"
           >
-            Delete Customer
+            Delete
           </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <!-- Success/Error Snackbar -->
+    <!-- Success/Error Messages -->
     <v-snackbar
-      v-model="showSnackbar"
-      :color="snackbarColor"
+      v-model="snackbar.show"
+      :color="snackbar.color"
       :timeout="4000"
-      data-cy="snackbar"
+      top
     >
-      {{ snackbarMessage }}
+      {{ snackbar.message }}
       <template v-slot:actions>
-        <v-btn variant="text" @click="showSnackbar = false">Close</v-btn>
+        <v-btn
+          variant="text"
+          @click="snackbar.show = false"
+        >
+          Close
+        </v-btn>
       </template>
     </v-snackbar>
   </v-container>
 </template>
 
 <script>
-import { customerAPI } from '@/services/api';
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import customerAPI from '@/services/api'
 
 export default {
   name: 'CustomerProfile',
-  data() {
+  setup() {
+    const route = useRoute()
+    const router = useRouter()
+    
+    // Reactive data
+    const customer = ref({})
+    const loading = ref(false)
+    const saving = ref(false)
+    const deleting = ref(false)
+    const activeTab = ref('personal')
+    const editDialog = ref(false)
+    const deleteDialog = ref(false)
+    
+    const editForm = reactive({
+      first_name: '',
+      last_name: '',
+      email: '',
+      phone: '',
+      membership_type: ''
+    })
+
+    const snackbar = reactive({
+      show: false,
+      message: '',
+      color: 'success'
+    })
+
+    // Static data
+    const membershipTypes = [
+      'Trial',
+      'Basic',
+      'Premium',
+      'VIP'
+    ]
+
+    const tabItems = [
+      { title: 'Personal Information', value: 'personal' },
+      { title: 'Notes', value: 'notes' }
+    ]
+
+    // Computed properties
+    const breadcrumbItems = computed(() => [
+      {
+        title: 'Customers',
+        to: '/customers',
+        disabled: false
+      },
+      {
+        title: `${customer.value.first_name || ''} ${customer.value.last_name || ''}`.trim() || 'Customer',
+        disabled: true
+      }
+    ])
+
+    // Methods
+    const loadCustomer = async () => {
+      loading.value = true
+      try {
+        const response = await customerAPI.get(`/customers/${route.params.id}`)
+        customer.value = response.data
+      } catch (error) {
+        showNotification('Error loading customer: ' + (error.response?.data?.error || error.message), 'error')
+        router.push('/customers')
+      } finally {
+        loading.value = false
+      }
+    }
+
+    const getMemberSinceYear = () => {
+      if (!customer.value.created_at) return 'Unknown'
+      return new Date(customer.value.created_at).getFullYear()
+    }
+
+    const formatDate = (dateString) => {
+      if (!dateString) return 'Unknown'
+      return new Date(dateString).toLocaleDateString()
+    }
+
+    const getMembershipTypeColor = (type) => {
+      const colorMap = {
+        'Trial': 'grey',
+        'Basic': 'blue',
+        'Premium': 'purple',
+        'VIP': 'amber'
+      }
+      return colorMap[type] || 'primary'
+    }
+
+    const openEditModal = () => {
+      // Pre-fill the form with current customer data
+      editForm.first_name = customer.value.first_name || ''
+      editForm.last_name = customer.value.last_name || ''
+      editForm.email = customer.value.email || ''
+      editForm.phone = customer.value.phone || ''
+      editForm.membership_type = customer.value.membership_type || ''
+      editDialog.value = true
+    }
+
+    const closeEditModal = () => {
+      editDialog.value = false
+      // Reset form
+      Object.keys(editForm).forEach(key => {
+        editForm[key] = ''
+      })
+    }
+
+    const saveCustomer = async () => {
+      saving.value = true
+      try {
+        const response = await customerAPI.put(`/customers/${route.params.id}`, editForm)
+        customer.value = response.data
+        showNotification('Customer updated successfully', 'success')
+        closeEditModal()
+      } catch (error) {
+        showNotification('Error updating customer: ' + (error.response?.data?.error || error.message), 'error')
+      } finally {
+        saving.value = false
+      }
+    }
+
+    const confirmDelete = () => {
+      deleteDialog.value = true
+    }
+
+    const deleteCustomer = async () => {
+      deleting.value = true
+      try {
+        await customerAPI.delete(`/customers/${route.params.id}`)
+        showNotification('Customer deleted successfully', 'success')
+        router.push('/customers')
+      } catch (error) {
+        showNotification('Error deleting customer: ' + (error.response?.data?.error || error.message), 'error')
+        deleteDialog.value = false
+      } finally {
+        deleting.value = false
+      }
+    }
+
+    const showNotification = (message, color = 'success') => {
+      snackbar.message = message
+      snackbar.color = color
+      snackbar.show = true
+    }
+
+    // Lifecycle
+    onMounted(() => {
+      loadCustomer()
+    })
+
     return {
-      customerId: this.$route.params.id,
-      customer: {},
-      loading: false,
-      saving: false,
-      deleting: false,
-
-      // Dialog states
-      showEditDialog: false,
-      showDeleteDialog: false,
-
-      // Form data
-      customerFormValid: false,
-      customerData: {
-        first_name: '',
-        last_name: '',
-        email: '',
-        phone: '',
-        membership_type: 'Trial',
-        notes: '',
-      },
-
-      // Snackbar
-      showSnackbar: false,
-      snackbarMessage: '',
-      snackbarColor: 'success',
-
-      // Options
-      membershipTypeOptions: [
-        { title: 'Trial', value: 'Trial' },
-        { title: 'Full', value: 'Full' },
-        { title: 'Junior', value: 'Junior' },
-        { title: 'Senior', value: 'Senior' },
-        { title: 'Social', value: 'Social' },
-      ],
-    };
-  },
-  async mounted() {
-    await this.loadCustomer();
-  },
-  methods: {
-    async loadCustomer() {
-      this.loading = true;
-      try {
-        const response = await customerAPI.getById(this.customerId);
-        this.customer = response.data.customer || response.data;
-      } catch (error) {
-        console.error('Error loading customer:', error);
-        this.customer = {};
-      } finally {
-        this.loading = false;
-      }
-    },
-
-    formatDate(dateString) {
-      if (!dateString) return 'N/A';
-      return new Date(dateString).toLocaleDateString();
-    },
-
-    getMembershipTypeColor(membershipType) {
-      const colors = {
-        Trial: 'orange',
-        Full: 'green',
-        Junior: 'blue',
-        Senior: 'purple',
-        Social: 'teal',
-      };
-      return colors[membershipType] || 'grey';
-    },
-
-    openEditDialog() {
-      this.customerData = {
-        first_name: this.customer.first_name || '',
-        last_name: this.customer.last_name || '',
-        email: this.customer.email || '',
-        phone: this.customer.phone || '',
-        membership_type: this.customer.membership_type || 'Trial',
-        notes: this.customer.notes || '',
-      };
-      this.showEditDialog = true;
-    },
-
-    closeEditDialog() {
-      this.showEditDialog = false;
-      this.customerData = {
-        first_name: '',
-        last_name: '',
-        email: '',
-        phone: '',
-        membership_type: 'Trial',
-        notes: '',
-      };
-    },
-
-    async saveCustomer() {
-      if (!this.customerFormValid) return;
-
-      this.saving = true;
-      try {
-        await customerAPI.update(this.customerId, this.customerData);
-        this.showNotification('Customer updated successfully');
-        this.closeEditDialog();
-        await this.loadCustomer(); // Reload to show updated data
-      } catch (error) {
-        this.showNotification(
-          'Error updating customer: ' +
-            (error.response?.data?.error || error.message),
-          'error'
-        );
-      } finally {
-        this.saving = false;
-      }
-    },
-
-    confirmDelete() {
-      this.showDeleteDialog = true;
-    },
-
-    async deleteCustomer() {
-      this.deleting = true;
-      try {
-        await customerAPI.delete(this.customerId);
-        this.showNotification('Customer deleted successfully');
-        this.showDeleteDialog = false;
-        // Navigate back to customers list after successful deletion
-        this.$router.push('/customers');
-      } catch (error) {
-        this.showNotification(
-          'Error deleting customer: ' +
-            (error.response?.data?.error || error.message),
-          'error'
-        );
-      } finally {
-        this.deleting = false;
-      }
-    },
-
-    showNotification(message, color = 'success') {
-      this.snackbarMessage = message;
-      this.snackbarColor = color;
-      this.showSnackbar = true;
-    },
-  },
-  watch: {
-    '$route.params.id': {
-      handler(newId) {
-        this.customerId = newId;
-        this.loadCustomer();
-      },
-      immediate: false,
-    },
-  },
-};
+      customer,
+      loading,
+      saving,
+      deleting,
+      activeTab,
+      editDialog,
+      deleteDialog,
+      editForm,
+      snackbar,
+      membershipTypes,
+      tabItems,
+      breadcrumbItems,
+      loadCustomer,
+      getMemberSinceYear,
+      formatDate,
+      getMembershipTypeColor,
+      openEditModal,
+      closeEditModal,
+      saveCustomer,
+      confirmDelete,
+      deleteCustomer,
+      showNotification
+    }
+  }
+}
 </script>
+
+<style scoped>
+.customer-header {
+  padding: 24px 24px 0 24px;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  background: rgb(var(--v-theme-surface));
+}
+
+.tab-section {
+  background: rgb(var(--v-theme-surface));
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  padding: 0 24px;
+}
+
+.tab-dropdown {
+  max-width: 300px;
+  margin: 16px 0;
+}
+
+.personal-info-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  font-size: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(var(--v-border-color), 0.12);
+}
+
+.info-item:last-child {
+  border-bottom: none;
+}
+
+.info-item .v-icon {
+  opacity: 0.7;
+}
+
+.note-content {
+  flex: 1;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.note-content .text-body-1 {
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 599px) {
+  .customer-header {
+    padding: 16px 16px 0 16px;
+  }
+  
+  .tab-section {
+    padding: 0 16px;
+  }
+  
+  .personal-info-grid {
+    gap: 16px;
+  }
+  
+  .info-item {
+    font-size: 14px;
+    padding: 8px 0;
+  }
+}
+</style>
