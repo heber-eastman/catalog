@@ -15,10 +15,13 @@ const {
   TimeframeRoundLegOption,
   TimeframeMinPlayers,
   TimeframeMode,
+  CalendarAssignment,
+  ClosureBlock,
   sequelize,
 } = require('../models');
 
 const router = express.Router();
+const { DateTime } = require('luxon');
 
 // Validation schemas
 const teeSheetSchema = Joi.object({
@@ -87,6 +90,31 @@ const timeframeSchema = Joi.object({
       })
     )
     .default([]),
+});
+
+const calendarSchema = Joi.object({
+  date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  day_template_id: Joi.string().uuid().required(),
+  recurring: Joi.object({
+    start_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
+    end_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
+    days: Joi.array().items(Joi.number().integer().min(0).max(6)).min(1).required(),
+  }).optional(),
+  overrides: Joi.array()
+    .items(
+      Joi.object({
+        date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
+        day_template_id: Joi.string().uuid().required(),
+      })
+    )
+    .default([]),
+}).xor('date', 'recurring');
+
+const closureSchema = Joi.object({
+  side_id: Joi.string().uuid().allow(null),
+  starts_at: Joi.date().iso().required(),
+  ends_at: Joi.date().iso().greater(Joi.ref('starts_at')).required(),
+  reason: Joi.string().allow('', null),
 });
 
 // Helpers
@@ -286,5 +314,120 @@ router.post('/tee-sheets/:id/templates/:templateId/timeframes', requireAuth(['Ad
 });
 
 module.exports = router;
+
+// Calendar assignment (recurring + overrides), and closures
+router.post('/tee-sheets/:id/calendar', requireAuth(['Admin']), async (req, res) => {
+  const { error, value } = calendarSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.message });
+
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+
+  const targetDates = new Set();
+  if (value.date) {
+    targetDates.add(value.date);
+  }
+  if (value.recurring) {
+    const start = DateTime.fromISO(value.recurring.start_date, { zone: 'UTC' });
+    const end = DateTime.fromISO(value.recurring.end_date, { zone: 'UTC' });
+    for (let d = start; d <= end; d = d.plus({ days: 1 })) {
+      if (value.recurring.days.includes(d.weekday % 7)) {
+        targetDates.add(d.toISODate());
+      }
+    }
+  }
+  for (const ov of value.overrides || []) {
+    targetDates.add(ov.date);
+  }
+
+  // Check bookings exist on any target date
+  const datesArr = Array.from(targetDates);
+  if (datesArr.length === 0) return res.status(400).json({ error: 'No dates provided' });
+
+  // Detect booked tee times on any of the dates
+  const bookedConflict = await sequelize.query(
+    `SELECT tt.start_time::date AS dt
+     FROM "TeeTimes" tt
+     JOIN "TeeTimeAssignments" tta ON tta.tee_time_id = tt.id
+     WHERE tt.tee_sheet_id = :sheetId AND tt.start_time::date IN (:dates)
+     LIMIT 1`,
+    {
+      replacements: { sheetId: sheet.id, dates: datesArr },
+      type: Sequelize.QueryTypes.SELECT,
+    }
+  );
+  if (bookedConflict.length > 0) {
+    return res.status(400).json({ error: 'Calendar changes blocked: bookings exist on one or more dates' });
+  }
+
+  // Upsert assignments
+  const results = [];
+  for (const dateStr of datesArr) {
+    const override = (value.overrides || []).find(o => o.date === dateStr);
+    const dayTemplateId = override ? override.day_template_id : value.day_template_id;
+    const [assignment] = await sequelize.transaction(async tx => {
+      const existing = await CalendarAssignment.findOne({
+        where: { tee_sheet_id: sheet.id, date: dateStr },
+        transaction: tx,
+      });
+      if (existing) {
+        await existing.update({ day_template_id: dayTemplateId }, { transaction: tx });
+        return [existing];
+      }
+      const created = await CalendarAssignment.create(
+        { tee_sheet_id: sheet.id, date: dateStr, day_template_id: dayTemplateId },
+        { transaction: tx }
+      );
+      return [created];
+    });
+    results.push({ id: assignment.id, date: dateStr, day_template_id: assignment.day_template_id });
+  }
+
+  return res.status(201).json({ assignments: results });
+});
+
+router.post('/tee-sheets/:id/closures', requireAuth(['Admin']), async (req, res) => {
+  const { error, value } = closureSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.message });
+
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+
+  // Check for overlapping booked slots
+  const params = {
+    sheetId: sheet.id,
+    starts: new Date(value.starts_at),
+    ends: new Date(value.ends_at),
+  };
+  let sideClause = '';
+  if (value.side_id) {
+    sideClause = 'AND tt.side_id = :sideId';
+    params.sideId = value.side_id;
+  }
+
+  const overlap = await sequelize.query(
+    `SELECT tt.id
+     FROM "TeeTimes" tt
+     JOIN "TeeTimeAssignments" tta ON tta.tee_time_id = tt.id
+     WHERE tt.tee_sheet_id = :sheetId
+       ${sideClause}
+       AND tt.start_time < :ends AND tt.start_time >= :starts
+     LIMIT 1`,
+    { replacements: params, type: Sequelize.QueryTypes.SELECT }
+  );
+
+  if (overlap.length > 0) {
+    return res.status(400).json({ error: 'Closure overlaps booked slots' });
+  }
+
+  const created = await ClosureBlock.create({
+    tee_sheet_id: sheet.id,
+    side_id: value.side_id || null,
+    starts_at: value.starts_at,
+    ends_at: value.ends_at,
+    reason: value.reason || null,
+  });
+  return res.status(201).json(created);
+});
 
 
