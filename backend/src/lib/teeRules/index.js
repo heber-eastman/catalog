@@ -53,10 +53,11 @@ function calcFeesForLeg(pricingRules, classId, walkRide, combineFees) {
 // enforceMinPlayers(timeframe, partySize)
 // timeframe: { min_players?: { min_players } }
 function enforceMinPlayers(timeframe, partySize) {
-  const min = timeframe && timeframe.min_players && typeof timeframe.min_players.min_players === 'number'
-    ? timeframe.min_players.min_players
-    : 1;
-  return Number(partySize) >= min;
+  const configuredMinimum =
+    timeframe && timeframe.min_players && typeof timeframe.min_players.min_players === 'number'
+      ? timeframe.min_players.min_players
+      : 1;
+  return Number(partySize) >= configuredMinimum;
 }
 
 module.exports = {

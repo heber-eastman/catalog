@@ -65,13 +65,25 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
   const groupSize = value.groupSize;
   const isCustomerView = !!value.customerView;
 
-  // Fetch slots on date for selected sheets
+  // Build time window filter
+  const dayStart = new Date(`${date}T00:00:00Z`);
+  const dayEnd = new Date(`${date}T23:59:59Z`);
+  let windowStart = dayStart;
+  let windowEnd = dayEnd;
+  if (value.timeStart) {
+    windowStart = new Date(`${date}T${value.timeStart}:00Z`);
+  }
+  if (value.timeEnd) {
+    windowEnd = new Date(`${date}T${value.timeEnd}:00Z`);
+  }
+
+  // Fetch slots on date for selected sheets within optional window
   const slots = await TeeTime.findAll({
     where: {
       tee_sheet_id: { [Op.in]: teeSheets },
       start_time: {
-        [Op.gte]: new Date(`${date}T00:00:00Z`),
-        [Op.lt]: new Date(`${date}T23:59:59Z`),
+        [Op.gte]: windowStart,
+        [Op.lt]: windowEnd,
       },
     },
     order: [['start_time', 'ASC']],
@@ -99,13 +111,18 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
       if (!isClassAllowed({ access_rules: access }, classId)) continue;
     }
 
-    // Reround feasibility for round options with 2 legs
+    // First-leg capacity and reround feasibility for two-leg options
     let reroundOk = true;
     let totalPriceCents = 0;
     const pricingRules = await TimeframePricingRule.findAll({ where: { timeframe_id: timeframe.id } });
     totalPriceCents += calcFeesForLeg(pricingRules, classId, value.walkRide, undefined);
 
-    if (value.roundOptionId) {
+    // First-leg capacity check
+    if ((slot.capacity - slot.assigned_count) < groupSize) {
+      reroundOk = false;
+    }
+
+    if (reroundOk && value.roundOptionId) {
       const ro = await TimeframeRoundOption.findByPk(value.roundOptionId, { include: [{ model: TimeframeRoundLegOption, as: 'leg_options' }] });
       if (ro && ro.leg_count === 2) {
         const firstLeg = ro.leg_options.find(l => l.leg_index === 0);

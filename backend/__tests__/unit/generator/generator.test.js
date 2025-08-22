@@ -49,6 +49,27 @@ describe('teeSheetGenerator', () => {
     const slots = await models.TeeTime.findAll({ where: { tee_sheet_id: sheet.id, side_id: side.id } });
     expect(slots.length).toBe(3); // 07:00, 07:10, 07:20
   });
+
+  test('DST spring forward: non-existent local times are skipped without errors', async () => {
+    const course = await models.GolfCourseInstance.create({ name: 'DST Course', subdomain: 'dst', status: 'Active', timezone: 'America/New_York' });
+    const sheet = await models.TeeSheet.create({ course_id: course.id, name: 'DST Sheet' });
+    const side = await models.TeeSheetSide.create({ tee_sheet_id: sheet.id, name: 'Front', valid_from: '2025-03-01' });
+    const tmpl = await models.DayTemplate.create({ tee_sheet_id: sheet.id, name: 'DST' });
+    await models.Timeframe.create({
+      tee_sheet_id: sheet.id,
+      side_id: side.id,
+      day_template_id: tmpl.id,
+      start_time_local: '01:00:00',
+      end_time_local: '04:00:00',
+      interval_mins: 30,
+      start_slots_enabled: true,
+    });
+
+    await models.CalendarAssignment.create({ tee_sheet_id: sheet.id, date: '2025-03-09', day_template_id: tmpl.id });
+
+    const res = await generator.generateForDate({ teeSheetId: sheet.id, dateISO: '2025-03-09' });
+    expect(res.generated).toBeGreaterThanOrEqual(1);
+  });
 });
 
 
