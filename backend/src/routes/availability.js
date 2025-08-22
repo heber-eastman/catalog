@@ -95,6 +95,19 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
 
   const results = [];
 
+  // Load active holds and subtract from remaining
+  const { getRedisClient } = require('../services/redisClient');
+  const redis = getRedisClient();
+  try { await redis.connect(); } catch (_) {}
+  const keys = await redis.keys('hold:user:*');
+  const holds = [];
+  for (const k of keys) {
+    try {
+      const val = await redis.get(k);
+      if (val) holds.push(JSON.parse(val));
+    } catch (_) {}
+  }
+
   for (const slot of slots) {
     // Staff includes blocked flag; customers hide blocked
     if (isCustomerView && slot.is_blocked) continue;
@@ -147,12 +160,19 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
 
     if (!reroundOk) continue;
 
+    // Active holds reduce remaining capacity
+    const held = holds
+      .flatMap(h => h.items || [])
+      .filter(it => it.tee_time_id === slot.id)
+      .reduce((sum, it) => sum + (Number(it.party_size) || 0), 0);
+    const remainingAdjusted = Math.max(0, (slot.capacity - slot.assigned_count) - held);
+
     results.push({
       tee_sheet_id: slot.tee_sheet_id,
       side_id: slot.side_id,
       start_time: slot.start_time,
       capacity: slot.capacity,
-      remaining: slot.capacity - slot.assigned_count,
+      remaining: remainingAdjusted,
       is_blocked: isCustomerView ? undefined : slot.is_blocked,
       price_total_cents: totalPriceCents,
     });
