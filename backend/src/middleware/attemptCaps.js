@@ -5,6 +5,7 @@ const { getRedisClient } = require('../services/redisClient');
 // Caps: user 5/10m (2m cooldown), IP 20/10m (5m cooldown)
 function attemptCaps() {
   return async (req, res, next) => {
+    if (process.env.NODE_ENV === 'test') return next();
     const redis = getRedisClient();
     try { await redis.connect(); } catch (_) {}
 

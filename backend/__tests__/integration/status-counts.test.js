@@ -164,7 +164,7 @@ describe('Customer Status Counts API', () => {
           first_name: 'Jane',
           last_name: 'Smith',
           email: 'jane@example.com',
-          membership_type: 'Weekend',
+          membership_type: 'Senior',
           is_archived: false,
           created_at: new Date(),
           updated_at: new Date(),
@@ -193,7 +193,7 @@ describe('Customer Status Counts API', () => {
         newThisMonth: 3, // All created this month
         membershipTypes: {
           Full: 2,
-          Weekend: 1,
+          Senior: 1,
         },
       });
     });
@@ -216,7 +216,7 @@ describe('Customer Status Counts API', () => {
           first_name: 'Archived',
           last_name: 'Customer',
           email: 'archived@example.com',
-          membership_type: 'Weekend',
+          membership_type: 'Senior',
           is_archived: true,
           created_at: new Date(),
           updated_at: new Date(),
@@ -274,7 +274,7 @@ describe('Customer Status Counts API', () => {
           first_name: 'No Expiry',
           last_name: 'Member',
           email: 'noexpiry@example.com',
-          membership_type: 'Lifetime',
+          membership_type: 'Social',
           membership_end_date: null,
           is_archived: false,
           created_at: new Date(),
@@ -294,7 +294,7 @@ describe('Customer Status Counts API', () => {
         newThisMonth: 3,
         membershipTypes: {
           Full: 2,
-          Lifetime: 1,
+          Social: 1,
         },
       });
     });
@@ -394,7 +394,7 @@ describe('Customer Status Counts API', () => {
           first_name: 'Other',
           last_name: 'Customer',
           email: 'other@example.com',
-          membership_type: 'Weekend',
+          membership_type: 'Senior',
           is_archived: false,
           created_at: new Date(),
           updated_at: new Date(),

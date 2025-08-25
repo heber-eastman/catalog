@@ -12,6 +12,7 @@ const teeSheetsRouter = require('./routes/teeSheets');
 const internalRouter = require('./routes/internal');
 const availabilityRouter = require('./routes/availability');
 const holdsRouter = require('./routes/holds');
+const bookingsRouter = require('./routes/bookings');
 const authRouter = require('./routes/auth');
 const healthRouter = require('./routes/health');
 const { rateLimitMiddleware } = require('./middleware/rateLimit');
@@ -100,6 +101,7 @@ app.use('/api/v1/super-admin', superAdminsRouter);
 app.use('/api/v1', teeSheetsRouter);
 app.use('/api/v1', availabilityRouter);
 app.use('/api/v1', holdsRouter);
+app.use('/api/v1', bookingsRouter);
 app.use('/', internalRouter);
 
 // 404 handler
