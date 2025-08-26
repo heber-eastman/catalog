@@ -14,6 +14,7 @@ const availabilityRouter = require('./routes/availability');
 const holdsRouter = require('./routes/holds');
 const waitlistRouter = require('./routes/waitlist');
 const bookingsRouter = require('./routes/bookings');
+const teeTimesRouter = require('./routes/teeTimes');
 const authRouter = require('./routes/auth');
 const healthRouter = require('./routes/health');
 const { rateLimitMiddleware } = require('./middleware/rateLimit');
@@ -104,6 +105,7 @@ app.use('/api/v1', availabilityRouter);
 app.use('/api/v1', holdsRouter);
 app.use('/api/v1', waitlistRouter);
 app.use('/api/v1', bookingsRouter);
+app.use('/api/v1', teeTimesRouter);
 app.use('/', internalRouter);
 
 // 404 handler

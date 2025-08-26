@@ -3,6 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const { generateForDate } = require('../services/teeSheetGenerator');
+const { addClient } = require('../services/broadcast');
 const { requireAuth } = require('../middleware/auth');
 
 router.post('/internal/generate', requireAuth(['Admin', 'SuperAdmin']), async (req, res) => {
@@ -20,5 +21,17 @@ router.post('/internal/generate', requireAuth(['Admin', 'SuperAdmin']), async (r
 });
 
 module.exports = router;
+
+// Server-Sent Events for tee sheet updates (simple fallback to websockets)
+router.get('/internal/stream', (req, res) => {
+  if (process.env.ENABLE_EVENTS_STREAM !== 'true') return res.status(404).end();
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+  res.write('\n');
+  addClient(res);
+});
 
 

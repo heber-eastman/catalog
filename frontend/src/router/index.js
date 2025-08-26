@@ -9,6 +9,12 @@ const routes = [
     component: Home,
   },
   {
+    path: '/tee-sheet',
+    name: 'TeeSheet',
+    component: () => import('@/views/TeeSheet.vue'),
+    meta: { requiresAuth: true, roles: ['Admin', 'Manager', 'Staff'] },
+  },
+  {
     path: '/about',
     name: 'About',
     component: () => import('@/views/About.vue'),

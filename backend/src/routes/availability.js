@@ -168,6 +168,7 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
     const remainingAdjusted = Math.max(0, (slot.capacity - slot.assigned_count) - held);
 
     results.push({
+      id: slot.id,
       tee_sheet_id: slot.tee_sheet_id,
       side_id: slot.side_id,
       start_time: slot.start_time,
