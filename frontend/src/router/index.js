@@ -9,6 +9,22 @@ const routes = [
     component: Home,
   },
   {
+    path: '/settings',
+    name: 'Settings',
+    component: () => import('@/views/settings/SettingsLayout.vue'),
+    meta: { requiresAuth: true, roles: ['Admin', 'Manager'] },
+    children: [
+      { path: '', redirect: { name: 'SettingsGeneral' } },
+      { path: 'general', name: 'SettingsGeneral', component: () => import('@/views/settings/General.vue') },
+      { path: 'tee-sheets-sides', name: 'SettingsTeeSheetsSides', component: () => import('@/views/settings/TeeSheetsSides.vue') },
+      { path: 'day-templates', name: 'SettingsDayTemplates', component: () => import('@/views/settings/DayTemplates.vue') },
+      { path: 'timeframes', name: 'SettingsTimeframes', component: () => import('@/views/settings/Timeframes.vue') },
+      { path: 'calendar', name: 'SettingsCalendar', component: () => import('@/views/settings/Calendar.vue') },
+      { path: 'closures', name: 'SettingsClosures', component: () => import('@/views/settings/Closures.vue') },
+      { path: 'booking-classes', name: 'SettingsBookingClasses', component: () => import('@/views/settings/BookingClasses.vue') },
+    ],
+  },
+  {
     path: '/tee-sheet',
     name: 'TeeSheet',
     component: () => import('@/views/TeeSheet.vue'),

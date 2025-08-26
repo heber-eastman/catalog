@@ -273,4 +273,18 @@ export const bookingsAPI = {
   mine: () => api.get('/bookings/mine'),
 };
 
+// Settings/Admin APIs (thin helpers; endpoints may be stubbed in tests)
+export const settingsAPI = {
+  listTeeSheets: () => api.get('/tee-sheets'),
+  listSides: teeSheetId => api.get(`/tee-sheets/${teeSheetId}/sides`),
+  listDayTemplates: teeSheetId => api.get(`/tee-sheets/${teeSheetId}/day-templates`),
+  listTimeframes: templateId => api.get(`/day-templates/${templateId}/timeframes`),
+  createTimeframe: (templateId, data) => api.post(`/day-templates/${templateId}/timeframes`, data),
+  checkClean: params => api.get('/tee-sheets/check-clean', { params }),
+  generateDay: body => api.post('/internal/generate', body),
+  listClosures: teeSheetId => api.get(`/tee-sheets/${teeSheetId}/closures`),
+  createClosure: (teeSheetId, data) => api.post(`/tee-sheets/${teeSheetId}/closures`, data),
+  listBookingClasses: () => api.get('/booking-classes'),
+};
+
 export default api;
