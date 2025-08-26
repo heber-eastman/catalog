@@ -50,7 +50,7 @@ async function findTimeframeForSlot(tee_sheet_id, side_id, day_template_id, slot
   });
 }
 
-router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'SuperAdmin']), async (req, res) => {
+router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'SuperAdmin', 'Customer']), async (req, res) => {
   const { error, value } = querySchema.validate(req.query);
   if (error) return res.status(400).json({ error: error.message });
   const date = value.date;

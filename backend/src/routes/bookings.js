@@ -73,7 +73,7 @@ async function findTimeframeForSlot(tee_sheet_id, side_id, day_template_id, slot
 
 router.post(
   '/bookings',
-  requireAuth(['Admin', 'Manager', 'Staff', 'SuperAdmin']),
+  requireAuth(['Admin', 'Manager', 'Staff', 'SuperAdmin', 'Customer']),
   requireIdempotency(['POST']),
   attemptCaps(),
   async (req, res) => {
@@ -156,7 +156,7 @@ router.post(
         const booking = await Booking.create(
           {
             tee_sheet_id: teeSheetId,
-            owner_customer_id: null,
+            owner_customer_id: ['Customer'].includes(req.userRole || '') ? req.userId : null,
             status: 'Active',
             total_price_cents: totalPriceCents,
             notes: null,
@@ -240,7 +240,7 @@ const editPlayersSchema = Joi.object({
 
 router.patch(
   '/bookings/:id/reschedule',
-  requireAuth(['Admin', 'Manager', 'Staff', 'SuperAdmin']),
+  requireAuth(['Admin', 'Manager', 'Staff', 'SuperAdmin', 'Customer']),
   async (req, res) => {
     const rescheduleSchema = Joi.object({
       classId: Joi.string().required(),
@@ -263,6 +263,14 @@ router.patch(
       include: [{ model: BookingRoundLeg, as: 'legs' }],
     });
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
+
+    // Customer can only reschedule own booking
+    const isStaff = ['Admin', 'Manager', 'Staff', 'SuperAdmin'].includes(req.userRole || '');
+    if (!isStaff) {
+      if (!booking.owner_customer_id || booking.owner_customer_id !== req.userId) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+    }
 
     // Ensure legs match
     const existingLegs = (booking.legs || []).sort((a, b) => a.leg_index - b.leg_index);
@@ -501,6 +509,14 @@ router.delete(
     const booking = await Booking.findByPk(req.params.id, { include: [{ model: BookingRoundLeg, as: 'legs' }] });
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
 
+    // Customer can only cancel own booking (unless booking has no owner set)
+    const isStaff = ['Admin', 'Manager', 'Staff', 'SuperAdmin'].includes(req.userRole || '');
+    if (!isStaff) {
+      if (booking.owner_customer_id && booking.owner_customer_id !== req.userId) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+    }
+
     // Find earliest tee time for cutoff check
     const firstLeg = booking.legs && booking.legs[0];
     if (!firstLeg) return res.status(400).json({ error: 'Invalid booking legs' });
@@ -514,7 +530,6 @@ router.delete(
     const cutoffAllowed = startMs - nowMs >= cutoffHours * 60 * 60 * 1000;
 
     // If not staff, enforce cutoff
-    const isStaff = ['Admin', 'Manager', 'Staff', 'SuperAdmin'].includes(req.userRole || '');
     if (!isStaff && !cutoffAllowed) {
       return res.status(400).json({ error: 'Cancellation window has passed' });
     }
@@ -554,5 +569,49 @@ router.delete(
 );
 
 module.exports = router;
+
+// List current user's bookings (customer)
+router.get('/bookings/mine', requireAuth(['Customer']), async (req, res) => {
+  try {
+    const rows = await Booking.findAll({
+      where: { owner_customer_id: req.userId, status: 'Active' },
+      include: [
+        {
+          model: BookingRoundLeg,
+          as: 'legs',
+          include: [
+            {
+              model: TeeTimeAssignment,
+              as: 'assignments',
+              include: [{ model: TeeTime, as: 'tee_time' }],
+            },
+          ],
+        },
+      ],
+      order: [[{ model: BookingRoundLeg, as: 'legs' }, 'leg_index', 'ASC']],
+    });
+
+    const out = rows.map(b => ({
+      id: b.id,
+      tee_sheet_id: b.tee_sheet_id,
+      total_price_cents: b.total_price_cents,
+      status: b.status,
+      legs: (b.legs || []).map(l => ({
+        leg_index: l.leg_index,
+        tee_time: l.assignments && l.assignments[0] && l.assignments[0].tee_time
+          ? {
+              id: l.assignments[0].tee_time.id,
+              start_time: l.assignments[0].tee_time.start_time,
+              side_id: l.assignments[0].tee_time.side_id,
+            }
+          : null,
+        price_cents: l.price_cents,
+      })),
+    }));
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to load bookings' });
+  }
+});
 
 

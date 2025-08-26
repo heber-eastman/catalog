@@ -255,4 +255,22 @@ export const apiUtils = {
   },
 };
 
+// Tee times (availability)
+export const teeTimesAPI = {
+  available: params => api.get('/tee-times/available', { params }),
+};
+
+// Holds
+export const holdsAPI = {
+  holdCart: body => api.post('/holds/cart', body),
+};
+
+// Bookings
+export const bookingsAPI = {
+  create: body => api.post('/bookings', body),
+  reschedule: (id, body) => api.patch(`/bookings/${id}/reschedule`, body),
+  cancel: id => api.delete(`/bookings/${id}`),
+  mine: () => api.get('/bookings/mine'),
+};
+
 export default api;

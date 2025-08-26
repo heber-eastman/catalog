@@ -78,7 +78,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
-import { api } from '@/services/api';
+import api from '@/services/api';
 
 const date = ref(new Date().toISOString().substring(0,10));
 const viewMode = ref(localStorage.getItem('teeSheet:viewMode') || 'single');

@@ -15,6 +15,24 @@ const routes = [
     meta: { requiresAuth: true, roles: ['Admin', 'Manager', 'Staff'] },
   },
   {
+    path: '/browse',
+    name: 'Browse',
+    component: () => import('@/views/customer/Browse.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/cart',
+    name: 'Cart',
+    component: () => import('@/views/customer/Cart.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/my-tee-times',
+    name: 'MyTeeTimes',
+    component: () => import('@/views/customer/MyTeeTimes.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/about',
     name: 'About',
     component: () => import('@/views/About.vue'),

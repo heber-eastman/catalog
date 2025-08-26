@@ -4,7 +4,8 @@
   "description": "Vue 3 frontend with Vuetify",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --port 5173 --strictPort",
+    "dev:5174": "vite --port 5174 --strictPort",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
