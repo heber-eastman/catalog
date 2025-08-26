@@ -8,6 +8,7 @@ const { requireIdempotency } = require('../middleware/idempotency');
 const { attemptCaps } = require('../middleware/attemptCaps');
 const { getRedisClient } = require('../services/redisClient');
 const { TeeTime } = require('../models');
+const { recordEvent } = require('../services/eventBus');
 
 const router = express.Router();
 
@@ -69,6 +70,18 @@ router.post(
       created_at: Date.now(),
     };
     await redis.setex(userKey, 300, JSON.stringify(payload));
+
+    try {
+      await recordEvent({
+        courseId: req.courseId || null,
+        entityType: 'Hold',
+        entityId: null,
+        action: 'hold.created',
+        actorType: req.userRole || 'Customer',
+        actorId: req.userId,
+        metadata: payload,
+      });
+    } catch (_) {}
 
     return res.status(200).json({ success: true, expires_in_seconds: 300, hold: payload });
   }

@@ -4,6 +4,7 @@ const cron = require('node-cron');
 const { DateTime } = require('luxon');
 const { GolfCourseInstance, TeeSheet } = require('../models');
 const { generateForDate } = require('./teeSheetGenerator');
+const { sendReminders } = require('./reminderService');
 
 function startTeeSheetCron() {
   if (process.env.ENABLE_TEE_SHEET_CRON !== 'true') return { stop: () => {} };
@@ -28,6 +29,18 @@ function startTeeSheetCron() {
       console.error('teeSheetCron error', e);
     }
   });
+
+  // Also schedule reminder cron if enabled: top of each hour
+  if (process.env.ENABLE_REMINDER_CRON === 'true') {
+    cron.schedule('0 * * * *', async () => {
+      try {
+        await sendReminders();
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('reminderCron error', e);
+      }
+    });
+  }
 
   return task;
 }

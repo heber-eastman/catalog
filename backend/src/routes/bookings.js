@@ -23,6 +23,7 @@ const {
 } = require('../models');
 const { computeReroundStart, isClassAllowed, calcFeesForLeg, enforceMinPlayers } = require('../lib/teeRules');
 const { sendEmail } = require('../services/emailService');
+const { recordEvent } = require('../services/eventBus');
 const { requireAuth: _unused } = require('../middleware/auth');
 
 const router = express.Router();
@@ -207,6 +208,16 @@ router.post(
         // ignore notification failures
       }
 
+      // Event: booking.created
+      recordEvent({
+        courseId: (await TeeSheet.findByPk(teeSheetId)).course_id,
+        entityType: 'Booking',
+        entityId: null,
+        action: 'booking.created',
+        actorType: 'Staff',
+        actorId: req.userId,
+        metadata: { tee_time_ids: teeTimeIds, players: players.length, total_price_cents: totalPriceCents },
+      });
       return res.status(201).json({ success: true, total_price_cents: totalPriceCents });
     } catch (e) {
       if (e && e.status) return res.status(e.status).json({ error: e.message || 'Booking failed' });
@@ -362,6 +373,16 @@ router.patch(
       return res.status(500).json({ error: 'Reschedule failed' });
     }
 
+    // Event: booking.rescheduled
+    recordEvent({
+      courseId: (await TeeSheet.findByPk(booking.tee_sheet_id)).course_id,
+      entityType: 'Booking',
+      entityId: booking.id,
+      action: 'booking.rescheduled',
+      actorType: 'Staff',
+      actorId: req.userId,
+      metadata: { new_total_price_cents: newTotalPrice },
+    });
     return res.json({ success: true, total_price_cents: newTotalPrice });
   }
 );
@@ -458,6 +479,16 @@ router.patch(
       return res.status(500).json({ error: 'Update failed' });
     }
 
+    // Event: booking.players_edited
+    recordEvent({
+      courseId: (await TeeSheet.findByPk(booking.tee_sheet_id)).course_id,
+      entityType: 'Booking',
+      entityId: booking.id,
+      action: 'booking.players_edited',
+      actorType: 'Staff',
+      actorId: req.userId,
+      metadata: { add: value.add || 0, remove: value.remove || 0, transfer_owner_to: value.transfer_owner_to || null },
+    });
     return res.json({ success: true });
   }
 );
@@ -508,6 +539,16 @@ router.delete(
       return res.status(500).json({ error: 'Cancellation failed' });
     }
 
+    // Event: booking.cancelled
+    recordEvent({
+      courseId: (await TeeSheet.findByPk(booking.tee_sheet_id)).course_id,
+      entityType: 'Booking',
+      entityId: booking.id,
+      action: 'booking.cancelled',
+      actorType: ['Admin', 'Manager', 'Staff', 'SuperAdmin'].includes(req.userRole || '') ? 'Staff' : 'Customer',
+      actorId: req.userId || null,
+      metadata: { cutoffHours: Number(process.env.CANCEL_CUTOFF_HOURS || 24) },
+    });
     return res.json({ success: true });
   }
 );

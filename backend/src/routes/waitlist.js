@@ -13,6 +13,7 @@ const {
   TeeTimeWaitlist,
 } = require('../models');
 const { isClassAllowed } = require('../lib/teeRules');
+const { recordEvent } = require('../services/eventBus');
 
 const router = express.Router();
 
@@ -82,6 +83,7 @@ router.post('/waitlist', requireAuth(['Admin', 'Manager', 'Staff', 'SuperAdmin',
     booking_class_id: value.classId,
     status: 'Waiting',
   });
+  recordEvent({ courseId: null, entityType: 'TeeTime', entityId: tt.id, action: 'waitlist.join', actorType: req.userRole || 'Customer', actorId: req.userId || null, metadata: { waitlist_id: wl.id, party_size: value.party_size, classId: value.classId } });
 
   // Check capacity including existing holds; oldest-first: offer only if no active offer exists
   // and this entry is the head-of-line
@@ -100,6 +102,7 @@ router.post('/waitlist', requireAuth(['Admin', 'Manager', 'Staff', 'SuperAdmin',
       const token = `${wl.id}:${Math.random().toString(36).slice(2, 10)}`;
       await redis.setex(`waitlist:offer:${wl.id}`, offerTtl, token);
       await wl.update({ status: 'Offered' });
+      recordEvent({ courseId: null, entityType: 'TeeTime', entityId: tt.id, action: 'waitlist.offer', actorType: 'System', actorId: null, metadata: { waitlist_id: wl.id } });
       return res.status(201).json({ success: true, waitlist_id: wl.id, offered: true, accept_token: token, expires_in_seconds: offerTtl });
     }
   }
@@ -139,6 +142,7 @@ router.post('/waitlist/:id/accept', async (req, res) => {
   };
   await redis.setex(`hold:user:wl-${wl.id}`, holdTtl, JSON.stringify(payload));
   await wl.update({ status: 'Accepted' });
+  recordEvent({ courseId: null, entityType: 'TeeTime', entityId: tt.id, action: 'waitlist.accept', actorType: 'Customer', actorId: null, metadata: { waitlist_id: wl.id } });
 
   return res.json({ success: true, expires_in_seconds: holdTtl, hold: payload });
 });
@@ -165,6 +169,7 @@ router.post('/waitlist/:id/promote', requireAuth(['Admin', 'Manager', 'Staff', '
   const token = `${wl.id}:${Math.random().toString(36).slice(2, 10)}`;
   await redis.setex(`waitlist:offer:${wl.id}`, offerTtl, token);
   await wl.update({ status: 'Offered' });
+  recordEvent({ courseId: null, entityType: 'TeeTime', entityId: tt.id, action: 'waitlist.offer', actorType: 'Staff', actorId: req.userId, metadata: { waitlist_id: wl.id } });
   return res.json({ success: true, waitlist_id: wl.id, offered: true, accept_token: token, expires_in_seconds: offerTtl });
 });
 
