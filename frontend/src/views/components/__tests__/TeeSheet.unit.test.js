@@ -3,16 +3,17 @@
 import { describe, it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 
-vi.mock('@/services/api', () => ({
-  api: {
-    get: vi.fn().mockResolvedValue({
-      data: [
-        { id: 'tt1', start_time: new Date().toISOString(), capacity: 4, remaining: 2 },
-      ],
-    }),
-    post: vi.fn().mockResolvedValue({ data: { success: true } }),
-  },
-}));
+vi.mock('@/services/api', () => {
+  const get = vi.fn().mockResolvedValue({
+    data: [
+      { id: 'tt1', start_time: new Date().toISOString(), capacity: 4, remaining: 2 },
+    ],
+  });
+  const post = vi.fn().mockResolvedValue({ data: { success: true } });
+  return {
+    default: { get, post },
+  };
+});
 
 import TeeSheet from '@/views/TeeSheet.vue';
 
