@@ -2,12 +2,13 @@
   <div class="tee-sheet">
     <header class="controls">
       <h2>Tee Sheet</h2>
-      <div class="control-row">
+      <div class="control-row" style="display:flex; gap:8px; align-items:center;">
         <input type="date" v-model="date" @change="load" />
         <select v-model="viewMode" @change="savePrefs">
           <option value="single">Single</option>
           <option value="split">Split</option>
         </select>
+        <button class="primary" @click="goSettings" data-cy="goto-settings">Settings</button>
       </div>
     </header>
     <div class="grid" v-if="slots.length">
@@ -78,6 +79,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
+import { useRouter } from 'vue-router';
 import api from '@/services/api';
 
 const date = ref(new Date().toISOString().substring(0,10));
@@ -92,9 +94,14 @@ const drag = ref({ type: null, fromTime: null, fromSeat: null });
 const toast = ref({ msg: '', t: null });
 const blockReason = ref('');
 const lastUndo = ref({ token: '', id: '' });
+const router = useRouter();
 
 function savePrefs() {
   localStorage.setItem('teeSheet:viewMode', viewMode.value);
+}
+
+function goSettings() {
+  router.push('/settings/tee-sheet');
 }
 
 function formatTime(iso) {

@@ -35,12 +35,19 @@ const sideSchema = Joi.object({
   valid_from: Joi.date().iso().required(),
   valid_to: Joi.date().iso().allow(null),
   minutes_per_hole: Joi.number().integer().min(1).max(30).default(12),
-  hole_count: Joi.number().integer().valid(9, 18).default(9),
+  hole_count: Joi.number().integer().min(1).default(9),
   interval_mins: Joi.number().integer().min(1).max(60).default(8),
   start_slots_enabled: Joi.boolean().default(true),
   sunrise_offset_mins: Joi.number().integer().min(-180).max(180).default(0),
   sunset_offset_mins: Joi.number().integer().min(-180).max(180).default(0),
 });
+
+// Allow partial updates for name / hole_count / valid_to etc.
+const sideUpdateSchema = Joi.object({
+  name: Joi.string().min(1).optional(),
+  hole_count: Joi.number().integer().min(1).optional(),
+  valid_to: Joi.date().iso().allow(null),
+}).min(1);
 
 const templateSchema = Joi.object({
   name: Joi.string().min(1).required(),
@@ -183,6 +190,17 @@ router.post('/tee-sheets/:id/sides', requireAuth(['Admin']), async (req, res) =>
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
   const created = await TeeSheetSide.create({ ...value, tee_sheet_id: sheet.id });
   res.status(201).json(created);
+});
+
+router.put('/tee-sheets/:id/sides/:sideId', requireAuth(['Admin']), async (req, res) => {
+  const { error, value } = sideUpdateSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.message });
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const side = await TeeSheetSide.findOne({ where: { id: req.params.sideId, tee_sheet_id: sheet.id } });
+  if (!side) return res.status(404).json({ error: 'Side not found' });
+  await side.update(value);
+  res.json(side);
 });
 
 router.get('/tee-sheets/:id/templates', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {

@@ -25,7 +25,8 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import { settingsAPI } from '@/services/api';
 
 const existing = ref([
@@ -37,6 +38,11 @@ const end = ref('09:00');
 const interval = ref(60);
 const error = ref('');
 const cleanDate = ref('');
+const templates = ref([]);
+const sheetId = ref('');
+const templateId = ref('');
+const sideId = ref('');
+const route = useRoute();
 
 function toMin(hhmm){ const [h,m] = hhmm.split(':').map(Number); return h*60+m; }
 function fmt(min){ const h = Math.floor(min/60).toString().padStart(2,'0'); const m = (min%60).toString().padStart(2,'0'); return `${h}:${m}`; }
@@ -65,15 +71,24 @@ const bands = computed(() => {
 function save(){ if(!error.value){ alert('Saved (stub)'); } }
 
 async function previewGenerate(){
-  // Check clean date from backend, then trigger generate preview
   try {
-    const { data } = await settingsAPI.checkClean({ date: new Date().toISOString().substring(0,10) });
-    cleanDate.value = data?.clean ? data.date : '';
-    if(!cleanDate.value){ alert('Date not clean for generation'); return; }
-    await settingsAPI.generateDay({ date: cleanDate.value, tee_sheet_id: 'stub' });
-    alert('Generated preview (stub)');
-  } catch { alert('Preview failed'); }
+    const date = new Date().toISOString().substring(0,10);
+    cleanDate.value = date;
+    await settingsAPI.generateDay(sheetId.value, date);
+    alert('Generated for today');
+  } catch { alert('Generation failed'); }
 }
+
+async function loadTemplates(){
+  sheetId.value = route.params.teeSheetId || '';
+  if (!sheetId.value) { templates.value = []; return; }
+  const { data } = await settingsAPI.listTemplates(sheetId.value);
+  templates.value = data || [];
+  if (!templateId.value && templates.value[0]) templateId.value = templates.value[0].id;
+}
+
+onMounted(loadTemplates);
+watch(() => route.params.teeSheetId, () => { loadTemplates(); });
 </script>
 
 <style scoped>

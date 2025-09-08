@@ -33,6 +33,10 @@ api.interceptors.response.use(
       const token = newToken.substring(7);
       localStorage.setItem('jwt_token', token);
     }
+    // Dev fallback: if backend returns token in body, persist it
+    if (response?.data && typeof response.data === 'object' && response.data.token) {
+      try { localStorage.setItem('jwt_token', response.data.token); } catch {}
+    }
     return response;
   },
   async error => {
@@ -275,16 +279,32 @@ export const bookingsAPI = {
 
 // Settings/Admin APIs (thin helpers; endpoints may be stubbed in tests)
 export const settingsAPI = {
+  // Tee sheets
   listTeeSheets: () => api.get('/tee-sheets'),
+  createTeeSheet: data => api.post('/tee-sheets', data),
+
+  // Sides
   listSides: teeSheetId => api.get(`/tee-sheets/${teeSheetId}/sides`),
-  listDayTemplates: teeSheetId => api.get(`/tee-sheets/${teeSheetId}/day-templates`),
-  listTimeframes: templateId => api.get(`/day-templates/${templateId}/timeframes`),
-  createTimeframe: (templateId, data) => api.post(`/day-templates/${templateId}/timeframes`, data),
-  checkClean: params => api.get('/tee-sheets/check-clean', { params }),
-  generateDay: body => api.post('/internal/generate', body),
+  createSide: (teeSheetId, data) => api.post(`/tee-sheets/${teeSheetId}/sides`, data),
+  updateSide: (teeSheetId, sideId, data) => api.put(`/tee-sheets/${teeSheetId}/sides/${sideId}`, data),
+
+  // Templates
+  listTemplates: teeSheetId => api.get(`/tee-sheets/${teeSheetId}/templates`),
+  createTemplate: (teeSheetId, data) => api.post(`/tee-sheets/${teeSheetId}/templates`, data),
+
+  // Timeframes
+  listTimeframes: (teeSheetId, templateId) => api.get(`/tee-sheets/${teeSheetId}/templates/${templateId}/timeframes`),
+  createTimeframe: (teeSheetId, templateId, data) => api.post(`/tee-sheets/${teeSheetId}/templates/${templateId}/timeframes`, data),
+
+  // Calendar
+  assignCalendar: (teeSheetId, data) => api.post(`/tee-sheets/${teeSheetId}/calendar`, data),
+
+  // Generate (internal)
+  generateDay: (teeSheetId, date) => api.post(`/internal/generate?tee_sheet_id=${encodeURIComponent(teeSheetId)}&date=${encodeURIComponent(date)}`),
+
+  // Closures
   listClosures: teeSheetId => api.get(`/tee-sheets/${teeSheetId}/closures`),
   createClosure: (teeSheetId, data) => api.post(`/tee-sheets/${teeSheetId}/closures`, data),
-  listBookingClasses: () => api.get('/booking-classes'),
 };
 
 export default api;

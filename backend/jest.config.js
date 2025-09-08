@@ -8,4 +8,6 @@ module.exports = {
   testTimeout: 10000, // Increase timeout for database operations
   detectOpenHandles: true,
   forceExit: true,
+  globalSetup: '<rootDir>/__tests__/globalSetup.js',
+  globalTeardown: '<rootDir>/__tests__/globalTeardown.js',
 };
