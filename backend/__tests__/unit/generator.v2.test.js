@@ -7,6 +7,8 @@ const { generateForDateV2 } = require('../../src/services/teeSheetGenerator.v2')
 describe('generator v2', () => {
   beforeAll(async () => {
     await sequelize.authenticate();
+    // Ensure any missing tables are created (safe no-op if they already exist)
+    try { await sequelize.sync(); } catch (_) {}
     // Ensure migrations applied if running in isolation (CI guard)
     try {
       const [rows] = await sequelize.query(`SELECT to_regclass('public."TeeSheets"') AS teesheets, to_regclass('public."TeeSheetTemplates"') AS templates`);
