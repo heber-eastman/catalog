@@ -1,5 +1,7 @@
 /* eslint-env jest */
 const { sequelize, TeeSheet, GolfCourseInstance } = require('../../src/models');
+const path = require('path');
+const { execSync } = require('child_process');
 const { v4: uuidv4 } = require('uuid');
 
 async function createSheet(course, name) {
@@ -15,8 +17,20 @@ async function createSheet(course, name) {
 
 describe('Phase1 integrity - templates/seasons/overrides', () => {
   beforeAll(async () => {
-    // Ensure DB is up
+    // Ensure DB is up and migrations applied (CI guard)
     await sequelize.authenticate();
+    try {
+      const qi = sequelize.getQueryInterface();
+      const tables = await qi.showAllTables();
+      const tableNames = (tables || []).map(t => (typeof t === 'object' && t.tableName ? t.tableName : t));
+      const hasTeeSheets = tableNames.some(name => String(name).toLowerCase() === 'teesheets'.toLowerCase());
+      if (!hasTeeSheets) {
+        execSync('npx sequelize-cli db:migrate', { stdio: 'inherit', cwd: path.join(__dirname, '..') });
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('Pre-test migration check failed:', e.message);
+    }
   });
 
   it('creates versioned template tables and prevents delete when versions exist', async () => {
