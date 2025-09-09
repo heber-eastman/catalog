@@ -23,13 +23,30 @@
           <button @click="addVersion(s.id)" class="btn sm">Add Version+Window</button>
           <button @click="publish(s.id)" class="btn sm">Publish</button>
         </div>
+        <div class="mt-2">
+          <h4 class="mb-1">Weekday windows (local preview)</h4>
+          <ul class="dnd-list">
+            <li
+              v-for="(w, index) in (windowsBySeason[s.id] || [])"
+              :key="w.localId"
+              class="dnd-item"
+              draggable="true"
+              @dragstart="onDragStart(s.id, index, $event)"
+              @dragover.prevent
+              @drop="onDrop(s.id, index, $event)"
+            >
+              {{ index }} — wd: {{ w.weekday }} {{ w.start_time_local }} - {{ w.end_time_local }} (tv: {{ w.template_version_id.slice(0,8) }})
+            </li>
+          </ul>
+          <button class="btn sm" @click="saveOrder(s.id)" :disabled="!(windowsBySeason[s.id] && windowsBySeason[s.id].length)">Save order</button>
+        </div>
       </li>
     </ul>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, reactive } from 'vue';
 import { useRoute } from 'vue-router';
 import { settingsAPI } from '@/services/api';
 
@@ -41,6 +58,12 @@ const weekday = ref(0);
 const startTime = ref('07:00');
 const endTime = ref('10:00');
 const templateVersionId = ref('');
+const windowsBySeason = reactive({});
+let dragState = { seasonId: null, fromIndex: -1 };
+
+function cryptoRandom() {
+  try { return crypto.randomUUID(); } catch { return Math.random().toString(36).slice(2); }
+}
 
 async function load() {
   try {
@@ -69,6 +92,9 @@ async function addVersion(seasonId) {
     const et = (endTime.value || '10:00') + ':00';
     if (!templateVersionId.value) return;
     await settingsAPI.v2.addSeasonWeekdayWindow(teeSheetId, seasonId, v.id, { weekday: Number(weekday.value) || 0, position: 0, start_mode: 'fixed', end_mode: 'fixed', start_time_local: st, end_time_local: et, template_version_id: templateVersionId.value });
+    // Append to local list for DnD demo
+    const list = windowsBySeason[seasonId] || (windowsBySeason[seasonId] = []);
+    list.push({ localId: cryptoRandom(), weekday: Number(weekday.value) || 0, start_time_local: st, end_time_local: et, template_version_id: templateVersionId.value });
     await load();
   } catch (e) {
     alert('Failed to add version/window');
@@ -83,6 +109,28 @@ async function publish(seasonId) {
   } catch (e) {
     alert('Failed to publish season');
   }
+}
+
+function onDragStart(seasonId, index, ev) {
+  dragState.seasonId = seasonId;
+  dragState.fromIndex = index;
+  try { ev.dataTransfer.setData('text/plain', String(index)); } catch {}
+}
+
+function onDrop(seasonId, toIndex, ev) {
+  const list = windowsBySeason[seasonId];
+  if (!list) return;
+  const fromIndex = dragState.seasonId === seasonId ? dragState.fromIndex : parseInt(ev.dataTransfer.getData('text/plain') || '-1', 10);
+  if (fromIndex < 0 || fromIndex === toIndex) return;
+  const [moved] = list.splice(fromIndex, 1);
+  list.splice(toIndex, 0, moved);
+  dragState = { seasonId: null, fromIndex: -1 };
+}
+
+function saveOrder(seasonId) {
+  const list = windowsBySeason[seasonId] || [];
+  // Placeholder: backend bulk reorder endpoint could be called here
+  alert('New order saved (local):\n' + list.map((w, i) => `${i}: wd ${w.weekday} ${w.start_time_local}-${w.end_time_local}`).join('\n'));
 }
 
 onMounted(load);
