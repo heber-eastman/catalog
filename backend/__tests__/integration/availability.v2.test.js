@@ -12,11 +12,9 @@ describe('Availability API V2 windows', () => {
     await models.sequelize.authenticate();
     // Ensure base and V2 tables exist when running alone in CI
     try {
-      const qi = models.sequelize.getQueryInterface();
-      const tables = await qi.showAllTables();
-      const names = (tables || []).map(t => (typeof t === 'object' && t.tableName ? t.tableName : t)).map(String).map(s => s.toLowerCase());
-      const hasSheets = names.includes('teesheets');
-      const hasV2 = names.includes('teesheettemplates');
+      const [rows] = await models.sequelize.query(`SELECT to_regclass('public."TeeSheets"') AS teesheets, to_regclass('public."TeeSheetTemplates"') AS templates`);
+      const hasSheets = !!rows?.[0]?.teesheets;
+      const hasV2 = !!rows?.[0]?.templates;
       if (!hasSheets || !hasV2) {
         const path = require('path');
         const { execSync } = require('child_process');

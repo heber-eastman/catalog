@@ -9,11 +9,9 @@ describe('generator v2', () => {
     await sequelize.authenticate();
     // Ensure migrations applied if running in isolation (CI guard)
     try {
-      const qi = sequelize.getQueryInterface();
-      const tables = await qi.showAllTables();
-      const tableNames = (tables || []).map(t => (typeof t === 'object' && t.tableName ? t.tableName : t));
-      const hasSheets = tableNames.some(n => String(n).toLowerCase() === 'teesheets');
-      const hasV2 = tableNames.some(n => String(n).toLowerCase() === 'teesheettemplates');
+      const [rows] = await sequelize.query(`SELECT to_regclass('public."TeeSheets"') AS teesheets, to_regclass('public."TeeSheetTemplates"') AS templates`);
+      const hasSheets = !!rows?.[0]?.teesheets;
+      const hasV2 = !!rows?.[0]?.templates;
       if (!hasSheets || !hasV2) {
         execSync('npx sequelize-cli db:migrate', { stdio: 'inherit', cwd: path.join(__dirname, '../..') });
       }
