@@ -31,7 +31,14 @@ describe('generator v2', () => {
     const sheet = await TeeSheet.create({ name: 'S2', course_id: course.id });
     const side = await TeeSheetSide.create({ tee_sheet_id: sheet.id, name: 'A', valid_from: '2025-01-01', interval_mins: 30 });
 
-    const tmpl = await TeeSheetTemplate.create({ tee_sheet_id: sheet.id, status: 'draft', interval_mins: 30 });
+    let tmpl;
+    try {
+      tmpl = await TeeSheetTemplate.create({ tee_sheet_id: sheet.id, status: 'draft', interval_mins: 30 });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('TeeSheetTemplate.create failed:', e && (e.parent || e));
+      throw e;
+    }
     const tv = await TeeSheetTemplateVersion.create({ template_id: tmpl.id, version_number: 1 });
     const ov = await TeeSheetOverride.create({ tee_sheet_id: sheet.id, status: 'draft', date: '2025-08-15' });
     const ovv = await TeeSheetOverrideVersion.create({ override_id: ov.id });
