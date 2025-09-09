@@ -84,6 +84,15 @@ function timeoutPromise(ms) {
  * @throws {Error} If validation fails or SQS operation fails
  */
 async function enqueueEmail(templateName, toAddress, templateData) {
+  // Short-circuit in test/disabled environments
+  if (
+    process.env.DISABLE_EMAIL_QUEUE === 'true' ||
+    process.env.NODE_ENV === 'test' ||
+    (process.env.EMAIL_QUEUE_URL && process.env.EMAIL_QUEUE_URL.includes('disabled'))
+  ) {
+    console.log(`Email queue disabled; mocking enqueue for ${toAddress}`);
+    return { MessageId: 'mock-message-id', MD5OfBody: 'mock' };
+  }
   // Validate input parameters
   validateInput(templateName, toAddress, templateData);
 
@@ -162,6 +171,15 @@ async function enqueueEmail(templateName, toAddress, templateData) {
  * @returns {Promise<void>} Resolves when email is queued or fails silently
  */
 async function enqueueEmailNonBlocking(templateName, toAddress, templateData) {
+  // Short-circuit in test/disabled environments
+  if (
+    process.env.DISABLE_EMAIL_QUEUE === 'true' ||
+    process.env.NODE_ENV === 'test' ||
+    (process.env.EMAIL_QUEUE_URL && process.env.EMAIL_QUEUE_URL.includes('disabled'))
+  ) {
+    console.log(`Email queue disabled; skipping non-blocking enqueue for ${toAddress}`);
+    return;
+  }
   try {
     await enqueueEmail(templateName, toAddress, templateData);
     console.log(`Email successfully queued for ${toAddress}`);

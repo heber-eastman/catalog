@@ -29,6 +29,7 @@ jobs:
       DB_PASSWORD: postgres
       TEST_DB_NAME: catalog_test
       DISABLE_EVENT_RECORDING: 'true'
+      DISABLE_EMAIL_QUEUE: 'true'
       EMAIL_QUEUE_URL: http://localhost/disabled
       AWS_REGION: us-east-1
       AWS_ACCESS_KEY_ID: test
