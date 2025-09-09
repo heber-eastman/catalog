@@ -86,9 +86,7 @@ function timeoutPromise(ms) {
 async function enqueueEmail(templateName, toAddress, templateData) {
   // Short-circuit in test/disabled environments
   if (
-    process.env.DISABLE_EMAIL_QUEUE === 'true' ||
-    process.env.NODE_ENV === 'test' ||
-    (process.env.EMAIL_QUEUE_URL && process.env.EMAIL_QUEUE_URL.includes('disabled'))
+    process.env.DISABLE_EMAIL_QUEUE === 'true'
   ) {
     console.log(`Email queue disabled; mocking enqueue for ${toAddress}`);
     return { MessageId: 'mock-message-id', MD5OfBody: 'mock' };
@@ -173,9 +171,7 @@ async function enqueueEmail(templateName, toAddress, templateData) {
 async function enqueueEmailNonBlocking(templateName, toAddress, templateData) {
   // Short-circuit in test/disabled environments
   if (
-    process.env.DISABLE_EMAIL_QUEUE === 'true' ||
-    process.env.NODE_ENV === 'test' ||
-    (process.env.EMAIL_QUEUE_URL && process.env.EMAIL_QUEUE_URL.includes('disabled'))
+    process.env.DISABLE_EMAIL_QUEUE === 'true'
   ) {
     console.log(`Email queue disabled; skipping non-blocking enqueue for ${toAddress}`);
     return;

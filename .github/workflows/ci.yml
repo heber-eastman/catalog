@@ -29,8 +29,8 @@ jobs:
       DB_PASSWORD: postgres
       TEST_DB_NAME: catalog_test
       DISABLE_EVENT_RECORDING: 'true'
-      DISABLE_EMAIL_QUEUE: 'true'
-      EMAIL_QUEUE_URL: http://localhost/disabled
+      DISABLE_EMAIL_QUEUE: 'false'
+      EMAIL_QUEUE_URL: https://sqs.mock.local/12345/test-queue
       AWS_REGION: us-east-1
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
