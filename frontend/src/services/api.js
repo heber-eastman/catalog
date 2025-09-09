@@ -302,6 +302,7 @@ export const settingsAPI = {
     createSeason: (teeSheetId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/seasons`, data),
     createSeasonVersion: (teeSheetId, seasonId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}/versions`, data),
     addSeasonWeekdayWindow: (teeSheetId, seasonId, seasonVersionId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}/versions/${seasonVersionId}/weekday-windows`, data),
+    reorderSeasonWeekdayWindows: (teeSheetId, seasonId, seasonVersionId, data) => api.patch(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}/versions/${seasonVersionId}/weekday-windows/reorder`, data),
     publishSeason: (teeSheetId, seasonId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}/publish`, data),
     listOverrides: teeSheetId => api.get(`/tee-sheets/${teeSheetId}/v2/overrides`),
     createOverride: (teeSheetId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/overrides`, data),

@@ -127,10 +127,24 @@ function onDrop(seasonId, toIndex, ev) {
   dragState = { seasonId: null, fromIndex: -1 };
 }
 
-function saveOrder(seasonId) {
+async function saveOrder(seasonId) {
   const list = windowsBySeason[seasonId] || [];
-  // Placeholder: backend bulk reorder endpoint could be called here
-  alert('New order saved (local):\n' + list.map((w, i) => `${i}: wd ${w.weekday} ${w.start_time_local}-${w.end_time_local}`).join('\n'));
+  if (!list.length) return;
+  const weekdayVal = list[0].weekday;
+  const orderIds = list.map(w => w.id).filter(Boolean);
+  if (!orderIds.length) { alert('No persisted windows to reorder yet.'); return; }
+  try {
+    const teeSheetId = route.params.teeSheetId;
+    // Need latest version id to scope reorder; assume last created for now
+    const { data: seasonsList } = await settingsAPI.v2.listSeasons(teeSheetId);
+    const season = (seasonsList || []).find(s => s.id === seasonId);
+    const versionId = season?.versions?.[season.versions.length - 1]?.id || season?.published_version?.id;
+    if (!versionId) { alert('Missing season version to reorder'); return; }
+    await settingsAPI.v2.reorderSeasonWeekdayWindows(teeSheetId, seasonId, versionId, { weekday: weekdayVal, order: orderIds });
+    alert('Order saved');
+  } catch (e) {
+    alert('Failed to save order');
+  }
 }
 
 onMounted(load);

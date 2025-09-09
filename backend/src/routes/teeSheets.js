@@ -97,6 +97,10 @@ const v2SeasonWeekdayWindowSchema = Joi.object({
   end_offset_mins: Joi.number().integer().allow(null),
   template_version_id: Joi.string().uuid().required(),
 });
+const v2SeasonWeekdayReorderSchema = Joi.object({
+  weekday: Joi.number().integer().min(0).max(6).required(),
+  order: Joi.array().items(Joi.string().uuid()).min(1).required(),
+});
 const v2SeasonPublishSchema = Joi.object({ version_id: Joi.string().uuid().required() });
 
 // V2 override schemas
@@ -512,6 +516,56 @@ router.post('/tee-sheets/:id/v2/seasons/:seasonId/versions/:versionId/weekday-wi
     template_version_id: value.template_version_id,
   });
   res.status(201).json(created);
+});
+
+router.patch('/tee-sheets/:id/v2/seasons/:seasonId/versions/:versionId/weekday-windows/reorder', requireAuth(['Admin']), async (req, res) => {
+  const { error, value } = v2SeasonWeekdayReorderSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.message });
+
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const season = await TeeSheetSeason.findOne({ where: { id: req.params.seasonId, tee_sheet_id: sheet.id } });
+  if (!season) return res.status(404).json({ error: 'Season not found' });
+  const version = await TeeSheetSeasonVersion.findOne({ where: { id: req.params.versionId, season_id: season.id } });
+  if (!version) return res.status(404).json({ error: 'Season version not found' });
+
+  // Fetch existing window ids for weekday
+  const existing = await TeeSheetSeasonWeekdayWindow.findAll({
+    where: { season_version_id: version.id, weekday: value.weekday },
+    order: [['position', 'ASC']],
+  });
+  const existingIds = existing.map(w => w.id);
+  // Validate set equality
+  const requested = value.order;
+  if (existingIds.length !== requested.length || existingIds.some(id => !requested.includes(id))) {
+    return res.status(400).json({ error: 'Reorder must include all and only existing windows for the weekday' });
+  }
+
+  const tx = await sequelize.transaction();
+  try {
+    // Temporarily shift all positions to avoid unique constraint conflicts during reorder
+    await TeeSheetSeasonWeekdayWindow.update(
+      { position: Sequelize.literal('position + 1000') },
+      { where: { season_version_id: version.id, weekday: value.weekday }, transaction: tx }
+    );
+    for (let i = 0; i < requested.length; i++) {
+      const id = requested[i];
+      await TeeSheetSeasonWeekdayWindow.update(
+        { position: i },
+        { where: { id, season_version_id: version.id, weekday: value.weekday }, transaction: tx }
+      );
+    }
+    await tx.commit();
+  } catch (e) {
+    await tx.rollback();
+    return res.status(400).json({ error: e.message || 'Failed to reorder windows' });
+  }
+
+  const reloaded = await TeeSheetSeasonWeekdayWindow.findAll({
+    where: { season_version_id: version.id, weekday: value.weekday },
+    order: [['position', 'ASC']],
+  });
+  res.json({ success: true, windows: reloaded });
 });
 
 router.post('/tee-sheets/:id/v2/seasons/:seasonId/publish', requireAuth(['Admin']), async (req, res) => {

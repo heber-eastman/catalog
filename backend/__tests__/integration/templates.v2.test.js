@@ -107,6 +107,20 @@ describe('V2 Admin Templates API', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ weekday: 1, start_mode: 'fixed', end_mode: 'fixed', start_time_local: '07:00', end_time_local: '18:00', template_version_id: tmplVerId });
     expect(ww.status).toBe(201);
+    // Create another window on same weekday
+    const ww2 = await request(app)
+      .post(`/api/v1/tee-sheets/${sheetId}/v2/seasons/${seasonId}/versions/${seasonVerId}/weekday-windows`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ weekday: 1, start_mode: 'fixed', end_mode: 'fixed', start_time_local: '10:00', end_time_local: '12:00', template_version_id: tmplVerId });
+    expect(ww2.status).toBe(201);
+    // Reorder them (swap)
+    const ro = await request(app)
+      .patch(`/api/v1/tee-sheets/${sheetId}/v2/seasons/${seasonId}/versions/${seasonVerId}/weekday-windows/reorder`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ weekday: 1, order: [ww2.body.id, ww.body.id] });
+    expect(ro.status).toBe(200);
+    expect(Array.isArray(ro.body.windows)).toBe(true);
+    expect(ro.body.windows[0].id).toBe(ww2.body.id);
     const pub = await request(app)
       .post(`/api/v1/tee-sheets/${sheetId}/v2/seasons/${seasonId}/publish`)
       .set('Authorization', `Bearer ${token}`)
