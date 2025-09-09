@@ -10,6 +10,19 @@ describe('Availability API V2 windows', () => {
 
   beforeAll(async () => {
     await models.sequelize.authenticate();
+    // Ensure base and V2 tables exist when running alone in CI
+    try {
+      const qi = models.sequelize.getQueryInterface();
+      const tables = await qi.showAllTables();
+      const names = (tables || []).map(t => (typeof t === 'object' && t.tableName ? t.tableName : t)).map(String).map(s => s.toLowerCase());
+      const hasSheets = names.includes('teesheets');
+      const hasV2 = names.includes('teesheettemplates');
+      if (!hasSheets || !hasV2) {
+        const path = require('path');
+        const { execSync } = require('child_process');
+        execSync('npx sequelize-cli db:migrate', { stdio: 'inherit', cwd: path.join(__dirname, '..') });
+      }
+    } catch (_) {}
     const course = await models.GolfCourseInstance.create({ name: 'Avail V2', subdomain: `a-${Date.now()}`, status: 'Active', timezone: 'UTC' });
     courseId = course.id;
     const staff = await models.StaffUser.create({ course_id: courseId, email: 's@ex.com', password: 'p', role: 'Staff', is_active: true });

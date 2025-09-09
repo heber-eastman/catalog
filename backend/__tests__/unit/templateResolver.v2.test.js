@@ -1,15 +1,32 @@
 /* eslint-env jest */
 const { sequelize, TeeSheet, GolfCourseInstance, TeeSheetSeason, TeeSheetSeasonVersion, TeeSheetSeasonWeekdayWindow, TeeSheetOverride, TeeSheetOverrideVersion, TeeSheetTemplate, TeeSheetTemplateVersion } = require('../../src/models');
+const path = require('path');
+const { execSync } = require('child_process');
 const { resolveEffectiveWindows } = require('../../src/services/templateResolver');
 
 describe('templateResolver v2', () => {
   beforeAll(async () => {
     await sequelize.authenticate();
+    // Ensure migrations applied if running in isolation (CI guard)
+    try {
+      const qi = sequelize.getQueryInterface();
+      const tables = await qi.showAllTables();
+      const tableNames = (tables || []).map(t => (typeof t === 'object' && t.tableName ? t.tableName : t));
+      const hasSheets = tableNames.some(n => String(n).toLowerCase() === 'teesheets');
+      const hasV2 = tableNames.some(n => String(n).toLowerCase() === 'teesheettemplates');
+      if (!hasSheets || !hasV2) {
+        execSync('npx sequelize-cli db:migrate', { stdio: 'inherit', cwd: path.join(__dirname, '..') });
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('Pre-test migration check (resolver v2) failed:', e.message);
+    }
   });
   beforeEach(async () => {
-    // Clean involved tables to avoid FK issues
-    await sequelize.query('TRUNCATE "TeeSheetOverrideWindows", "TeeSheetOverrideVersions", "TeeSheetOverrides", "TeeSheetSeasonWeekdayWindows", "TeeSheetSeasonVersions", "TeeSheetSeasons", "TeeSheetTemplateSidePrices", "TeeSheetTemplateSideAccess", "TeeSheetTemplateSides", "TeeSheetTemplateVersions", "TeeSheetTemplates", RESTART IDENTITY CASCADE');
-    await sequelize.query('TRUNCATE "TeeSheetSides", "TeeSheets" RESTART IDENTITY CASCADE');
+    // Ensure base tables exist then clean affected tables
+    try { await sequelize.sync(); } catch (_) {}
+    try { await sequelize.query('TRUNCATE "TeeSheetOverrideWindows", "TeeSheetOverrideVersions", "TeeSheetOverrides", "TeeSheetSeasonWeekdayWindows", "TeeSheetSeasonVersions", "TeeSheetSeasons", "TeeSheetTemplateSidePrices", "TeeSheetTemplateSideAccess", "TeeSheetTemplateSides", "TeeSheetTemplateVersions", "TeeSheetTemplates" RESTART IDENTITY CASCADE'); } catch (_) {}
+    try { await sequelize.query('TRUNCATE "TeeSheetSides", "TeeSheets" RESTART IDENTITY CASCADE'); } catch (_) {}
   });
 
   it('prefers override windows over season windows', async () => {

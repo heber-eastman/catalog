@@ -152,6 +152,7 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
 
     const v2 = v2InfoBySheet[slot.tee_sheet_id];
     let timeframe = null;
+    let templateMeta = null;
     let usingV2 = false;
     let totalPriceCents = 0;
 
@@ -192,6 +193,7 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
     } else {
       const template = await findTemplateForDate(slot.tee_sheet_id, date);
       if (!template) continue;
+      templateMeta = template;
       timeframe = await findTimeframeForSlot(slot.tee_sheet_id, slot.side_id, template.day_template_id, slot.start_time);
       if (!timeframe) continue;
     }
@@ -229,8 +231,8 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
         else if (isCustomerView && reroundSlot.is_blocked) reroundOk = false;
         else if ((reroundSlot.capacity - reroundSlot.assigned_count) < groupSize) reroundOk = false;
 
-        if (reroundOk) {
-          const tf2 = await findTimeframeForSlot(slot.tee_sheet_id, reroundSideId, template.day_template_id, reroundSlot.start_time);
+        if (reroundOk && !usingV2 && templateMeta) {
+          const tf2 = await findTimeframeForSlot(slot.tee_sheet_id, reroundSideId, templateMeta.day_template_id, reroundSlot.start_time);
           if (tf2) {
             const pricingRules2 = await TimeframePricingRule.findAll({ where: { timeframe_id: tf2.id } });
             totalPriceCents += calcFeesForLeg(pricingRules2, classId, value.walkRide, undefined);

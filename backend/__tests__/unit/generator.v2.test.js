@@ -1,15 +1,31 @@
 /* eslint-env jest */
 const { sequelize, TeeSheet, TeeSheetSide, GolfCourseInstance, TeeSheetOverride, TeeSheetOverrideVersion, TeeSheetOverrideWindow, TeeTime, TeeSheetTemplate, TeeSheetTemplateVersion } = require('../../src/models');
+const path = require('path');
+const { execSync } = require('child_process');
 const { generateForDateV2 } = require('../../src/services/teeSheetGenerator.v2');
 
 describe('generator v2', () => {
   beforeAll(async () => {
     await sequelize.authenticate();
+    // Ensure migrations applied if running in isolation (CI guard)
+    try {
+      const qi = sequelize.getQueryInterface();
+      const tables = await qi.showAllTables();
+      const tableNames = (tables || []).map(t => (typeof t === 'object' && t.tableName ? t.tableName : t));
+      const hasSheets = tableNames.some(n => String(n).toLowerCase() === 'teesheets');
+      const hasV2 = tableNames.some(n => String(n).toLowerCase() === 'teesheettemplates');
+      if (!hasSheets || !hasV2) {
+        execSync('npx sequelize-cli db:migrate', { stdio: 'inherit', cwd: path.join(__dirname, '..') });
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('Pre-test migration check (generator v2) failed:', e.message);
+    }
   });
   beforeEach(async () => {
-    await sequelize.query('TRUNCATE "TeeTimes" RESTART IDENTITY CASCADE');
-    await sequelize.query('TRUNCATE "TeeSheetOverrideWindows", "TeeSheetOverrideVersions", "TeeSheetOverrides", "TeeSheetTemplateSidePrices", "TeeSheetTemplateSideAccess", "TeeSheetTemplateSides", "TeeSheetTemplateVersions", "TeeSheetTemplates" RESTART IDENTITY CASCADE');
-    await sequelize.query('TRUNCATE "TeeSheetSides", "TeeSheets" RESTART IDENTITY CASCADE');
+    try { await sequelize.query('TRUNCATE "TeeTimes" RESTART IDENTITY CASCADE'); } catch (_) {}
+    try { await sequelize.query('TRUNCATE "TeeSheetOverrideWindows", "TeeSheetOverrideVersions", "TeeSheetOverrides", "TeeSheetTemplateSidePrices", "TeeSheetTemplateSideAccess", "TeeSheetTemplateSides", "TeeSheetTemplateVersions", "TeeSheetTemplates" RESTART IDENTITY CASCADE'); } catch (_) {}
+    try { await sequelize.query('TRUNCATE "TeeSheetSides", "TeeSheets" RESTART IDENTITY CASCADE'); } catch (_) {}
   });
 
   it('generates slots for fixed windows', async () => {

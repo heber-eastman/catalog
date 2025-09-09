@@ -10,6 +10,7 @@ const courseMigration = require('../../migrations/20250612171419-create-golfcour
 const staffMigration = require('../../migrations/20250612171421-create-staffuser');
 const customerMigration = require('../../migrations/20250612171422-create-customer');
 const teeSchemaMigration = require('../../migrations/20250625000000-create-tee-sheet-schema');
+const v2Migration = require('../../migrations/20250908090000-create-templates-seasons-overrides');
 
 describe('Availability API', () => {
   const sequelize = models.sequelize;
@@ -19,6 +20,10 @@ describe('Availability API', () => {
 
   beforeAll(async () => {
     await sequelize.authenticate();
+    // Ensure all model tables exist
+    try { await sequelize.sync(); } catch (_) {}
+    // Ensure migrations for V2 windows are present (guard when running alone)
+    try { await v2Migration.up(sequelize.getQueryInterface(), SequelizeLib); } catch (e) {}
     const course = await models.GolfCourseInstance.create({ name: 'Avail Course', subdomain: `avail-${Date.now()}`, status: 'Active' });
     courseId = course.id;
     const staff = await models.StaffUser.create({ course_id: courseId, email: 'staff@ex.com', password: 'p', role: 'Staff', is_active: true });

@@ -17,20 +17,8 @@ async function createSheet(course, name) {
 
 describe('Phase1 integrity - templates/seasons/overrides', () => {
   beforeAll(async () => {
-    // Ensure DB is up and migrations applied (CI guard)
     await sequelize.authenticate();
-    try {
-      const qi = sequelize.getQueryInterface();
-      const tables = await qi.showAllTables();
-      const tableNames = (tables || []).map(t => (typeof t === 'object' && t.tableName ? t.tableName : t));
-      const hasTeeSheets = tableNames.some(name => String(name).toLowerCase() === 'teesheets'.toLowerCase());
-      if (!hasTeeSheets) {
-        execSync('npx sequelize-cli db:migrate', { stdio: 'inherit', cwd: path.join(__dirname, '..') });
-      }
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error('Pre-test migration check failed:', e.message);
-    }
+    try { await sequelize.sync(); } catch (_) {}
   });
 
   it('creates versioned template tables and prevents delete when versions exist', async () => {

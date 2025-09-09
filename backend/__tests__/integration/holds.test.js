@@ -10,6 +10,7 @@ const courseMigration = require('../../migrations/20250612171419-create-golfcour
 const staffMigration = require('../../migrations/20250612171421-create-staffuser');
 const customerMigration = require('../../migrations/20250612171422-create-customer');
 const teeSchemaMigration = require('../../migrations/20250625000000-create-tee-sheet-schema');
+const v2Migration = require('../../migrations/20250908090000-create-templates-seasons-overrides');
 
 describe('Holds & Idempotency', () => {
   const sequelize = models.sequelize;
@@ -28,6 +29,7 @@ describe('Holds & Idempotency', () => {
     await staffMigration.up(qi, SequelizeLib);
     await customerMigration.up(qi, SequelizeLib);
     await teeSchemaMigration.up(qi, SequelizeLib);
+    await v2Migration.up(qi, SequelizeLib);
 
     const course = await models.GolfCourseInstance.create({ name: 'Redis Course', subdomain: 'redis', status: 'Active' });
     const staff = await models.StaffUser.create({ course_id: course.id, email: 's@ex.com', password: 'p', role: 'Staff', is_active: true });
