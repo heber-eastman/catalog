@@ -17,8 +17,21 @@ async function createSheet(course, name) {
 
 describe('Phase1 integrity - templates/seasons/overrides', () => {
   beforeAll(async () => {
-    // DB gets dropped and fully migrated by globalSetup; just ensure connection
+    // Ensure DB is up and required tables exist (CI guard)
     await sequelize.authenticate();
+    try {
+      const [rows] = await sequelize.query(`SELECT to_regclass('public."TeeSheets"') AS teesheets, to_regclass('public."TeeSheetTemplates"') AS templates`);
+      const hasSheets = !!rows?.[0]?.teesheets;
+      const hasV2 = !!rows?.[0]?.templates;
+      if (!hasSheets || !hasV2) {
+        const path = require('path');
+        const { execSync } = require('child_process');
+        execSync('npx sequelize-cli db:migrate', { stdio: 'inherit', cwd: path.join(__dirname, '../..') });
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('Pre-test migration check failed:', e.message);
+    }
   });
 
   it('creates versioned template tables and prevents delete when versions exist', async () => {

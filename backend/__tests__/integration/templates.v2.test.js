@@ -19,15 +19,13 @@ describe('V2 Admin Templates API', () => {
     await sequelize.authenticate();
     // Ensure V2 tables exist when running in isolation
     try {
-      const qi = sequelize.getQueryInterface();
-      const tables = await qi.showAllTables();
-      const names = (tables || []).map(t => (typeof t === 'object' && t.tableName ? t.tableName : t)).map(String).map(s => s.toLowerCase());
-      const hasSheets = names.includes('teesheets');
-      const hasV2 = names.includes('teesheettemplates');
+      const [rows] = await sequelize.query(`SELECT to_regclass('public."TeeSheets"') AS teesheets, to_regclass('public."TeeSheetTemplates"') AS templates`);
+      const hasSheets = !!rows?.[0]?.teesheets;
+      const hasV2 = !!rows?.[0]?.templates;
       if (!hasSheets || !hasV2) {
         const path = require('path');
         const { execSync } = require('child_process');
-        execSync('npx sequelize-cli db:migrate', { stdio: 'inherit', cwd: path.join(__dirname, '..') });
+        execSync('npx sequelize-cli db:migrate', { stdio: 'inherit', cwd: path.join(__dirname, '../..') });
       }
     } catch (_) {}
   });
