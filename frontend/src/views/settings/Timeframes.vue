@@ -42,7 +42,8 @@ const templates = ref([]);
 const sheetId = ref('');
 const templateId = ref('');
 const sideId = ref('');
-const route = useRoute();
+let route;
+try { route = useRoute(); } catch (e) { route = { params: {} }; }
 
 function toMin(hhmm){ const [h,m] = hhmm.split(':').map(Number); return h*60+m; }
 function fmt(min){ const h = Math.floor(min/60).toString().padStart(2,'0'); const m = (min%60).toString().padStart(2,'0'); return `${h}:${m}`; }
@@ -80,7 +81,7 @@ async function previewGenerate(){
 }
 
 async function loadTemplates(){
-  sheetId.value = route.params.teeSheetId || '';
+  sheetId.value = (route && route.params && route.params.teeSheetId) ? route.params.teeSheetId : '';
   if (!sheetId.value) { templates.value = []; return; }
   const { data } = await settingsAPI.listTemplates(sheetId.value);
   templates.value = data || [];
@@ -88,7 +89,9 @@ async function loadTemplates(){
 }
 
 onMounted(loadTemplates);
-watch(() => route.params.teeSheetId, () => { loadTemplates(); });
+if (route && route.params) {
+  watch(() => route.params.teeSheetId, () => { loadTemplates(); });
+}
 </script>
 
 <style scoped>
