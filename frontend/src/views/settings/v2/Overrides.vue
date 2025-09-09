@@ -8,8 +8,8 @@
     <ul>
       <li v-for="o in overrides" :key="o.id">
         <strong>{{ o.date }}</strong> — status: {{ o.status }}
-        <button @click="addVersion(o.id)">Add Version</button>
-        <button @click="publish(o.id)">Publish</button>
+        <button @click="addVersion(o.id)" class="btn sm">Add Version</button>
+        <button @click="publish(o.id)" class="btn sm">Publish</button>
       </li>
     </ul>
   </div>
