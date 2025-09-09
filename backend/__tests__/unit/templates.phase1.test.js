@@ -17,8 +17,8 @@ async function createSheet(course, name) {
 
 describe('Phase1 integrity - templates/seasons/overrides', () => {
   beforeAll(async () => {
+    // DB gets dropped and fully migrated by globalSetup; just ensure connection
     await sequelize.authenticate();
-    try { await sequelize.sync(); } catch (_) {}
   });
 
   it('creates versioned template tables and prevents delete when versions exist', async () => {

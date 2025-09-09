@@ -20,7 +20,7 @@ describe('Availability API V2 windows', () => {
       if (!hasSheets || !hasV2) {
         const path = require('path');
         const { execSync } = require('child_process');
-        execSync('npx sequelize-cli db:migrate', { stdio: 'inherit', cwd: path.join(__dirname, '..') });
+        execSync('npx sequelize-cli db:migrate', { stdio: 'inherit', cwd: path.join(__dirname, '../..') });
       }
     } catch (_) {}
     const course = await models.GolfCourseInstance.create({ name: 'Avail V2', subdomain: `a-${Date.now()}`, status: 'Active', timezone: 'UTC' });

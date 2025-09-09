@@ -15,7 +15,7 @@ describe('generator v2', () => {
       const hasSheets = tableNames.some(n => String(n).toLowerCase() === 'teesheets');
       const hasV2 = tableNames.some(n => String(n).toLowerCase() === 'teesheettemplates');
       if (!hasSheets || !hasV2) {
-        execSync('npx sequelize-cli db:migrate', { stdio: 'inherit', cwd: path.join(__dirname, '..') });
+        execSync('npx sequelize-cli db:migrate', { stdio: 'inherit', cwd: path.join(__dirname, '../..') });
       }
     } catch (e) {
       // eslint-disable-next-line no-console
