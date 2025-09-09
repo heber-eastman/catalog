@@ -13,19 +13,12 @@ const teeSchemaMigration = require('../../migrations/20250625000000-create-tee-s
 
 describe('Availability API', () => {
   const sequelize = models.sequelize;
-  const qi = sequelize.getQueryInterface();
 
   let authToken;
   let courseId;
 
   beforeAll(async () => {
     await sequelize.authenticate();
-    await qi.dropAllTables();
-    await courseMigration.up(qi, SequelizeLib);
-    await staffMigration.up(qi, SequelizeLib);
-    await customerMigration.up(qi, SequelizeLib);
-    await teeSchemaMigration.up(qi, SequelizeLib);
-
     const course = await models.GolfCourseInstance.create({ name: 'Avail Course', subdomain: `avail-${Date.now()}`, status: 'Active' });
     courseId = course.id;
     const staff = await models.StaffUser.create({ course_id: courseId, email: 'staff@ex.com', password: 'p', role: 'Staff', is_active: true });

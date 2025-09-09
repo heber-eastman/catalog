@@ -18,10 +18,23 @@ const {
   CalendarAssignment,
   ClosureBlock,
   sequelize,
+  // V2 models
+  TeeSheetTemplate,
+  TeeSheetTemplateVersion,
+  TeeSheetTemplateSide,
+  TeeSheetTemplateSideAccess,
+  TeeSheetTemplateSidePrices,
+  TeeSheetSeason,
+  TeeSheetSeasonVersion,
+  TeeSheetSeasonWeekdayWindow,
+  TeeSheetOverride,
+  TeeSheetOverrideVersion,
+  TeeSheetOverrideWindow,
 } = require('../models');
 
 const router = express.Router();
 const { DateTime } = require('luxon');
+const { generateForDateV2 } = require('../services/teeSheetGenerator.v2');
 
 // Validation schemas
 const teeSheetSchema = Joi.object({
@@ -53,6 +66,53 @@ const templateSchema = Joi.object({
   name: Joi.string().min(1).required(),
   description: Joi.string().allow('', null),
 });
+
+// V2 template schemas
+const v2TemplateCreateSchema = Joi.object({
+  interval_mins: Joi.number().integer().min(1).max(60).default(10),
+});
+
+const v2TemplateVersionCreateSchema = Joi.object({
+  notes: Joi.string().allow('', null),
+});
+
+const v2TemplatePublishSchema = Joi.object({
+  version_id: Joi.string().uuid().required(),
+});
+
+// V2 season schemas
+const v2SeasonCreateSchema = Joi.object({});
+const v2SeasonVersionCreateSchema = Joi.object({
+  start_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
+  end_date_exclusive: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
+  notes: Joi.string().allow('', null),
+});
+const v2SeasonWeekdayWindowSchema = Joi.object({
+  weekday: Joi.number().integer().min(0).max(6).required(),
+  start_mode: Joi.string().valid('fixed', 'sunrise_offset').required(),
+  end_mode: Joi.string().valid('fixed', 'sunset_offset').required(),
+  start_time_local: Joi.string().pattern(/^\d{2}:\d{2}(:\d{2})?$/).allow(null),
+  end_time_local: Joi.string().pattern(/^\d{2}:\d{2}(:\d{2})?$/).allow(null),
+  start_offset_mins: Joi.number().integer().allow(null),
+  end_offset_mins: Joi.number().integer().allow(null),
+  template_version_id: Joi.string().uuid().required(),
+});
+const v2SeasonPublishSchema = Joi.object({ version_id: Joi.string().uuid().required() });
+
+// V2 override schemas
+const v2OverrideCreateSchema = Joi.object({ date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required() });
+const v2OverrideVersionCreateSchema = Joi.object({ notes: Joi.string().allow('', null) });
+const v2OverrideWindowSchema = Joi.object({
+  side_id: Joi.string().uuid().required(),
+  start_mode: Joi.string().valid('fixed', 'sunrise_offset').required(),
+  end_mode: Joi.string().valid('fixed', 'sunset_offset').required(),
+  start_time_local: Joi.string().pattern(/^\d{2}:\d{2}(:\d{2})?$/).allow(null),
+  end_time_local: Joi.string().pattern(/^\d{2}:\d{2}(:\d{2})?$/).allow(null),
+  start_offset_mins: Joi.number().integer().allow(null),
+  end_offset_mins: Joi.number().integer().allow(null),
+  template_version_id: Joi.string().uuid().required(),
+});
+const v2OverridePublishSchema = Joi.object({ version_id: Joi.string().uuid().required() });
 
 const timeframeSchema = Joi.object({
   side_id: Joi.string().uuid().required(),
@@ -203,6 +263,7 @@ router.put('/tee-sheets/:id/sides/:sideId', requireAuth(['Admin']), async (req, 
   res.json(side);
 });
 
+// V1 (legacy) DayTemplates
 router.get('/tee-sheets/:id/templates', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
   const where = { tee_sheet_id: req.params.id };
   res.json(await DayTemplate.findAll({ where, order: [['created_at', 'ASC']] }));
@@ -328,6 +389,229 @@ router.post('/tee-sheets/:id/templates/:templateId/timeframes', requireAuth(['Ad
     await tx.rollback();
     const status = e.status || 500;
     res.status(status).json({ error: e.message || 'Failed to create timeframe' });
+  }
+});
+
+// V2 Templates API
+router.get('/tee-sheets/:id/v2/templates', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const items = await TeeSheetTemplate.findAll({
+    where: { tee_sheet_id: sheet.id },
+    include: [{ model: TeeSheetTemplateVersion, as: 'versions' }, { model: TeeSheetTemplateVersion, as: 'published_version' }],
+    order: [['created_at', 'ASC']],
+  });
+  res.json(items);
+});
+
+router.post('/tee-sheets/:id/v2/templates', requireAuth(['Admin']), async (req, res) => {
+  const { error, value } = v2TemplateCreateSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.message });
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const created = await TeeSheetTemplate.create({ tee_sheet_id: sheet.id, status: 'draft', interval_mins: value.interval_mins });
+  res.status(201).json(created);
+});
+
+router.post('/tee-sheets/:id/v2/templates/:templateId/versions', requireAuth(['Admin']), async (req, res) => {
+  const { error, value } = v2TemplateVersionCreateSchema.validate(req.body || {});
+  if (error) return res.status(400).json({ error: error.message });
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: sheet.id } });
+  if (!tmpl) return res.status(404).json({ error: 'Template not found' });
+  const maxRow = await TeeSheetTemplateVersion.findOne({
+    where: { template_id: tmpl.id },
+    order: [['version_number', 'DESC']],
+  });
+  const next = (maxRow?.version_number || 0) + 1;
+  const created = await TeeSheetTemplateVersion.create({ template_id: tmpl.id, version_number: next, notes: value.notes || null });
+  res.status(201).json(created);
+});
+
+router.post('/tee-sheets/:id/v2/templates/:templateId/publish', requireAuth(['Admin']), async (req, res) => {
+  const { error, value } = v2TemplatePublishSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.message });
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: sheet.id } });
+  if (!tmpl) return res.status(404).json({ error: 'Template not found' });
+  const ver = await TeeSheetTemplateVersion.findOne({ where: { id: value.version_id, template_id: tmpl.id } });
+  if (!ver) return res.status(404).json({ error: 'Version not found' });
+  try {
+    tmpl.published_version_id = ver.id;
+    tmpl.status = 'published';
+    await tmpl.save();
+    const reloaded = await TeeSheetTemplate.findByPk(tmpl.id, {
+      include: [{ model: TeeSheetTemplateVersion, as: 'versions' }, { model: TeeSheetTemplateVersion, as: 'published_version' }],
+    });
+    res.json(reloaded);
+  } catch (e) {
+    const status = e.status || 400;
+    res.status(status).json({ error: e.message || 'Publish failed' });
+  }
+});
+
+// V2 Seasons API
+router.get('/tee-sheets/:id/v2/seasons', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const items = await TeeSheetSeason.findAll({
+    where: { tee_sheet_id: sheet.id },
+    include: [{ model: TeeSheetSeasonVersion, as: 'versions' }, { model: TeeSheetSeasonVersion, as: 'published_version' }],
+    order: [['created_at', 'ASC']],
+  });
+  res.json(items);
+});
+
+router.post('/tee-sheets/:id/v2/seasons', requireAuth(['Admin']), async (req, res) => {
+  const { error } = v2SeasonCreateSchema.validate(req.body || {});
+  if (error) return res.status(400).json({ error: error.message });
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const created = await TeeSheetSeason.create({ tee_sheet_id: sheet.id, status: 'draft' });
+  res.status(201).json(created);
+});
+
+router.post('/tee-sheets/:id/v2/seasons/:seasonId/versions', requireAuth(['Admin']), async (req, res) => {
+  const { error, value } = v2SeasonVersionCreateSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.message });
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const season = await TeeSheetSeason.findOne({ where: { id: req.params.seasonId, tee_sheet_id: sheet.id } });
+  if (!season) return res.status(404).json({ error: 'Season not found' });
+  const created = await TeeSheetSeasonVersion.create({ season_id: season.id, start_date: value.start_date, end_date_exclusive: value.end_date_exclusive, notes: value.notes || null });
+  res.status(201).json(created);
+});
+
+router.post('/tee-sheets/:id/v2/seasons/:seasonId/versions/:versionId/weekday-windows', requireAuth(['Admin']), async (req, res) => {
+  const { error, value } = v2SeasonWeekdayWindowSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.message });
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const season = await TeeSheetSeason.findOne({ where: { id: req.params.seasonId, tee_sheet_id: sheet.id } });
+  if (!season) return res.status(404).json({ error: 'Season not found' });
+  const version = await TeeSheetSeasonVersion.findOne({ where: { id: req.params.versionId, season_id: season.id } });
+  if (!version) return res.status(404).json({ error: 'Season version not found' });
+  // Compute next position for this weekday
+  const [[{ max_pos }]] = await sequelize.query(
+    'SELECT COALESCE(MAX(position), -1) AS max_pos FROM "TeeSheetSeasonWeekdayWindows" WHERE season_version_id = :vid AND weekday = :wd',
+    { replacements: { vid: version.id, wd: value.weekday } }
+  );
+  const nextPos = (max_pos === null || max_pos === -1) ? 0 : (parseInt(max_pos, 10) + 1);
+  const created = await TeeSheetSeasonWeekdayWindow.create({
+    season_version_id: version.id,
+    weekday: value.weekday,
+    position: nextPos,
+    start_mode: value.start_mode,
+    end_mode: value.end_mode,
+    start_time_local: value.start_time_local || null,
+    end_time_local: value.end_time_local || null,
+    start_offset_mins: value.start_offset_mins || null,
+    end_offset_mins: value.end_offset_mins || null,
+    template_version_id: value.template_version_id,
+  });
+  res.status(201).json(created);
+});
+
+router.post('/tee-sheets/:id/v2/seasons/:seasonId/publish', requireAuth(['Admin']), async (req, res) => {
+  const { error, value } = v2SeasonPublishSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.message });
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const season = await TeeSheetSeason.findOne({ where: { id: req.params.seasonId, tee_sheet_id: sheet.id } });
+  if (!season) return res.status(404).json({ error: 'Season not found' });
+  const ver = await TeeSheetSeasonVersion.findOne({ where: { id: value.version_id, season_id: season.id } });
+  if (!ver) return res.status(404).json({ error: 'Season version not found' });
+  try {
+    season.published_version_id = ver.id;
+    season.status = 'published';
+    await season.save();
+    const reloaded = await TeeSheetSeason.findByPk(season.id, { include: [{ model: TeeSheetSeasonVersion, as: 'versions' }, { model: TeeSheetSeasonVersion, as: 'published_version' }] });
+    res.json(reloaded);
+  } catch (e) {
+    const status = e.status || 400;
+    res.status(status).json({ error: e.message || 'Publish failed' });
+  }
+});
+
+// V2 Overrides API
+router.get('/tee-sheets/:id/v2/overrides', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const items = await TeeSheetOverride.findAll({
+    where: { tee_sheet_id: sheet.id },
+    include: [{ model: TeeSheetOverrideVersion, as: 'versions' }, { model: TeeSheetOverrideVersion, as: 'published_version' }],
+    order: [['date', 'ASC']],
+  });
+  res.json(items);
+});
+
+router.post('/tee-sheets/:id/v2/overrides', requireAuth(['Admin']), async (req, res) => {
+  const { error, value } = v2OverrideCreateSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.message });
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  try {
+    const created = await TeeSheetOverride.create({ tee_sheet_id: sheet.id, status: 'draft', date: value.date });
+    res.status(201).json(created);
+  } catch (e) {
+    res.status(400).json({ error: e.message || 'Failed to create override' });
+  }
+});
+
+router.post('/tee-sheets/:id/v2/overrides/:overrideId/versions', requireAuth(['Admin']), async (req, res) => {
+  const { error, value } = v2OverrideVersionCreateSchema.validate(req.body || {});
+  if (error) return res.status(400).json({ error: error.message });
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const ov = await TeeSheetOverride.findOne({ where: { id: req.params.overrideId, tee_sheet_id: sheet.id } });
+  if (!ov) return res.status(404).json({ error: 'Override not found' });
+  const created = await TeeSheetOverrideVersion.create({ override_id: ov.id, notes: value.notes || null });
+  res.status(201).json(created);
+});
+
+router.post('/tee-sheets/:id/v2/overrides/:overrideId/versions/:versionId/windows', requireAuth(['Admin']), async (req, res) => {
+  const { error, value } = v2OverrideWindowSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.message });
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const ov = await TeeSheetOverride.findOne({ where: { id: req.params.overrideId, tee_sheet_id: sheet.id } });
+  if (!ov) return res.status(404).json({ error: 'Override not found' });
+  const ver = await TeeSheetOverrideVersion.findOne({ where: { id: req.params.versionId, override_id: ov.id } });
+  if (!ver) return res.status(404).json({ error: 'Override version not found' });
+  const created = await TeeSheetOverrideWindow.create({
+    override_version_id: ver.id,
+    side_id: value.side_id,
+    start_mode: value.start_mode,
+    end_mode: value.end_mode,
+    start_time_local: value.start_time_local || null,
+    end_time_local: value.end_time_local || null,
+    start_offset_mins: value.start_offset_mins || null,
+    end_offset_mins: value.end_offset_mins || null,
+    template_version_id: value.template_version_id,
+  });
+  res.status(201).json(created);
+});
+
+router.post('/tee-sheets/:id/v2/overrides/:overrideId/publish', requireAuth(['Admin']), async (req, res) => {
+  const { error, value } = v2OverridePublishSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.message });
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const ov = await TeeSheetOverride.findOne({ where: { id: req.params.overrideId, tee_sheet_id: sheet.id } });
+  if (!ov) return res.status(404).json({ error: 'Override not found' });
+  const ver = await TeeSheetOverrideVersion.findOne({ where: { id: value.version_id, override_id: ov.id } });
+  if (!ver) return res.status(404).json({ error: 'Override version not found' });
+  try {
+    ov.published_version_id = ver.id;
+    ov.status = 'published';
+    await ov.save();
+    const reloaded = await TeeSheetOverride.findByPk(ov.id, { include: [{ model: TeeSheetOverrideVersion, as: 'versions' }, { model: TeeSheetOverrideVersion, as: 'published_version' }] });
+    res.json(reloaded);
+  } catch (e) {
+    const status = e.status || 400;
+    res.status(status).json({ error: e.message || 'Publish failed' });
   }
 });
 

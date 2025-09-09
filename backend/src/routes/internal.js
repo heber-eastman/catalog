@@ -3,6 +3,8 @@
 const express = require('express');
 const router = express.Router();
 const { generateForDate } = require('../services/teeSheetGenerator');
+const { generateForDateV2 } = require('../services/teeSheetGenerator.v2');
+const Joi = require('joi');
 const { addClient } = require('../services/broadcast');
 const { requireAuth } = require('../middleware/auth');
 const {
@@ -99,6 +101,48 @@ router.post('/internal/bootstrap-defaults', requireAuth(['Admin', 'SuperAdmin'])
   } catch (e) {
     console.error('Bootstrap defaults failed:', e);
     res.status(500).json({ error: e.message || 'Bootstrap failed' });
+  }
+});
+
+// V2 regeneration endpoints
+const regenSchema = Joi.object({
+  date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
+});
+
+const regenRangeSchema = Joi.object({
+  start_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
+  end_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
+});
+
+router.post('/internal/tee-sheets/:id/regenerate', requireAuth(['Admin', 'SuperAdmin']), async (req, res) => {
+  if (process.env.ENABLE_INTERNAL_ENDPOINTS !== 'true') return res.status(404).json({ error: 'Not found' });
+  const { error, value } = regenSchema.validate(req.body || {});
+  if (error) return res.status(400).json({ error: error.message });
+  try {
+    const result = await generateForDateV2({ teeSheetId: req.params.id, dateISO: value.date });
+    res.json(result);
+  } catch (e) {
+    res.status(400).json({ error: e.message || 'Regeneration failed' });
+  }
+});
+
+router.post('/internal/tee-sheets/:id/regenerate-range', requireAuth(['Admin', 'SuperAdmin']), async (req, res) => {
+  if (process.env.ENABLE_INTERNAL_ENDPOINTS !== 'true') return res.status(404).json({ error: 'Not found' });
+  const { error, value } = regenRangeSchema.validate(req.body || {});
+  if (error) return res.status(400).json({ error: error.message });
+  try {
+    const { DateTime } = require('luxon');
+    const start = DateTime.fromISO(value.start_date, { zone: 'UTC' });
+    const end = DateTime.fromISO(value.end_date, { zone: 'UTC' });
+    if (!start.isValid || !end.isValid || end < start) return res.status(400).json({ error: 'Invalid date range' });
+    let total = 0;
+    for (let d = start; d <= end; d = d.plus({ days: 1 })) {
+      const { generated } = await generateForDateV2({ teeSheetId: req.params.id, dateISO: d.toISODate() });
+      total += generated;
+    }
+    res.json({ generated: total });
+  } catch (e) {
+    res.status(400).json({ error: e.message || 'Regeneration failed' });
   }
 });
 
