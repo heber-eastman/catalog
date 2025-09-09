@@ -1,5 +1,17 @@
 /* eslint-env jest */
 const { sequelize, TeeSheet, GolfCourseInstance } = require('../../src/models');
+const { v4: uuidv4 } = require('uuid');
+
+async function createSheet(course, name) {
+  try {
+    return await TeeSheet.create({ id: uuidv4(), name, course_id: course.id });
+  } catch (e) {
+    // Log full parent error details in CI for diagnosis
+    // eslint-disable-next-line no-console
+    console.error('TeeSheet.create failed:', e && (e.parent || e));
+    throw e;
+  }
+}
 
 describe('Phase1 integrity - templates/seasons/overrides', () => {
   beforeAll(async () => {
@@ -11,7 +23,7 @@ describe('Phase1 integrity - templates/seasons/overrides', () => {
     const { TeeSheetTemplate, TeeSheetTemplateVersion } = require('../../src/models');
 
     const course = await GolfCourseInstance.create({ name: 'CourseA', subdomain: `c-${Date.now()}`, status: 'Active' });
-    const sheet = await TeeSheet.create({ id: require('uuid').v4(), name: 'Test Sheet', course_id: course.id });
+    const sheet = await createSheet(course, 'Test Sheet');
 
     const t = await TeeSheetTemplate.create({ tee_sheet_id: sheet.id, status: 'draft', interval_mins: 10 });
     await TeeSheetTemplateVersion.create({ template_id: t.id, version_number: 1 });
@@ -22,7 +34,7 @@ describe('Phase1 integrity - templates/seasons/overrides', () => {
   it('enforces override unique per (tee_sheet_id, date)', async () => {
     const { TeeSheetOverride } = require('../../src/models');
     const course = await GolfCourseInstance.create({ name: 'CourseB', subdomain: `c2-${Date.now()}`, status: 'Active' });
-    const sheet = await TeeSheet.create({ id: require('uuid').v4(), name: 'Sheet U', course_id: course.id });
+    const sheet = await createSheet(course, 'Sheet U');
     const date = '2025-08-15';
     await TeeSheetOverride.create({ tee_sheet_id: sheet.id, status: 'draft', date });
     await expect(
@@ -33,7 +45,7 @@ describe('Phase1 integrity - templates/seasons/overrides', () => {
   it('enforces unique (template_id, version_number) on template versions', async () => {
     const { TeeSheetTemplate, TeeSheetTemplateVersion } = require('../../src/models');
     const course = await GolfCourseInstance.create({ name: 'CourseC', subdomain: `c3-${Date.now()}`, status: 'Active' });
-    const sheet = await TeeSheet.create({ id: require('uuid').v4(), name: 'Sheet C', course_id: course.id });
+    const sheet = await createSheet(course, 'Sheet C');
     const tmpl = await TeeSheetTemplate.create({ tee_sheet_id: sheet.id, status: 'draft', interval_mins: 10 });
     await TeeSheetTemplateVersion.create({ template_id: tmpl.id, version_number: 1 });
     await expect(
@@ -44,7 +56,7 @@ describe('Phase1 integrity - templates/seasons/overrides', () => {
   it('enforces unique (season_version_id, weekday, position) on weekday windows', async () => {
     const { TeeSheetSeason, TeeSheetSeasonVersion, TeeSheetSeasonWeekdayWindow, TeeSheetTemplate, TeeSheetTemplateVersion } = require('../../src/models');
     const course = await GolfCourseInstance.create({ name: 'CourseD', subdomain: `c4-${Date.now()}`, status: 'Active' });
-    const sheet = await TeeSheet.create({ id: require('uuid').v4(), name: 'Sheet D', course_id: course.id });
+    const sheet = await createSheet(course, 'Sheet D');
     const tmpl = await TeeSheetTemplate.create({ tee_sheet_id: sheet.id, status: 'draft', interval_mins: 10 });
     const tmplV = await TeeSheetTemplateVersion.create({ template_id: tmpl.id, version_number: 1 });
     const season = await TeeSheetSeason.create({ tee_sheet_id: sheet.id, status: 'draft' });
@@ -62,7 +74,7 @@ describe('Phase1 integrity - templates/seasons/overrides', () => {
   it('enforces unique (version_id, side_id, booking_class_id) for access and prices', async () => {
     const { TeeSheetTemplate, TeeSheetTemplateVersion, TeeSheetTemplateSideAccess, TeeSheetTemplateSidePrices } = require('../../src/models');
     const course = await GolfCourseInstance.create({ name: 'CourseE', subdomain: `c5-${Date.now()}`, status: 'Active' });
-    const sheet = await TeeSheet.create({ id: require('uuid').v4(), name: 'Sheet E', course_id: course.id });
+    const sheet = await createSheet(course, 'Sheet E');
     const side = await require('../../src/models').TeeSheetSide.create({ tee_sheet_id: sheet.id, name: 'Front', valid_from: '2025-01-01' });
     const tmpl = await TeeSheetTemplate.create({ tee_sheet_id: sheet.id, status: 'draft', interval_mins: 10 });
     const tmplV = await TeeSheetTemplateVersion.create({ template_id: tmpl.id, version_number: 1 });
@@ -79,7 +91,7 @@ describe('Phase1 integrity - templates/seasons/overrides', () => {
   it('prevents publishing template without full side coverage or public prices', async () => {
     const { TeeSheetTemplate, TeeSheetTemplateVersion, TeeSheetTemplateSide } = require('../../src/models');
     const course = await GolfCourseInstance.create({ name: 'CourseF', subdomain: `c6-${Date.now()}`, status: 'Active' });
-    const sheet = await TeeSheet.create({ id: require('uuid').v4(), name: 'Sheet F', course_id: course.id });
+    const sheet = await createSheet(course, 'Sheet F');
     const sideA = await require('../../src/models').TeeSheetSide.create({ tee_sheet_id: sheet.id, name: 'A', valid_from: '2025-01-01' });
     const sideB = await require('../../src/models').TeeSheetSide.create({ tee_sheet_id: sheet.id, name: 'B', valid_from: '2025-01-01' });
     const tmpl = await TeeSheetTemplate.create({ tee_sheet_id: sheet.id, status: 'draft', interval_mins: 10 });
@@ -94,7 +106,7 @@ describe('Phase1 integrity - templates/seasons/overrides', () => {
   it('prevents deleting published versions (template/season/override)', async () => {
     const { TeeSheetTemplate, TeeSheetTemplateVersion, TeeSheetSeason, TeeSheetSeasonVersion, TeeSheetOverride, TeeSheetOverrideVersion } = require('../../src/models');
     const course = await GolfCourseInstance.create({ name: 'CourseG', subdomain: `c7-${Date.now()}`, status: 'Active' });
-    const sheet = await TeeSheet.create({ id: require('uuid').v4(), name: 'Sheet G', course_id: course.id });
+    const sheet = await createSheet(course, 'Sheet G');
     const tmpl = await TeeSheetTemplate.create({ tee_sheet_id: sheet.id, status: 'draft', interval_mins: 10 });
     const tv = await TeeSheetTemplateVersion.create({ template_id: tmpl.id, version_number: 1 });
     tmpl.published_version_id = tv.id; await tmpl.save();
