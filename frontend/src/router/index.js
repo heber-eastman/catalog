@@ -20,6 +20,10 @@ const routes = [
       { path: 'tee-sheets/:teeSheetId/sides', name: 'SettingsTeeSheetsSides', component: () => import('@/views/settings/TeeSheetsSides.vue') },
       { path: 'tee-sheets/:teeSheetId/day-templates', name: 'SettingsDayTemplates', component: () => import('@/views/settings/DayTemplates.vue') },
       { path: 'tee-sheets/:teeSheetId/timeframes', name: 'SettingsTimeframes', component: () => import('@/views/settings/Timeframes.vue') },
+      // V2 Settings pages
+      { path: 'tee-sheets/:teeSheetId/v2/templates', name: 'SettingsV2Templates', component: () => import('@/views/settings/v2/Templates.vue') },
+      { path: 'tee-sheets/:teeSheetId/v2/seasons', name: 'SettingsV2Seasons', component: () => import('@/views/settings/v2/Seasons.vue') },
+      { path: 'tee-sheets/:teeSheetId/v2/overrides', name: 'SettingsV2Overrides', component: () => import('@/views/settings/v2/Overrides.vue') },
       { path: 'tee-sheets/:teeSheetId/calendar', name: 'SettingsCalendar', component: () => import('@/views/settings/Calendar.vue') },
       { path: 'tee-sheets/:teeSheetId/closures', name: 'SettingsClosures', component: () => import('@/views/settings/Closures.vue') },
       { path: 'tee-sheets/:teeSheetId/booking-classes', name: 'SettingsBookingClasses', component: () => import('@/views/settings/BookingClasses.vue') },

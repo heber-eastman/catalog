@@ -292,6 +292,25 @@ export const settingsAPI = {
   listTemplates: teeSheetId => api.get(`/tee-sheets/${teeSheetId}/templates`),
   createTemplate: (teeSheetId, data) => api.post(`/tee-sheets/${teeSheetId}/templates`, data),
 
+  // V2 Templates
+  v2: {
+    listTemplates: teeSheetId => api.get(`/tee-sheets/${teeSheetId}/v2/templates`),
+    createTemplate: (teeSheetId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/templates`, data),
+    createTemplateVersion: (teeSheetId, templateId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}/versions`, data),
+    publishTemplate: (teeSheetId, templateId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}/publish`, data),
+    listSeasons: teeSheetId => api.get(`/tee-sheets/${teeSheetId}/v2/seasons`),
+    createSeason: (teeSheetId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/seasons`, data),
+    createSeasonVersion: (teeSheetId, seasonId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}/versions`, data),
+    addSeasonWeekdayWindow: (teeSheetId, seasonId, seasonVersionId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}/versions/${seasonVersionId}/weekday-windows`, data),
+    publishSeason: (teeSheetId, seasonId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}/publish`, data),
+    listOverrides: teeSheetId => api.get(`/tee-sheets/${teeSheetId}/v2/overrides`),
+    createOverride: (teeSheetId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/overrides`, data),
+    createOverrideVersion: (teeSheetId, overrideId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/overrides/${overrideId}/versions`, data),
+    publishOverride: (teeSheetId, overrideId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/overrides/${overrideId}/publish`, data),
+    regenerateDate: (teeSheetId, date) => api.post(`/internal/tee-sheets/${teeSheetId}/regenerate`, { date }),
+    regenerateRange: (teeSheetId, start_date, end_date) => api.post(`/internal/tee-sheets/${teeSheetId}/regenerate-range`, { start_date, end_date }),
+  },
+
   // Timeframes
   listTimeframes: (teeSheetId, templateId) => api.get(`/tee-sheets/${teeSheetId}/templates/${templateId}/timeframes`),
   createTimeframe: (teeSheetId, templateId, data) => api.post(`/tee-sheets/${teeSheetId}/templates/${templateId}/timeframes`, data),
