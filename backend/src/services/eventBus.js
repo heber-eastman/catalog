@@ -3,6 +3,9 @@
 const { Event } = require('../models');
 
 async function recordEvent({ courseId, entityType, entityId, action, actorType, actorId, metadata }) {
+  if (process.env.DISABLE_EVENT_RECORDING === 'true') {
+    return;
+  }
   try {
     await Event.create({
       course_id: courseId || null,
