@@ -1,8 +1,9 @@
 <template>
   <div class="pa-4">
     <h2>Overrides (V2)</h2>
-    <div class="mb-4">
+    <div class="mb-4 row">
       <button @click="createOverride" class="btn">New Override</button>
+      <input v-model="overrideDate" type="date" />
     </div>
     <ul>
       <li v-for="o in overrides" :key="o.id">
@@ -21,6 +22,7 @@ import { settingsAPI } from '@/services/api';
 
 const route = useRoute();
 const overrides = ref([]);
+const overrideDate = ref('');
 
 async function load() {
   const teeSheetId = route.params.teeSheetId;
@@ -31,7 +33,9 @@ async function load() {
 
 async function createOverride() {
   const teeSheetId = route.params.teeSheetId;
-  await settingsAPI.v2.createOverride(teeSheetId, { date: '2025-07-02' });
+  const d = overrideDate.value;
+  if (!d) return;
+  await settingsAPI.v2.createOverride(teeSheetId, { date: d });
   await load();
 }
 
@@ -52,6 +56,7 @@ onMounted(load);
 
 <style scoped>
 .btn { padding: 6px 10px; border: 1px solid #ccc; border-radius: 6px; }
+.row { display: flex; align-items: center; gap: 8px; }
 </style>
 
 
