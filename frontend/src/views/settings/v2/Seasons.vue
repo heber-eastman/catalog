@@ -28,7 +28,7 @@
           <ul class="dnd-list">
             <li
               v-for="(w, index) in (windowsBySeason[s.id] || [])"
-              :key="w.localId"
+              :key="w.id || w.localId"
               class="dnd-item"
               draggable="true"
               @dragstart="onDragStart(s.id, index, $event)"
@@ -42,11 +42,17 @@
         </div>
       </li>
     </ul>
+    <v-snackbar v-model="showSnackbar" :color="snackbarColor" :timeout="2500">
+      {{ snackbarMessage }}
+      <template #actions>
+        <v-btn color="white" variant="text" @click="showSnackbar = false">Close</v-btn>
+      </template>
+    </v-snackbar>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref, reactive } from 'vue';
+import { onMounted, ref, reactive, inject, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { settingsAPI } from '@/services/api';
 
@@ -61,6 +67,17 @@ const templateVersionId = ref('');
 const windowsBySeason = reactive({});
 let dragState = { seasonId: null, fromIndex: -1 };
 
+// Toast state
+const showSnackbar = ref(false);
+const snackbarMessage = ref('');
+const snackbarColor = ref('success');
+
+function notify(message, color = 'success') {
+  snackbarMessage.value = message;
+  snackbarColor.value = color;
+  showSnackbar.value = true;
+}
+
 function cryptoRandom() {
   try { return crypto.randomUUID(); } catch { return Math.random().toString(36).slice(2); }
 }
@@ -72,7 +89,7 @@ async function load() {
     const { data } = await settingsAPI.v2.listSeasons(teeSheetId);
     seasons.value = data || [];
   } catch (e) {
-    alert('Failed to load seasons');
+    notify('Failed to load seasons', 'error');
   }
 }
 
@@ -80,6 +97,7 @@ async function createSeason() {
   const teeSheetId = route.params.teeSheetId;
   await settingsAPI.v2.createSeason(teeSheetId, {});
   await load();
+  notify('Season created');
 }
 
 async function addVersion(seasonId) {
@@ -91,13 +109,14 @@ async function addVersion(seasonId) {
     const st = (startTime.value || '07:00') + ':00';
     const et = (endTime.value || '10:00') + ':00';
     if (!templateVersionId.value) return;
-    await settingsAPI.v2.addSeasonWeekdayWindow(teeSheetId, seasonId, v.id, { weekday: Number(weekday.value) || 0, position: 0, start_mode: 'fixed', end_mode: 'fixed', start_time_local: st, end_time_local: et, template_version_id: templateVersionId.value });
-    // Append to local list for DnD demo
+    const { data: createdWindow } = await settingsAPI.v2.addSeasonWeekdayWindow(teeSheetId, seasonId, v.id, { weekday: Number(weekday.value) || 0, position: 0, start_mode: 'fixed', end_mode: 'fixed', start_time_local: st, end_time_local: et, template_version_id: templateVersionId.value });
+    // Append to local list with real id for reorder
     const list = windowsBySeason[seasonId] || (windowsBySeason[seasonId] = []);
-    list.push({ localId: cryptoRandom(), weekday: Number(weekday.value) || 0, start_time_local: st, end_time_local: et, template_version_id: templateVersionId.value });
+    list.push({ id: createdWindow.id, weekday: Number(weekday.value) || 0, start_time_local: st, end_time_local: et, template_version_id: templateVersionId.value });
     await load();
+    notify('Window added');
   } catch (e) {
-    alert('Failed to add version/window');
+    notify('Failed to add version/window', 'error');
   }
 }
 
@@ -106,8 +125,9 @@ async function publish(seasonId) {
     const teeSheetId = route.params.teeSheetId;
     await settingsAPI.v2.publishSeason(teeSheetId, seasonId, {});
     await load();
+    notify('Season published');
   } catch (e) {
-    alert('Failed to publish season');
+    notify('Failed to publish season', 'error');
   }
 }
 
@@ -132,22 +152,36 @@ async function saveOrder(seasonId) {
   if (!list.length) return;
   const weekdayVal = list[0].weekday;
   const orderIds = list.map(w => w.id).filter(Boolean);
-  if (!orderIds.length) { alert('No persisted windows to reorder yet.'); return; }
+  if (!orderIds.length) { notify('No persisted windows to reorder yet.', 'error'); return; }
   try {
     const teeSheetId = route.params.teeSheetId;
     // Need latest version id to scope reorder; assume last created for now
     const { data: seasonsList } = await settingsAPI.v2.listSeasons(teeSheetId);
     const season = (seasonsList || []).find(s => s.id === seasonId);
     const versionId = season?.versions?.[season.versions.length - 1]?.id || season?.published_version?.id;
-    if (!versionId) { alert('Missing season version to reorder'); return; }
+    if (!versionId) { notify('Missing season version to reorder', 'error'); return; }
     await settingsAPI.v2.reorderSeasonWeekdayWindows(teeSheetId, seasonId, versionId, { weekday: weekdayVal, order: orderIds });
-    alert('Order saved');
+    notify('Order saved');
   } catch (e) {
-    alert('Failed to save order');
+    notify('Failed to save order', 'error');
   }
 }
 
 onMounted(load);
+
+// Sync calendar-selected date
+const selectedDate = inject('settings:selectedDate', ref(''));
+watch(selectedDate, (v) => {
+  if (!v) return;
+  // Default start to selected date and end to +1 day
+  startDate.value = v;
+  try {
+    const dt = new Date(v + 'T00:00:00');
+    dt.setDate(dt.getDate() + 1);
+    const pad = (n)=> (n<10?`0${n}`:`${n}`);
+    endDate.value = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+  } catch {}
+}, { immediate: true });
 </script>
 
 <style scoped>

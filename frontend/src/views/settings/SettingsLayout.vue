@@ -33,11 +33,23 @@
             <option v-for="s in teeSheets" :value="s.id" :key="s.id">{{ s.name }}</option>
           </select>
           <div class="calendar">
-            <div class="cal-header">{{ monthYear }}</div>
+            <div class="cal-header">
+              <button class="cal-nav" @click="prevMonth" aria-label="Previous month">‹</button>
+              <span class="cal-title">{{ monthYear }}</span>
+              <button class="cal-nav" @click="nextMonth" aria-label="Next month">›</button>
+            </div>
             <div class="cal-grid">
               <div class="dow" v-for="d in dows" :key="d">{{ d }}</div>
               <div class="day" v-for="n in leadingBlanks" :key="'b'+n"></div>
-              <div class="day" v-for="d in daysInMonth" :key="'d'+d">{{ d }}</div>
+              <button
+                class="day"
+                v-for="d in daysInMonth"
+                :key="'d'+d"
+                :class="{ selected: isSelected(d) }"
+                @click="selectDay(d)"
+              >
+                {{ d }}
+              </button>
             </div>
           </div>
         </div>
@@ -55,7 +67,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, provide } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { settingsAPI } from '@/services/api';
 const route = useRoute();
@@ -86,12 +98,40 @@ function onSheetChange(){
 }
 
 // calendar basics
-const now = new Date();
+let current = ref(new Date());
 const dows = ['Su','Mo','Tu','We','Th','Fr','Sa'];
-const monthYear = computed(()=> now.toLocaleString(undefined,{ month:'long', year:'numeric' }));
-const first = new Date(now.getFullYear(), now.getMonth(), 1);
-const leadingBlanks = computed(()=> (first.getDay() + 7) % 7);
-const daysInMonth = computed(()=> new Date(now.getFullYear(), now.getMonth()+1, 0).getDate());
+const monthYear = computed(()=> current.value.toLocaleString(undefined,{ month:'long', year:'numeric' }));
+const leadingBlanks = computed(()=> new Date(current.value.getFullYear(), current.value.getMonth(), 1).getDay());
+const daysInMonth = computed(()=> new Date(current.value.getFullYear(), current.value.getMonth()+1, 0).getDate());
+const selectedDay = ref(null);
+
+function prevMonth(){
+  const d = new Date(current.value);
+  d.setMonth(d.getMonth() - 1);
+  current.value = d;
+}
+function nextMonth(){
+  const d = new Date(current.value);
+  d.setMonth(d.getMonth() + 1);
+  current.value = d;
+}
+function selectDay(d){
+  selectedDay.value = d;
+}
+function isSelected(d){
+  return selectedDay.value === d;
+}
+
+function pad(n){ return n < 10 ? `0${n}` : String(n); }
+const selectedDateISO = computed(() => {
+  if (!selectedDay.value) return '';
+  const y = current.value.getFullYear();
+  const m = pad(current.value.getMonth() + 1);
+  const d = pad(selectedDay.value);
+  return `${y}-${m}-${d}`;
+});
+
+provide('settings:selectedDate', selectedDateISO);
 
 onMounted(loadSheets);
 
@@ -134,10 +174,14 @@ watch(() => route.params.teeSheetId, (newId) => {
 .nav .scoping .lbl{ display:block; font-size:12px; color:#6b778c; margin-bottom:6px; }
 .nav .scoping select{ width:100%; padding:6px 8px; border:1px solid #e0e0e0; border-radius:6px; margin-bottom:8px; }
 .calendar{ border:1px solid #e0e0e0; border-radius:8px; padding:8px; margin-bottom:8px; }
-.cal-header{ font-weight:600; margin-bottom:6px; text-align:center; }
+.cal-header{ font-weight:600; margin-bottom:6px; text-align:center; display:flex; align-items:center; justify-content:space-between; }
+.cal-title{ flex:1; text-align:center; }
+.cal-nav{ border:none; background:transparent; cursor:pointer; padding:4px 8px; border-radius:4px; }
+.cal-nav:hover{ background:#eaf4ff; }
 .cal-grid{ display:grid; grid-template-columns: repeat(7, 1fr); gap:2px; }
 .dow{ font-size:11px; color:#6b778c; text-align:center; padding:2px 0; }
 .day{ text-align:center; padding:6px 0; border-radius:4px; }
+.day.selected{ background:#ccf9ff; font-weight:600; }
 .content { padding: 16px; }
 </style>
 

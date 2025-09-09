@@ -12,17 +12,32 @@
         <button @click="publish(o.id)" class="btn sm">Publish</button>
       </li>
     </ul>
+    <v-snackbar v-model="showSnackbar" :color="snackbarColor" :timeout="2500">
+      {{ snackbarMessage }}
+      <template #actions>
+        <v-btn color="white" variant="text" @click="showSnackbar = false">Close</v-btn>
+      </template>
+    </v-snackbar>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, inject, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { settingsAPI } from '@/services/api';
 
 const route = useRoute();
 const overrides = ref([]);
 const overrideDate = ref('');
+const showSnackbar = ref(false);
+const snackbarMessage = ref('');
+const snackbarColor = ref('success');
+
+function notify(message, color = 'success') {
+  snackbarMessage.value = message;
+  snackbarColor.value = color;
+  showSnackbar.value = true;
+}
 
 async function load() {
   try {
@@ -31,7 +46,7 @@ async function load() {
     const { data } = await settingsAPI.v2.listOverrides(teeSheetId);
     overrides.value = data || [];
   } catch (e) {
-    alert('Failed to load overrides');
+    notify('Failed to load overrides', 'error');
   }
 }
 
@@ -42,8 +57,9 @@ async function createOverride() {
     if (!d) return;
     await settingsAPI.v2.createOverride(teeSheetId, { date: d });
     await load();
+    notify('Override created');
   } catch (e) {
-    alert('Failed to create override');
+    notify('Failed to create override', 'error');
   }
 }
 
@@ -52,8 +68,9 @@ async function addVersion(overrideId) {
     const teeSheetId = route.params.teeSheetId;
     await settingsAPI.v2.createOverrideVersion(teeSheetId, overrideId, { notes: 'v1' });
     await load();
+    notify('Override version created');
   } catch (e) {
-    alert('Failed to add override version');
+    notify('Failed to add override version', 'error');
   }
 }
 
@@ -62,12 +79,17 @@ async function publish(overrideId) {
     const teeSheetId = route.params.teeSheetId;
     await settingsAPI.v2.publishOverride(teeSheetId, overrideId, {});
     await load();
+    notify('Override published');
   } catch (e) {
-    alert('Failed to publish override');
+    notify('Failed to publish override', 'error');
   }
 }
 
 onMounted(load);
+
+// Sync calendar-selected date
+const selectedDate = inject('settings:selectedDate', ref(''));
+watch(selectedDate, (v) => { if (v) overrideDate.value = v; }, { immediate: true });
 </script>
 
 <style scoped>

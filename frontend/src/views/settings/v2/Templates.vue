@@ -27,11 +27,17 @@
         </div>
       </li>
     </ul>
+    <v-snackbar v-model="showSnackbar" :color="snackbarColor" :timeout="2500">
+      {{ snackbarMessage }}
+      <template #actions>
+        <v-btn color="white" variant="text" @click="showSnackbar = false">Close</v-btn>
+      </template>
+    </v-snackbar>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref, reactive, computed } from 'vue';
+import { onMounted, ref, reactive, computed, inject, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { settingsAPI } from '@/services/api';
 
@@ -43,6 +49,15 @@ const regenStart = ref('');
 const regenEnd = ref('');
 const busy = ref(false);
 const invalidRange = computed(() => !!regenStart.value && !!regenEnd.value && regenStart.value > regenEnd.value);
+const showSnackbar = ref(false);
+const snackbarMessage = ref('');
+const snackbarColor = ref('success');
+
+function notify(message, color = 'success') {
+  snackbarMessage.value = message;
+  snackbarColor.value = color;
+  showSnackbar.value = true;
+}
 
 async function load() {
   try {
@@ -64,8 +79,9 @@ async function createTemplate() {
     const teeSheetId = route.params.teeSheetId;
     await settingsAPI.v2.createTemplate(teeSheetId, { interval_mins: 10 });
     await load();
+    notify('Template created');
   } catch (e) {
-    alert('Failed to create template');
+    notify('Failed to create template', 'error');
   } finally {
     busy.value = false;
   }
@@ -78,8 +94,9 @@ async function createVersion(templateId) {
     const notes = versionNotes[templateId] || '';
     await settingsAPI.v2.createTemplateVersion(teeSheetId, templateId, { notes });
     await load();
+    notify('Version created');
   } catch (e) {
-    alert('Failed to create template version');
+    notify('Failed to create template version', 'error');
   } finally {
     busy.value = false;
   }
@@ -91,8 +108,9 @@ async function publish(templateId) {
     const teeSheetId = route.params.teeSheetId;
     await settingsAPI.v2.publishTemplate(teeSheetId, templateId, {});
     await load();
+    notify('Template published');
   } catch (e) {
-    alert('Failed to publish template');
+    notify('Failed to publish template', 'error');
   } finally {
     busy.value = false;
   }
@@ -104,8 +122,9 @@ async function regenerateDate() {
     const teeSheetId = route.params.teeSheetId;
     if (!regenDate.value) return;
     await settingsAPI.v2.regenerateDate(teeSheetId, regenDate.value);
+    notify('Regeneration queued for date');
   } catch (e) {
-    alert('Failed to regenerate date');
+    notify('Failed to regenerate date', 'error');
   } finally {
     busy.value = false;
   }
@@ -117,14 +136,19 @@ async function regenerateRange() {
     const teeSheetId = route.params.teeSheetId;
     if (!regenStart.value || !regenEnd.value || invalidRange.value) return;
     await settingsAPI.v2.regenerateRange(teeSheetId, regenStart.value, regenEnd.value);
+    notify('Regeneration queued for range');
   } catch (e) {
-    alert('Failed to regenerate range');
+    notify('Failed to regenerate range', 'error');
   } finally {
     busy.value = false;
   }
 }
 
 onMounted(load);
+
+// Sync calendar-selected date
+const selectedDate = inject('settings:selectedDate', ref(''));
+watch(selectedDate, (v) => { if (v) regenDate.value = v; }, { immediate: true });
 </script>
 
 <style scoped>
