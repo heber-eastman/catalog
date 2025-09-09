@@ -25,30 +25,46 @@ const overrides = ref([]);
 const overrideDate = ref('');
 
 async function load() {
-  const teeSheetId = route.params.teeSheetId;
-  if (!teeSheetId) { overrides.value = []; return; }
-  const { data } = await settingsAPI.v2.listOverrides(teeSheetId);
-  overrides.value = data || [];
+  try {
+    const teeSheetId = route.params.teeSheetId;
+    if (!teeSheetId) { overrides.value = []; return; }
+    const { data } = await settingsAPI.v2.listOverrides(teeSheetId);
+    overrides.value = data || [];
+  } catch (e) {
+    alert('Failed to load overrides');
+  }
 }
 
 async function createOverride() {
-  const teeSheetId = route.params.teeSheetId;
-  const d = overrideDate.value;
-  if (!d) return;
-  await settingsAPI.v2.createOverride(teeSheetId, { date: d });
-  await load();
+  try {
+    const teeSheetId = route.params.teeSheetId;
+    const d = overrideDate.value;
+    if (!d) return;
+    await settingsAPI.v2.createOverride(teeSheetId, { date: d });
+    await load();
+  } catch (e) {
+    alert('Failed to create override');
+  }
 }
 
 async function addVersion(overrideId) {
-  const teeSheetId = route.params.teeSheetId;
-  await settingsAPI.v2.createOverrideVersion(teeSheetId, overrideId, { notes: 'v1' });
-  await load();
+  try {
+    const teeSheetId = route.params.teeSheetId;
+    await settingsAPI.v2.createOverrideVersion(teeSheetId, overrideId, { notes: 'v1' });
+    await load();
+  } catch (e) {
+    alert('Failed to add override version');
+  }
 }
 
 async function publish(overrideId) {
-  const teeSheetId = route.params.teeSheetId;
-  await settingsAPI.v2.publishOverride(teeSheetId, overrideId, {});
-  await load();
+  try {
+    const teeSheetId = route.params.teeSheetId;
+    await settingsAPI.v2.publishOverride(teeSheetId, overrideId, {});
+    await load();
+  } catch (e) {
+    alert('Failed to publish override');
+  }
 }
 
 onMounted(load);

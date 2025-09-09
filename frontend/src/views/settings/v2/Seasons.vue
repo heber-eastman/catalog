@@ -43,10 +43,14 @@ const endTime = ref('10:00');
 const templateVersionId = ref('');
 
 async function load() {
-  const teeSheetId = route.params.teeSheetId;
-  if (!teeSheetId) { seasons.value = []; return; }
-  const { data } = await settingsAPI.v2.listSeasons(teeSheetId);
-  seasons.value = data || [];
+  try {
+    const teeSheetId = route.params.teeSheetId;
+    if (!teeSheetId) { seasons.value = []; return; }
+    const { data } = await settingsAPI.v2.listSeasons(teeSheetId);
+    seasons.value = data || [];
+  } catch (e) {
+    alert('Failed to load seasons');
+  }
 }
 
 async function createSeason() {
@@ -59,18 +63,26 @@ async function addVersion(seasonId) {
   const teeSheetId = route.params.teeSheetId;
   const sd = startDate.value; const ed = endDate.value;
   if (!sd || !ed) return;
-  const { data: v } = await settingsAPI.v2.createSeasonVersion(teeSheetId, seasonId, { start_date: sd, end_date_exclusive: ed });
-  const st = (startTime.value || '07:00') + ':00';
-  const et = (endTime.value || '10:00') + ':00';
-  if (!templateVersionId.value) return;
-  await settingsAPI.v2.addSeasonWeekdayWindow(teeSheetId, seasonId, v.id, { weekday: Number(weekday.value) || 0, position: 0, start_mode: 'fixed', end_mode: 'fixed', start_time_local: st, end_time_local: et, template_version_id: templateVersionId.value });
-  await load();
+  try {
+    const { data: v } = await settingsAPI.v2.createSeasonVersion(teeSheetId, seasonId, { start_date: sd, end_date_exclusive: ed });
+    const st = (startTime.value || '07:00') + ':00';
+    const et = (endTime.value || '10:00') + ':00';
+    if (!templateVersionId.value) return;
+    await settingsAPI.v2.addSeasonWeekdayWindow(teeSheetId, seasonId, v.id, { weekday: Number(weekday.value) || 0, position: 0, start_mode: 'fixed', end_mode: 'fixed', start_time_local: st, end_time_local: et, template_version_id: templateVersionId.value });
+    await load();
+  } catch (e) {
+    alert('Failed to add version/window');
+  }
 }
 
 async function publish(seasonId) {
-  const teeSheetId = route.params.teeSheetId;
-  await settingsAPI.v2.publishSeason(teeSheetId, seasonId, {});
-  await load();
+  try {
+    const teeSheetId = route.params.teeSheetId;
+    await settingsAPI.v2.publishSeason(teeSheetId, seasonId, {});
+    await load();
+  } catch (e) {
+    alert('Failed to publish season');
+  }
 }
 
 onMounted(load);
