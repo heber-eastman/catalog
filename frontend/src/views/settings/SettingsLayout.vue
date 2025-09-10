@@ -49,7 +49,16 @@
                 @click="selectDay(d)"
               >
                 {{ d }}
+                <span class="dots">
+                  <span v-if="hasOverride(d)" class="dot override" title="Override"></span>
+                  <span v-else-if="hasSeason(d)" class="dot season" title="Season"></span>
+                </span>
               </button>
+            </div>
+            <div class="cal-actions">
+              <button class="btn sm" @click="goOverrides" :disabled="!selectedDateISO">Overrides</button>
+              <button class="btn sm" @click="goSeasons" :disabled="!selectedDateISO">Seasons</button>
+              <button class="btn sm" @click="regenSelected" :disabled="!selectedDateISO">Regenerate</button>
             </div>
           </div>
         </div>
@@ -104,6 +113,8 @@ const monthYear = computed(()=> current.value.toLocaleString(undefined,{ month:'
 const leadingBlanks = computed(()=> new Date(current.value.getFullYear(), current.value.getMonth(), 1).getDay());
 const daysInMonth = computed(()=> new Date(current.value.getFullYear(), current.value.getMonth()+1, 0).getDate());
 const selectedDay = ref(null);
+const overrideDates = ref(new Set());
+const seasonDates = ref(new Set());
 
 function prevMonth(){
   const d = new Date(current.value);
@@ -132,6 +143,77 @@ const selectedDateISO = computed(() => {
 });
 
 provide('settings:selectedDate', selectedDateISO);
+
+function isoForDay(d){
+  const y = current.value.getFullYear();
+  const m = pad(current.value.getMonth() + 1);
+  const dd = pad(d);
+  return `${y}-${m}-${dd}`;
+}
+function hasOverride(d){ return overrideDates.value.has(isoForDay(d)); }
+function hasSeason(d){ return seasonDates.value.has(isoForDay(d)); }
+
+async function loadCalendarFlags(){
+  seasonDates.value = new Set();
+  overrideDates.value = new Set();
+  if (!teeSheetId.value) return;
+  try {
+    const [ovRes, seaRes] = await Promise.all([
+      settingsAPI.v2.listOverrides(teeSheetId.value),
+      settingsAPI.v2.listSeasons(teeSheetId.value),
+    ]);
+    const y = current.value.getFullYear();
+    const m = current.value.getMonth();
+    const startOfMonth = new Date(y, m, 1);
+    const endOfMonth = new Date(y, m + 1, 0);
+    // Overrides: direct dates
+    (ovRes.data || []).forEach(o => {
+      if (!o?.date) return;
+      const od = new Date(o.date + 'T00:00:00');
+      if (od >= startOfMonth && od <= endOfMonth) {
+        overrideDates.value.add(o.date);
+      }
+    });
+    // Seasons: use published_version or latest version range
+    (seaRes.data || []).forEach(s => {
+      const pv = s.published_version || (s.versions && s.versions[s.versions.length - 1]);
+      if (!pv?.start_date || !pv?.end_date_exclusive) return;
+      const sd = new Date(pv.start_date + 'T00:00:00');
+      const ed = new Date(pv.end_date_exclusive + 'T00:00:00');
+      // Iterate days within month and within [sd, ed)
+      for (let d = 1; d <= endOfMonth.getDate(); d++) {
+        const cur = new Date(y, m, d);
+        if (cur >= sd && cur < ed) {
+          const iso = `${y}-${pad(m+1)}-${pad(d)}`;
+          if (!overrideDates.value.has(iso)) seasonDates.value.add(iso);
+        }
+      }
+    });
+  } catch (_) {
+    // ignore flags on failure
+  }
+}
+
+watch([teeSheetId, current], loadCalendarFlags, { immediate: true });
+
+function goOverrides(){
+  if (!teeSheetId.value) return;
+  router.push({ name: 'SettingsV2Overrides', params: { teeSheetId: teeSheetId.value } });
+}
+function goSeasons(){
+  if (!teeSheetId.value) return;
+  router.push({ name: 'SettingsV2Seasons', params: { teeSheetId: teeSheetId.value } });
+}
+async function regenSelected(){
+  if (!teeSheetId.value || !selectedDateISO.value) return;
+  try {
+    await settingsAPI.v2.regenerateDate(teeSheetId.value, selectedDateISO.value);
+    // lightweight feedback
+    console.log('Regeneration queued for', selectedDateISO.value);
+  } catch (e) {
+    console.warn('Failed to queue regeneration', e);
+  }
+}
 
 onMounted(loadSheets);
 
@@ -182,6 +264,10 @@ watch(() => route.params.teeSheetId, (newId) => {
 .dow{ font-size:11px; color:#6b778c; text-align:center; padding:2px 0; }
 .day{ text-align:center; padding:6px 0; border-radius:4px; }
 .day.selected{ background:#ccf9ff; font-weight:600; }
+.day .dots{ display:block; height:4px; margin-top:2px; }
+.dot{ display:inline-block; width:6px; height:6px; border-radius:50%; margin:0 1px; vertical-align:middle; }
+.dot.override{ background:#d32f2f; }
+.dot.season{ background:#1976d2; }
 .content { padding: 16px; }
 </style>
 
