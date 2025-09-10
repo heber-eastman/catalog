@@ -10,10 +10,36 @@
       </select>
     </div>
     <ul>
-      <li v-for="o in overrides" :key="o.id">
-        <strong>{{ o.date }}</strong> — status: {{ o.status }}
-        <button @click="addVersion(o.id)" class="btn sm">Add Version</button>
-        <button @click="publish(o.id)" class="btn sm">Publish</button>
+      <li v-for="o in overrides" :key="o.id" class="mb-2">
+        <div class="row">
+          <strong>{{ o.date }}</strong> — status: {{ o.status }}
+          <button @click="addVersion(o.id)" class="btn sm ml-2">Add Version</button>
+          <button @click="publish(o.id)" class="btn sm ml-2">Publish</button>
+        </div>
+        <div class="row mt-2">
+          <label>Side</label>
+          <select v-model="editor.sideId">
+            <option v-for="s in sideOptions" :key="s.id" :value="s.id">{{ s.name }}</option>
+          </select>
+          <label class="ml-2">Mode</label>
+          <select v-model="editor.mode">
+            <option value="fixed">Fixed</option>
+            <option value="sunrise_sunset">Sunrise/Sunset</option>
+          </select>
+          <template v-if="editor.mode === 'fixed'">
+            <input v-model="editor.startTime" type="time" />
+            <input v-model="editor.endTime" type="time" />
+          </template>
+          <template v-else>
+            <input v-model.number="editor.startOffset" type="number" placeholder="start offset mins" />
+            <input v-model.number="editor.endOffset" type="number" placeholder="end offset mins" />
+          </template>
+          <label class="ml-2">Template Version</label>
+          <select v-model="templateVersionId">
+            <option v-for="opt in templateVersionOptions" :key="opt.id" :value="opt.id">{{ opt.label }}</option>
+          </select>
+          <button class="btn sm ml-2" @click="saveWindow(o.id)">Add Window</button>
+        </div>
       </li>
     </ul>
     <v-snackbar v-model="showSnackbar" :color="snackbarColor" :timeout="2500">
@@ -26,7 +52,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref, inject, watch } from 'vue';
+import { onMounted, ref, inject, watch, reactive } from 'vue';
 import { useRoute } from 'vue-router';
 import { settingsAPI } from '@/services/api';
 
@@ -35,6 +61,8 @@ const overrides = ref([]);
 const overrideDate = ref('');
 const templateVersionId = ref('');
 const templateVersionOptions = ref([]);
+const sideOptions = ref([]);
+const editor = reactive({ sideId: '', mode: 'fixed', startTime: '07:00', endTime: '10:00', startOffset: 0, endOffset: 0 });
 const showSnackbar = ref(false);
 const snackbarMessage = ref('');
 const snackbarColor = ref('success');
@@ -52,6 +80,7 @@ async function load() {
     const { data } = await settingsAPI.v2.listOverrides(teeSheetId);
     overrides.value = data || [];
     await loadTemplateVersions();
+    await loadSides();
   } catch (e) {
     notify('Failed to load overrides', 'error');
   }
@@ -114,6 +143,33 @@ async function loadTemplateVersions() {
     templateVersionOptions.value = opts;
   } catch (_) {
     templateVersionOptions.value = [];
+  }
+}
+
+async function loadSides() {
+  const teeSheetId = route.params.teeSheetId;
+  try {
+    const { data } = await settingsAPI.listSides(teeSheetId);
+    sideOptions.value = data || [];
+    if (sideOptions.value.length && !editor.sideId) editor.sideId = sideOptions.value[0].id;
+  } catch (_) {
+    sideOptions.value = [];
+  }
+}
+
+async function saveWindow(overrideId) {
+  const teeSheetId = route.params.teeSheetId;
+  if (!templateVersionId.value || !editor.sideId) { notify('Missing side or template', 'error'); return; }
+  // ensure there is a version to attach the window
+  const { data: ovv } = await settingsAPI.v2.createOverrideVersion(teeSheetId, overrideId, { notes: 'window' });
+  const body = editor.mode === 'fixed'
+    ? { side_id: editor.sideId, start_mode: 'fixed', end_mode: 'fixed', start_time_local: editor.startTime + ':00', end_time_local: editor.endTime + ':00', template_version_id: templateVersionId.value }
+    : { side_id: editor.sideId, start_mode: 'sunrise_offset', end_mode: 'sunset_offset', start_offset_mins: Number(editor.startOffset)||0, end_offset_mins: Number(editor.endOffset)||0, template_version_id: templateVersionId.value };
+  try {
+    await settingsAPI.v2.addOverrideWindow(teeSheetId, overrideId, ovv.id, body);
+    notify('Override window added');
+  } catch (e) {
+    notify('Failed to add override window', 'error');
   }
 }
 </script>
