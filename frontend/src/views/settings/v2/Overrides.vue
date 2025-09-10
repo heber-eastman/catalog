@@ -4,6 +4,10 @@
     <div class="mb-4 row">
       <button @click="createOverride" class="btn">New Override</button>
       <input v-model="overrideDate" type="date" />
+      <label class="ml-2">Template Version</label>
+      <select v-model="templateVersionId">
+        <option v-for="opt in templateVersionOptions" :key="opt.id" :value="opt.id">{{ opt.label }}</option>
+      </select>
     </div>
     <ul>
       <li v-for="o in overrides" :key="o.id">
@@ -29,6 +33,8 @@ import { settingsAPI } from '@/services/api';
 const route = useRoute();
 const overrides = ref([]);
 const overrideDate = ref('');
+const templateVersionId = ref('');
+const templateVersionOptions = ref([]);
 const showSnackbar = ref(false);
 const snackbarMessage = ref('');
 const snackbarColor = ref('success');
@@ -45,6 +51,7 @@ async function load() {
     if (!teeSheetId) { overrides.value = []; return; }
     const { data } = await settingsAPI.v2.listOverrides(teeSheetId);
     overrides.value = data || [];
+    await loadTemplateVersions();
   } catch (e) {
     notify('Failed to load overrides', 'error');
   }
@@ -90,6 +97,25 @@ onMounted(load);
 // Sync calendar-selected date
 const selectedDate = inject('settings:selectedDate', ref(''));
 watch(selectedDate, (v) => { if (v) overrideDate.value = v; }, { immediate: true });
+
+async function loadTemplateVersions() {
+  const teeSheetId = route.params.teeSheetId;
+  if (!teeSheetId) { templateVersionOptions.value = []; return; }
+  try {
+    const { data } = await settingsAPI.v2.listTemplates(teeSheetId);
+    const opts = [];
+    for (const t of data || []) {
+      for (const v of (t.versions || [])) {
+        const note = v.notes ? ` — ${v.notes}` : '';
+        const tmplShort = (t.id || '').slice(0, 6);
+        opts.push({ id: v.id, label: `Tmpl ${tmplShort} v${v.version_number}${note}` });
+      }
+    }
+    templateVersionOptions.value = opts;
+  } catch (_) {
+    templateVersionOptions.value = [];
+  }
+}
 </script>
 
 <style scoped>

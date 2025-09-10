@@ -11,6 +11,10 @@
         <select v-model.number="weekday">
           <option v-for="w in 7" :key="w-1" :value="w-1">{{ w-1 }}</option>
         </select>
+        <label class="ml-2">Template Version</label>
+        <select v-model="templateVersionId">
+          <option v-for="opt in templateVersionOptions" :key="opt.id" :value="opt.id">{{ opt.label }}</option>
+        </select>
         <input v-model="startTime" type="time" />
         <input v-model="endTime" type="time" />
         <input v-model="templateVersionId" placeholder="template_version_id" />
@@ -64,6 +68,7 @@ const weekday = ref(0);
 const startTime = ref('07:00');
 const endTime = ref('10:00');
 const templateVersionId = ref('');
+const templateVersionOptions = ref([]);
 const windowsBySeason = reactive({});
 let dragState = { seasonId: null, fromIndex: -1 };
 
@@ -88,6 +93,7 @@ async function load() {
     if (!teeSheetId) { seasons.value = []; return; }
     const { data } = await settingsAPI.v2.listSeasons(teeSheetId);
     seasons.value = data || [];
+    await loadTemplateVersions();
   } catch (e) {
     notify('Failed to load seasons', 'error');
   }
@@ -182,6 +188,25 @@ watch(selectedDate, (v) => {
     endDate.value = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
   } catch {}
 }, { immediate: true });
+
+async function loadTemplateVersions() {
+  const teeSheetId = route.params.teeSheetId;
+  if (!teeSheetId) { templateVersionOptions.value = []; return; }
+  try {
+    const { data } = await settingsAPI.v2.listTemplates(teeSheetId);
+    const opts = [];
+    for (const t of data || []) {
+      for (const v of (t.versions || [])) {
+        const note = v.notes ? ` — ${v.notes}` : '';
+        const tmplShort = (t.id || '').slice(0, 6);
+        opts.push({ id: v.id, label: `Tmpl ${tmplShort} v${v.version_number}${note}` });
+      }
+    }
+    templateVersionOptions.value = opts;
+  } catch (_) {
+    templateVersionOptions.value = [];
+  }
+}
 </script>
 
 <style scoped>
