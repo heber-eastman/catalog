@@ -60,6 +60,23 @@
               <button class="btn sm" @click="goSeasons" :disabled="!selectedDateISO">Seasons</button>
               <button class="btn sm" @click="regenSelected" :disabled="!selectedDateISO">Regenerate</button>
             </div>
+            <div class="cal-preview" v-if="selectedDateISO">
+              <div class="row head">
+                <strong>Availability Preview</strong>
+                <span class="muted" v-if="previewLoading">Loading…</span>
+                <span class="muted" v-else>{{ previewSlots.length }} slots</span>
+              </div>
+              <div v-if="previewError" class="err">{{ previewError }}</div>
+              <div v-else class="preview-list">
+                <div v-for="(items, sideId) in groupedBySide" :key="sideId" class="preview-side">
+                  <div class="side-title">{{ sideName(sideId) }}</div>
+                  <div class="times">
+                    <span v-for="t in items.slice(0,3)" :key="t.id" class="time">{{ formatTime(t.start_time) }}</span>
+                    <span v-if="items.length > 3" class="more">+{{ items.length - 3 }} more</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <router-link :to="{ name: 'SettingsTeeSheetsSides', params:{ teeSheetId } }"><i class="mdi mdi-table-large nav-ico"></i><span>Sides</span></router-link>
@@ -78,7 +95,7 @@
 <script setup>
 import { ref, computed, onMounted, watch, provide } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { settingsAPI } from '@/services/api';
+import { settingsAPI, teeTimesAPI } from '@/services/api';
 const route = useRoute();
 const router = useRouter();
 const teeSheetRouteNames = new Set([
@@ -115,6 +132,10 @@ const daysInMonth = computed(()=> new Date(current.value.getFullYear(), current.
 const selectedDay = ref(null);
 const overrideDates = ref(new Set());
 const seasonDates = ref(new Set());
+const previewLoading = ref(false);
+const previewError = ref('');
+const previewSlots = ref([]);
+const sidesById = ref({});
 
 function prevMonth(){
   const d = new Date(current.value);
@@ -195,6 +216,53 @@ async function loadCalendarFlags(){
 }
 
 watch([teeSheetId, current], loadCalendarFlags, { immediate: true });
+
+async function loadSides(){
+  if (!teeSheetId.value) { sidesById.value = {}; return; }
+  try {
+    const { data } = await settingsAPI.listSides(teeSheetId.value);
+    const map = {};
+    (data || []).forEach(s => { map[s.id] = s; });
+    sidesById.value = map;
+  } catch (_) {
+    sidesById.value = {};
+  }
+}
+
+function sideName(sideId){
+  return sidesById.value[sideId]?.name || `Side ${String(sideId).slice(0,6)}`;
+}
+
+function formatTime(ts){
+  try { return new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
+  catch { return String(ts); }
+}
+
+const groupedBySide = computed(() => {
+  const groups = {};
+  for (const s of previewSlots.value) {
+    const arr = groups[s.side_id] || (groups[s.side_id] = []);
+    arr.push(s);
+  }
+  return groups;
+});
+
+async function loadPreview(){
+  previewError.value = '';
+  previewSlots.value = [];
+  if (!teeSheetId.value || !selectedDateISO.value) return;
+  previewLoading.value = true;
+  try {
+    const { data } = await teeTimesAPI.available({ date: selectedDateISO.value, teeSheets: teeSheetId.value, groupSize: 2 });
+    previewSlots.value = Array.isArray(data) ? data : [];
+  } catch (e) {
+    previewError.value = 'Failed to load availability';
+  } finally {
+    previewLoading.value = false;
+  }
+}
+
+watch([teeSheetId, selectedDateISO], () => { loadSides(); loadPreview(); }, { immediate: true });
 
 function goOverrides(){
   if (!teeSheetId.value) return;
