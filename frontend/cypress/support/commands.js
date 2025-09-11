@@ -21,3 +21,10 @@ Cypress.Commands.add('fillForm', formData => {
     cy.dataCy(`${key}-input`).type(value);
   });
 });
+
+// Set auth token used by axios interceptor
+Cypress.Commands.add('setAuthToken', (token) => {
+  cy.window().then(win => {
+    try { win.localStorage.setItem('jwt_token', token); } catch {}
+  });
+});

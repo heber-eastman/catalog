@@ -2,21 +2,21 @@
   <div class="pa-4">
     <h2>Seasons (V2)</h2>
     <div class="mb-4 row">
-      <button @click="createSeason" class="btn">New Season</button>
+      <button @click="createSeason" class="btn" data-cy="season-new-btn">New Season</button>
       <div class="ml-2 row">
         <label>Version dates</label>
-        <input v-model="startDate" type="date" />
-        <input v-model="endDate" type="date" />
+        <input v-model="startDate" type="date" data-cy="season-start-date" />
+        <input v-model="endDate" type="date" data-cy="season-end-date" />
         <label class="ml-2">Weekday</label>
-        <select v-model.number="weekday">
+        <select v-model.number="weekday" data-cy="season-weekday-select">
           <option v-for="w in 7" :key="w-1" :value="w-1">{{ w-1 }}</option>
         </select>
         <label class="ml-2">Template Version</label>
-        <select v-model="templateVersionId">
+        <select v-model="templateVersionId" data-cy="season-tmplver-select">
           <option v-for="opt in templateVersionOptions" :key="opt.id" :value="opt.id">{{ opt.label }}</option>
         </select>
-        <input v-model="startTime" type="time" />
-        <input v-model="endTime" type="time" />
+        <input v-model="startTime" type="time" data-cy="season-start-time" />
+        <input v-model="endTime" type="time" data-cy="season-end-time" />
         <input v-model="templateVersionId" placeholder="template_version_id" />
       </div>
     </div>
@@ -24,8 +24,8 @@
       <li v-for="s in seasons" :key="s.id" class="mb-2">
         <div><strong>{{ s.id }}</strong> — status: {{ s.status }}</div>
         <div class="row">
-          <button @click="addVersion(s.id)" class="btn sm">Add Version+Window</button>
-          <button @click="publish(s.id)" class="btn sm">Publish</button>
+          <button @click="addVersion(s.id)" class="btn sm" :data-cy="`season-add-version-${s.id}`">Add Version+Window</button>
+          <button @click="publish(s.id)" class="btn sm" :data-cy="`season-publish-${s.id}`">Publish</button>
         </div>
         <div class="mt-2">
           <h4 class="mb-1">Weekday windows (local preview)</h4>
@@ -38,11 +38,12 @@
               @dragstart="onDragStart(s.id, index, $event)"
               @dragover.prevent
               @drop="onDrop(s.id, index, $event)"
+              :data-cy="`season-window-${s.id}-${index}`"
             >
               {{ index }} — wd: {{ w.weekday }} {{ w.start_time_local }} - {{ w.end_time_local }} (tv: {{ w.template_version_id.slice(0,8) }})
             </li>
           </ul>
-          <button class="btn sm" @click="saveOrder(s.id)" :disabled="!(windowsBySeason[s.id] && windowsBySeason[s.id].length)">Save order</button>
+          <button class="btn sm" @click="saveOrder(s.id)" :disabled="!(windowsBySeason[s.id] && windowsBySeason[s.id].length)" :data-cy="`season-save-order-${s.id}`">Save order</button>
         </div>
       </li>
     </ul>

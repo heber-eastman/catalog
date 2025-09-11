@@ -17,6 +17,7 @@ vi.mock('@/services/api', async (orig) => {
         createSeason: vi.fn().mockResolvedValue({ data: { id: 's2' } }),
         createSeasonVersion: vi.fn().mockResolvedValue({ data: { id: 'sv1' } }),
         addSeasonWeekdayWindow: vi.fn().mockResolvedValue({ data: { id: 'w1' } }),
+        reorderSeasonWeekdayWindows: vi.fn().mockResolvedValue({ data: { success: true, windows: [{ id: 'w1' }] } }),
         publishSeason: vi.fn().mockResolvedValue({ data: { ok: true } }),
       },
     },
@@ -47,6 +48,9 @@ describe('V2 Seasons view', () => {
     // Publish
     const pubBtn = wrapper.findAll('button.btn.sm')[1];
     await pubBtn.trigger('click');
+    // Save order (no-op with one item, but ensure call is attempted gracefully)
+    const saveBtn = wrapper.findAll('button.btn.sm').at(-1);
+    if (saveBtn) await saveBtn.trigger('click');
   });
 });
 
