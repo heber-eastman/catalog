@@ -1,5 +1,5 @@
 <template>
-  <div class="pa-4">
+  <div class="pa-4" data-cy="seasons-v2">
     <h2>Seasons (V2)</h2>
     <div class="mb-4 row">
       <button @click="createSeason" class="btn" data-cy="season-new-btn">New Season</button>
@@ -20,7 +20,9 @@
         <input v-model="templateVersionId" placeholder="template_version_id" />
       </div>
     </div>
-    <ul>
+    <div v-if="busy" class="muted" data-cy="seasons-loading">Loading…</div>
+    <div v-else-if="!seasons.length" class="muted" data-cy="seasons-empty">No seasons yet</div>
+    <ul v-else>
       <li v-for="s in seasons" :key="s.id" class="mb-2">
         <div><strong>{{ s.id }}</strong> — status: {{ s.status }}</div>
         <div class="row">
@@ -63,6 +65,7 @@ import { settingsAPI } from '@/services/api';
 
 const route = useRoute();
 const seasons = ref([]);
+const busy = ref(false);
 const startDate = ref('');
 const endDate = ref('');
 const weekday = ref(0);
@@ -90,6 +93,7 @@ function cryptoRandom() {
 
 async function load() {
   try {
+    busy.value = true;
     const teeSheetId = route.params.teeSheetId;
     if (!teeSheetId) { seasons.value = []; return; }
     const { data } = await settingsAPI.v2.listSeasons(teeSheetId);
@@ -97,6 +101,8 @@ async function load() {
     await loadTemplateVersions();
   } catch (e) {
     notify('Failed to load seasons', 'error');
+  } finally {
+    busy.value = false;
   }
 }
 

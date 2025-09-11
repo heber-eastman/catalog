@@ -29,7 +29,7 @@
     <aside class="nav" v-if="isTeeSheet">
         <div class="scoping">
           <label class="lbl">Tee Sheet</label>
-          <select v-model="teeSheetId" @change="onSheetChange">
+          <select v-model="teeSheetId" @change="onSheetChange" data-cy="tee-sheet-select" aria-label="Select tee sheet">
             <option v-for="s in teeSheets" :value="s.id" :key="s.id">{{ s.name }}</option>
           </select>
           <div class="calendar">
@@ -38,7 +38,7 @@
               <span class="cal-title">{{ monthYear }}</span>
               <button class="cal-nav" @click="nextMonth" aria-label="Next month">›</button>
             </div>
-            <div class="cal-grid">
+            <div class="cal-grid" role="grid" aria-label="Tee sheet calendar">
               <div class="dow" v-for="d in dows" :key="d">{{ d }}</div>
               <div class="day" v-for="n in leadingBlanks" :key="'b'+n"></div>
               <button
@@ -46,7 +46,9 @@
                 v-for="d in daysInMonth"
                 :key="'d'+d"
                 :class="{ selected: isSelected(d) }"
+                :aria-label="ariaFor(d)"
                 @click="selectDay(d)"
+                data-cy="cal-day"
               >
                 {{ d }}
                 <span class="dots">
@@ -56,19 +58,34 @@
               </button>
             </div>
             <div class="cal-actions">
-              <button class="btn sm" @click="goOverrides" :disabled="!selectedDateISO">Overrides</button>
-              <button class="btn sm" @click="goSeasons" :disabled="!selectedDateISO">Seasons</button>
-              <button class="btn sm" @click="regenSelected" :disabled="!selectedDateISO">Regenerate</button>
+              <button class="btn sm" @click="goOverrides" :disabled="!selectedDateISO" data-cy="cal-btn-overrides" aria-label="Go to Overrides">Overrides</button>
+              <button class="btn sm" @click="goSeasons" :disabled="!selectedDateISO" data-cy="cal-btn-seasons" aria-label="Go to Seasons">Seasons</button>
+              <button class="btn sm" @click="regenSelected" :disabled="!selectedDateISO" data-cy="cal-btn-regenerate" aria-label="Regenerate selected date">Regenerate</button>
             </div>
-            <div class="cal-preview" v-if="selectedDateISO">
+            <div class="cal-preview" v-if="selectedDateISO" data-cy="cal-preview">
               <div class="row head">
                 <strong>Availability Preview</strong>
                 <span class="muted" v-if="previewLoading">Loading…</span>
                 <span class="muted" v-else>{{ previewSlots.length }} slots</span>
               </div>
+              <div class="row controls">
+                <label class="ml-2">Group size</label>
+                <select v-model.number="groupSize" @change="loadPreview" data-cy="preview-group-size">
+                  <option :value="1">1</option>
+                  <option :value="2">2</option>
+                  <option :value="3">3</option>
+                  <option :value="4">4</option>
+                </select>
+                <template v-for="(side, sid) in sidesById" :key="sid">
+                  <label class="ml-2">
+                    <input type="checkbox" :value="sid" v-model="enabledSides" @change="noop" :data-cy="`preview-side-${sid}`" />
+                    {{ side.name || `Side ${String(sid).slice(0,6)}` }}
+                  </label>
+                </template>
+              </div>
               <div v-if="previewError" class="err">{{ previewError }}</div>
               <div v-else class="preview-list">
-                <div v-for="(items, sideId) in groupedBySide" :key="sideId" class="preview-side">
+                <div v-for="(items, sideId) in groupedBySideFiltered" :key="sideId" class="preview-side">
                   <div class="side-title">{{ sideName(sideId) }}</div>
                   <div class="times">
                     <span v-for="t in items.slice(0,3)" :key="t.id" class="time">{{ formatTime(t.start_time) }}</span>
@@ -136,6 +153,8 @@ const previewLoading = ref(false);
 const previewError = ref('');
 const previewSlots = ref([]);
 const sidesById = ref({});
+const groupSize = ref(2);
+const enabledSides = ref([]);
 
 function prevMonth(){
   const d = new Date(current.value);
@@ -155,6 +174,13 @@ function isSelected(d){
 }
 
 function pad(n){ return n < 10 ? `0${n}` : String(n); }
+function ariaFor(d){
+  try {
+    const y = (current.value instanceof Date) ? current.value.getFullYear() : new Date().getFullYear();
+    const m = (current.value instanceof Date) ? current.value.getMonth() + 1 : (new Date().getMonth() + 1);
+    return `Select ${y}-${pad(m)}-${pad(d)}`;
+  } catch { return `Select day ${d}`; }
+}
 const selectedDateISO = computed(() => {
   if (!selectedDay.value) return '';
   const y = current.value.getFullYear();
@@ -247,13 +273,23 @@ const groupedBySide = computed(() => {
   return groups;
 });
 
+const groupedBySideFiltered = computed(() => {
+  const enabled = enabledSides.value;
+  if (!enabled || enabled.length === 0) return groupedBySide.value;
+  const out = {};
+  for (const [sid, items] of Object.entries(groupedBySide.value)) {
+    if (enabled.includes(sid)) out[sid] = items;
+  }
+  return out;
+});
+
 async function loadPreview(){
   previewError.value = '';
   previewSlots.value = [];
   if (!teeSheetId.value || !selectedDateISO.value) return;
   previewLoading.value = true;
   try {
-    const { data } = await teeTimesAPI.available({ date: selectedDateISO.value, teeSheets: teeSheetId.value, groupSize: 2 });
+    const { data } = await teeTimesAPI.available({ date: selectedDateISO.value, teeSheets: teeSheetId.value, groupSize: groupSize.value || 2 });
     previewSlots.value = Array.isArray(data) ? data : [];
   } catch (e) {
     previewError.value = 'Failed to load availability';
@@ -263,6 +299,11 @@ async function loadPreview(){
 }
 
 watch([teeSheetId, selectedDateISO], () => { loadSides(); loadPreview(); }, { immediate: true });
+watch(sidesById, () => {
+  enabledSides.value = Object.keys(sidesById.value || {});
+});
+
+function noop(){ }
 
 function goOverrides(){
   if (!teeSheetId.value) return;

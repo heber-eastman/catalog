@@ -1,5 +1,5 @@
 <template>
-  <div class="pa-4">
+  <div class="pa-4" data-cy="overrides-v2">
     <h2>Overrides (V2)</h2>
     <div class="mb-4 row">
       <button @click="createOverride" class="btn" data-cy="override-new-btn">New Override</button>
@@ -9,7 +9,9 @@
         <option v-for="opt in templateVersionOptions" :key="opt.id" :value="opt.id">{{ opt.label }}</option>
       </select>
     </div>
-    <ul>
+    <div v-if="busy" class="muted" data-cy="overrides-loading">Loading…</div>
+    <div v-else-if="!overrides.length" class="muted" data-cy="overrides-empty">No overrides yet</div>
+    <ul v-else>
       <li v-for="o in overrides" :key="o.id" class="mb-2">
         <div class="row">
           <strong>{{ o.date }}</strong> — status: {{ o.status }}
@@ -58,6 +60,7 @@ import { settingsAPI } from '@/services/api';
 
 const route = useRoute();
 const overrides = ref([]);
+const busy = ref(false);
 const overrideDate = ref('');
 const templateVersionId = ref('');
 const templateVersionOptions = ref([]);
@@ -75,6 +78,7 @@ function notify(message, color = 'success') {
 
 async function load() {
   try {
+    busy.value = true;
     const teeSheetId = route.params.teeSheetId;
     if (!teeSheetId) { overrides.value = []; return; }
     const { data } = await settingsAPI.v2.listOverrides(teeSheetId);
@@ -83,6 +87,8 @@ async function load() {
     await loadSides();
   } catch (e) {
     notify('Failed to load overrides', 'error');
+  } finally {
+    busy.value = false;
   }
 }
 

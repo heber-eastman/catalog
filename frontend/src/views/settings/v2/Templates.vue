@@ -1,5 +1,5 @@
 <template>
-  <div class="pa-4">
+  <div class="pa-4" data-cy="templates-v2">
     <h2>Templates (V2)</h2>
     <div class="mb-4 row">
       <button @click="createTemplate" class="btn" :disabled="busy" data-cy="template-new-btn">New Template</button>
@@ -15,7 +15,9 @@
         <button @click="regenerateRange" class="btn sm" :disabled="busy || !regenStart || !regenEnd || regenStart > regenEnd" data-cy="regen-range-go">Go</button>
       </div>
     </div>
-    <ul>
+    <div v-if="busy" class="muted" data-cy="templates-loading">Loading…</div>
+    <div v-else-if="!templates.length" class="muted" data-cy="templates-empty">No templates yet</div>
+    <ul v-else>
       <li v-for="t in templates" :key="t.id" class="mb-2">
         <div>
           <strong>{{ t.id }}</strong> — status: {{ t.status }} — interval: {{ t.interval_mins }}
