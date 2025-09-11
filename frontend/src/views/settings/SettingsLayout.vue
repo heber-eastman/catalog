@@ -317,10 +317,9 @@ async function regenSelected(){
   if (!teeSheetId.value || !selectedDateISO.value) return;
   try {
     await settingsAPI.v2.regenerateDate(teeSheetId.value, selectedDateISO.value);
-    // lightweight feedback
-    console.log('Regeneration queued for', selectedDateISO.value);
+    try { window.dispatchEvent(new CustomEvent('snack', { detail: { color: 'success', text: `Regeneration queued for ${selectedDateISO.value}` } })); } catch {}
   } catch (e) {
-    console.warn('Failed to queue regeneration', e);
+    try { window.dispatchEvent(new CustomEvent('snack', { detail: { color: 'error', text: 'Failed to queue regeneration' } })); } catch {}
   }
 }
 

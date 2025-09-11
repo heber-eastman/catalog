@@ -2,6 +2,7 @@
   <div class="pa-4" data-cy="overrides-v2">
     <h2>Overrides (V2)</h2>
     <div class="mb-4 row">
+      <router-link :to="{ name: 'SettingsTeeSheetsSides', params: { teeSheetId: route.params.teeSheetId } }" class="btn sm" data-cy="back-to-calendar">Back to Calendar</router-link>
       <button @click="createOverride" class="btn" data-cy="override-new-btn">New Override</button>
       <input v-model="overrideDate" type="date" data-cy="override-date-input" />
       <label class="ml-2">Template Version</label>
