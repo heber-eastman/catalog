@@ -2,17 +2,17 @@
   <div class="pa-4">
     <h2>Templates (V2)</h2>
     <div class="mb-4 row">
-      <button @click="createTemplate" class="btn" :disabled="busy">New Template</button>
+      <button @click="createTemplate" class="btn" :disabled="busy" data-cy="template-new-btn">New Template</button>
       <div class="ml-2">
         <label>Regenerate date</label>
-        <input v-model="regenDate" type="date" />
-        <button @click="regenerateDate" class="btn sm" :disabled="busy || !regenDate">Go</button>
+        <input v-model="regenDate" type="date" data-cy="regen-date-input" />
+        <button @click="regenerateDate" class="btn sm" :disabled="busy || !regenDate" data-cy="regen-date-go">Go</button>
       </div>
       <div class="ml-2">
         <label>Regenerate range</label>
-        <input v-model="regenStart" type="date" />
-        <input v-model="regenEnd" type="date" />
-        <button @click="regenerateRange" class="btn sm" :disabled="busy || !regenStart || !regenEnd || regenStart > regenEnd">Go</button>
+        <input v-model="regenStart" type="date" data-cy="regen-start-input" />
+        <input v-model="regenEnd" type="date" data-cy="regen-end-input" />
+        <button @click="regenerateRange" class="btn sm" :disabled="busy || !regenStart || !regenEnd || regenStart > regenEnd" data-cy="regen-range-go">Go</button>
       </div>
     </div>
     <ul>
@@ -21,9 +21,9 @@
           <strong>{{ t.id }}</strong> — status: {{ t.status }} — interval: {{ t.interval_mins }}
         </div>
         <div class="row">
-          <input v-model="versionNotes[t.id]" placeholder="Version notes" />
-          <button @click="createVersion(t.id)" class="btn sm" :disabled="busy">Add Version</button>
-          <button @click="publish(t.id)" class="btn sm" :disabled="busy">Publish</button>
+          <input v-model="versionNotes[t.id]" placeholder="Version notes" :data-cy="`template-notes-${t.id}`" />
+          <button @click="createVersion(t.id)" class="btn sm" :disabled="busy" :data-cy="`template-add-version-${t.id}`">Add Version</button>
+          <button @click="publish(t.id)" class="btn sm" :disabled="busy" :data-cy="`template-publish-${t.id}`">Publish</button>
         </div>
       </li>
     </ul>
