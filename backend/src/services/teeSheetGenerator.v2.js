@@ -10,6 +10,7 @@ const {
   GolfCourseInstance,
 } = require('../models');
 const { resolveEffectiveWindows } = require('./templateResolver');
+const { compileWindowsForDate } = require('./windowCompiler');
 
 function toLocalDateTime({ dateISO, timeLocal, zone }) {
   return DateTime.fromISO(`${dateISO}T${timeLocal}`, { zone });
@@ -27,43 +28,31 @@ async function generateForDateV2({ teeSheetId, dateISO }) {
   const sides = Object.fromEntries((await TeeSheetSide.findAll({ where: { tee_sheet_id: teeSheetId } })).map(s => [s.id, s]));
   let generated = 0;
 
-  for (const w of windows) {
-    const side = sides[w.side_id];
+  // Compile windows with clamp/snap and correct interval per template version
+  const compiled = await compileWindowsForDate({ teeSheetId, dateISO, sourceType: 'effective', sourceId: null, windows });
+
+  for (const c of compiled) {
+    const side = sides[c.side_id];
     if (!side) continue;
 
-    // Compute start/end in local time depending on modes
-    let startLocal;
-    let endLocal;
-    if (w.start_mode === 'fixed' && w.end_mode === 'fixed') {
-      startLocal = toLocalDateTime({ dateISO, timeLocal: w.start_time_local, zone });
-      endLocal = toLocalDateTime({ dateISO, timeLocal: w.end_time_local, zone });
-    } else {
-      // For offsets, fall back to 07:00-18:00 plus offsets for now; refine later
-      const baseStart = DateTime.fromISO(`${dateISO}T07:00:00`, { zone }).plus({ minutes: w.start_offset_mins || 0 });
-      const baseEnd = DateTime.fromISO(`${dateISO}T18:00:00`, { zone }).plus({ minutes: w.end_offset_mins || 0 });
-      startLocal = baseStart;
-      endLocal = baseEnd;
-    }
+    const startsEnabled = c.start_slots_enabled !== false; // may not exist; default true
 
-    const interval = side.interval_mins || 8;
-    const startsEnabled = w.start_slots_enabled !== false; // default true
-
-    for (let t = startLocal; t < endLocal; t = t.plus({ minutes: interval })) {
-      if (!startsEnabled) continue;
+    // Disallow cross-midnight: compiler already clamps to same day
+    for (let t = c.start; t < c.end; t = t.plus({ minutes: c.interval_mins })) {
+      if (!startsEnabled) continue; // generate no start rows if start-disabled
 
       const startsAt = t.toUTC().toJSDate();
 
-      // Check closure overlaps
       const whereClause = {
         tee_sheet_id: teeSheetId,
         starts_at: { [Op.lte]: startsAt },
         ends_at: { [Op.gt]: startsAt },
       };
-      whereClause[Op.or] = [{ side_id: w.side_id }, { side_id: null }];
+      whereClause[Op.or] = [{ side_id: c.side_id }, { side_id: null }];
       const closure = await ClosureBlock.findOne({ where: whereClause });
 
       const [row, created] = await TeeTime.findOrCreate({
-        where: { tee_sheet_id: teeSheetId, side_id: w.side_id, start_time: startsAt },
+        where: { tee_sheet_id: teeSheetId, side_id: c.side_id, start_time: startsAt },
         defaults: {
           capacity: 4,
           assigned_count: 0,
