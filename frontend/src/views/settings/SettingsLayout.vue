@@ -104,7 +104,10 @@
                 <div v-for="(items, sideId) in groupedBySideFiltered" :key="sideId" class="preview-side">
                   <div class="side-title">{{ sideName(sideId) }}</div>
                   <div class="times">
-                    <span v-for="t in items.slice(0,3)" :key="t.id" class="time">{{ formatTime(t.start_time) }}</span>
+                    <span v-for="t in items.slice(0,3)" :key="t.id" class="time">
+                      {{ formatTime(t.start_time) }}
+                      <span v-if="compareCustomer && !isInCustomer(t)" class="time-badge" title="Customer-hidden">•</span>
+                    </span>
                     <span v-if="items.length > 3" class="more">+{{ items.length - 3 }} more</span>
                   </div>
                 </div>
@@ -340,6 +343,10 @@ async function loadSides(){
 function sideName(sideId){
   return sidesById.value[sideId]?.name || `Side ${String(sideId).slice(0,6)}`;
 }
+function isInCustomer(t){
+  if (!customerSlots.value?.length) return false;
+  return customerSlots.value.some(cs => cs.id === t.id);
+}
 
 function formatTime(ts){
   try { return new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
@@ -548,6 +555,8 @@ try {
 .dialog{ position:fixed; inset:0; background:rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; }
 .dialog .dlg-body{ background:#fff; padding:12px; border-radius:8px; min-width:300px; }
 .content { padding: 16px; }
+.time { display:inline-block; padding:2px 6px; border:1px solid #ddd; border-radius:6px; margin-right:4px; }
+.time-badge { color:#d32f2f; margin-left:4px; font-size:14px; line-height:1; vertical-align:middle; }
 </style>
 
 
