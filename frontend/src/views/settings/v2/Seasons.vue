@@ -23,7 +23,7 @@
     </div>
     <div v-if="busy" class="muted" data-cy="seasons-loading">Loading…</div>
     <div v-else-if="!seasons.length" class="muted" data-cy="seasons-empty">No seasons yet</div>
-    <ul v-else>
+    <ul>
       <li v-for="s in seasons" :key="s.id" class="mb-2">
         <div><strong>{{ s.id }}</strong> — status: {{ s.status }}</div>
         <div class="row">

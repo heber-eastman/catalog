@@ -4,6 +4,7 @@ import { vi } from 'vitest';
 
 vi.mock('vue-router', () => ({
   useRoute: () => ({ params: { teeSheetId: 'sheet1' } }),
+  useRouter: () => ({ push: vi.fn() }),
 }));
 
 vi.mock('@/services/api', async (orig) => {

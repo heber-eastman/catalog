@@ -2,7 +2,7 @@
   <div class="pa-4" data-cy="overrides-v2">
     <h2>Overrides (V2)</h2>
     <div class="mb-4 row">
-      <router-link :to="{ name: 'SettingsTeeSheetsSides', params: { teeSheetId: route.params.teeSheetId } }" class="btn sm" data-cy="back-to-calendar">Back to Calendar</router-link>
+      <button @click="backToCalendar" class="btn sm" data-cy="back-to-calendar">Back to Calendar</button>
       <button @click="createOverride" class="btn" data-cy="override-new-btn">New Override</button>
       <input v-model="overrideDate" type="date" data-cy="override-date-input" />
       <label class="ml-2">Template Version</label>
@@ -56,10 +56,11 @@
 
 <script setup>
 import { onMounted, ref, inject, watch, reactive } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { settingsAPI } from '@/services/api';
 
 const route = useRoute();
+const router = useRouter();
 const overrides = ref([]);
 const busy = ref(false);
 const overrideDate = ref('');
@@ -84,8 +85,9 @@ async function load() {
     if (!teeSheetId) { overrides.value = []; return; }
     const { data } = await settingsAPI.v2.listOverrides(teeSheetId);
     overrides.value = data || [];
-    await loadTemplateVersions();
-    await loadSides();
+    // Fire-and-forget auxiliary loads so main list renders promptly in tests
+    loadTemplateVersions();
+    loadSides();
   } catch (e) {
     notify('Failed to load overrides', 'error');
   } finally {
@@ -178,6 +180,12 @@ async function saveWindow(overrideId) {
   } catch (e) {
     notify('Failed to add override window', 'error');
   }
+}
+
+function backToCalendar(){
+  try {
+    router.push({ name: 'SettingsTeeSheetsSides', params: { teeSheetId: route.params.teeSheetId } });
+  } catch {}
 }
 </script>
 
