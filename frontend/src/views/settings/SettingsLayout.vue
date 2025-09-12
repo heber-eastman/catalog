@@ -66,6 +66,7 @@
               <button class="btn sm" @click="goSeasons" :disabled="!selectedDateISO" data-cy="cal-btn-seasons" aria-label="Go to Seasons">Seasons</button>
               <button class="btn sm" @click="regenSelected" :disabled="!selectedDateISO" data-cy="cal-btn-regenerate" aria-label="Regenerate selected date">Regenerate</button>
               <button class="btn sm" @click="openRangeDialog" :disabled="!teeSheetId" data-cy="cal-btn-regenerate-range" aria-label="Regenerate date range">Range…</button>
+              <button class="btn sm" @click="goToday" data-cy="cal-btn-today" aria-label="Go to today">Today</button>
             </div>
             <div class="cal-preview" v-if="selectedDateISO" data-cy="cal-preview">
               <div class="row head">
@@ -81,6 +82,8 @@
                   <option :value="3">3</option>
                   <option :value="4">4</option>
                 </select>
+                <button class="btn xs ml-2" @click="enableAllSides" data-cy="preview-sides-all">All</button>
+                <button class="btn xs ml-1" @click="enableNoSides" data-cy="preview-sides-none">None</button>
                 <template v-for="(side, sid) in sidesById" :key="sid">
                   <label class="ml-2">
                     <input type="checkbox" :value="sid" v-model="enabledSides" @change="noop" :data-cy="`preview-side-${sid}`" />
@@ -186,14 +189,17 @@ function prevMonth(){
   const d = new Date(current.value);
   d.setMonth(d.getMonth() - 1);
   current.value = d;
+  persistSelected();
 }
 function nextMonth(){
   const d = new Date(current.value);
   d.setMonth(d.getMonth() + 1);
   current.value = d;
+  persistSelected();
 }
 function selectDay(d){
   selectedDay.value = d;
+  persistSelected();
 }
 function isSelected(d){
   return selectedDay.value === d;
@@ -232,6 +238,7 @@ function onCalendarKeydown(ev){
       current.value = new Date(y, m, 1);
     }
     selectedDay.value = day;
+    persistSelected();
   };
   switch (key){
     case 'ArrowLeft': adjust(-1); break;
@@ -240,8 +247,8 @@ function onCalendarKeydown(ev){
     case 'ArrowDown': adjust(7); break;
     case 'PageUp': prevMonth(); break;
     case 'PageDown': nextMonth(); break;
-    case 'Home': selectedDay.value = 1; break;
-    case 'End': selectedDay.value = curMonthDays; break;
+    case 'Home': selectedDay.value = 1; persistSelected(); break;
+    case 'End': selectedDay.value = curMonthDays; persistSelected(); break;
     case 'Enter': // noop; click is not necessary since selectDay sets it
       break;
   }
@@ -373,6 +380,8 @@ watch(sidesById, () => {
 });
 
 function noop(){ }
+function enableAllSides(){ enabledSides.value = Object.keys(sidesById.value || {}); }
+function enableNoSides(){ enabledSides.value = []; }
 
 // Persist preview controls
 watch(groupSize, (v) => {
@@ -431,7 +440,31 @@ async function queueRange(){
   }
 }
 
-onMounted(loadSheets);
+function goToday(){
+  const now = new Date();
+  current.value = new Date(now.getFullYear(), now.getMonth(), 1);
+  selectedDay.value = now.getDate();
+  persistSelected();
+}
+
+function persistSelected(){
+  try {
+    const key = 'settings:selectedDate';
+    if (selectedDateISO.value) localStorage.setItem(key, selectedDateISO.value);
+  } catch {}
+}
+
+onMounted(() => {
+  loadSheets();
+  try {
+    const saved = localStorage.getItem('settings:selectedDate');
+    if (saved && /^\d{4}-\d{2}-\d{2}$/.test(saved)) {
+      const dt = new Date(saved + 'T00:00:00');
+      current.value = new Date(dt.getFullYear(), dt.getMonth(), 1);
+      selectedDay.value = dt.getDate();
+    }
+  } catch {}
+});
 
 // URL always wins: keep local state in sync with route param
 watch(() => route.params.teeSheetId, (newId) => {

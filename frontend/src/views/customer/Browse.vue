@@ -9,6 +9,9 @@
         <option value="walk">Walk</option>
       </select>
       <input type="number" min="1" max="4" v-model.number="groupSize" />
+      <label style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" v-model="staffView" data-cy="staff-view-toggle" /> Staff view
+      </label>
       <button @click="load" data-cy="search-button">Search</button>
     </div>
 
@@ -22,6 +25,7 @@
             (greens ${{ (slot.price_breakdown.greens_fee_cents/100).toFixed(2) }}
             <template v-if="slot.price_breakdown.cart_fee_cents">+ cart ${{ (slot.price_breakdown.cart_fee_cents/100).toFixed(2) }}</template>)
           </span>
+          <span v-if="slot.is_start_disabled" class="start-disabled" aria-label="Start disabled">[start disabled]</span>
         </div>
         <button :disabled="slot.remaining < groupSize" @click="addToCart(slot)" data-cy="add-to-cart">Add</button>
       </div>
@@ -39,6 +43,7 @@ const sidesRaw = ref(localStorage.getItem('cust:browse:sides') || '');
 const walkRide = ref('ride');
 const groupSize = ref(2);
 const classId = ref('Full');
+const staffView = ref(false);
 const slots = ref([]);
 
 function parseComma(raw) {
@@ -59,7 +64,7 @@ async function load() {
     groupSize: groupSize.value,
     walkRide: walkRide.value,
     classId: classId.value,
-    customerView: true,
+    customerView: !staffView.value,
   };
   if (sides.length) params['sides[]'] = sides;
   const { data } = await teeTimesAPI.available(params);

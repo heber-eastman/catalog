@@ -33,12 +33,18 @@
         </div>
         <div class="mt-2">
           <h4 class="mb-1">Weekday windows (local preview)</h4>
-          <ul class="dnd-list">
+          <ul class="dnd-list" role="listbox" aria-label="Reorder weekday windows">
             <li
               v-for="(w, index) in (windowsBySeason[s.id] || [])"
               :key="w.id || w.localId"
               class="dnd-item"
               draggable="true"
+              role="option"
+              :tabindex="0"
+              :aria-grabbed="dragState.seasonId === s.id && dragState.fromIndex === index ? 'true' : 'false'"
+              :aria-posinset="index + 1"
+              :aria-setsize="(windowsBySeason[s.id] || []).length"
+              @keydown="onItemKeydown(s.id, index, $event)"
               @dragstart="onDragStart(s.id, index, $event)"
               @dragover.prevent
               @drop="onDrop(s.id, index, $event)"
@@ -175,6 +181,30 @@ function onDrop(seasonId, toIndex, ev) {
   orderDirtyBySeason[seasonId] = true;
 }
 
+function onItemKeydown(seasonId, index, ev){
+  const list = windowsBySeason[seasonId] || [];
+  if (!list.length) return;
+  if (ev.key === ' ' || ev.key === 'Spacebar'){
+    // toggle grabbed
+    ev.preventDefault();
+    dragState = (dragState.seasonId === seasonId && dragState.fromIndex === index)
+      ? { seasonId: null, fromIndex: -1 }
+      : { seasonId, fromIndex: index };
+    return;
+  }
+  if (dragState.seasonId === seasonId && dragState.fromIndex === index){
+    let newIndex = index;
+    if (ev.key === 'ArrowUp') newIndex = Math.max(0, index - 1);
+    if (ev.key === 'ArrowDown') newIndex = Math.min(list.length - 1, index + 1);
+    if (newIndex !== index){
+      const [moved] = list.splice(index, 1);
+      list.splice(newIndex, 0, moved);
+      dragState = { seasonId, fromIndex: newIndex };
+      orderDirtyBySeason[seasonId] = true;
+    }
+  }
+}
+
 async function saveOrder(seasonId) {
   const list = windowsBySeason[seasonId] || [];
   if (!list.length) return;
@@ -238,6 +268,10 @@ async function loadTemplateVersions() {
 .row { display: flex; align-items: center; gap: 8px; }
 .ml-2 { margin-left: 8px; }
 .mb-2 { margin-bottom: 8px; }
+.dnd-list { list-style: none; padding: 0; margin: 0; }
+.dnd-item { padding: 6px 8px; border: 1px dashed #ccc; border-radius: 6px; margin-bottom: 6px; cursor: grab; }
+.dnd-item[aria-grabbed="true"] { outline: 2px solid #1976d2; cursor: grabbing; }
+.dnd-item:focus { outline: 2px solid #90caf9; }
 </style>
 
 
