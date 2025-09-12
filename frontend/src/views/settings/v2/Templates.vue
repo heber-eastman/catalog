@@ -20,7 +20,7 @@
     <ul v-else>
       <li v-for="t in templates" :key="t.id" class="mb-2">
         <div>
-          <strong>{{ t.id }}</strong> — status: {{ t.status }} — interval: {{ t.interval_mins }}
+          <strong>{{ t.id }}</strong> — status: {{ t.status }} — interval: {{ t.interval_mins }} <em v-if="t.archived">(archived)</em>
         </div>
         <div class="mt-1" v-if="t.versions && t.versions.length">
           <div><strong>Versions</strong></div>
@@ -35,7 +35,10 @@
         <div class="row">
           <input v-model="versionNotes[t.id]" placeholder="Version notes" :data-cy="`template-notes-${t.id}`" />
           <button @click="createVersion(t.id)" class="btn sm" :disabled="busy" :data-cy="`template-add-version-${t.id}`">Add Version</button>
-          <button @click="publish(t.id)" class="btn sm" :disabled="busy" :data-cy="`template-publish-${t.id}`">Publish</button>
+          <button @click="publish(t)" class="btn sm" :disabled="busy || !(t.versions && t.versions.length)" :data-cy="`template-publish-${t.id}`">Publish latest</button>
+          <button @click="archive(t)" class="btn sm" :disabled="busy || t.archived" :data-cy="`template-archive-${t.id}`">Archive</button>
+          <button @click="unarchive(t)" class="btn sm" :disabled="busy || !t.archived" :data-cy="`template-unarchive-${t.id}`">Unarchive</button>
+          <button @click="remove(t)" class="btn sm" :disabled="busy" :data-cy="`template-delete-${t.id}`">Delete</button>
         </div>
       </li>
     </ul>
@@ -114,11 +117,13 @@ async function createVersion(templateId) {
   }
 }
 
-async function publish(templateId) {
+async function publish(t) {
   try {
     busy.value = true;
     const teeSheetId = route.params.teeSheetId;
-    await settingsAPI.v2.publishTemplate(teeSheetId, templateId, {});
+    const latest = (t.versions || []).slice().sort((a,b)=> (a.version_number||0)-(b.version_number||0)).pop();
+    if (!latest) { notify('No versions to publish', 'error'); return; }
+    await settingsAPI.v2.publishTemplate(teeSheetId, t.id, { version_id: latest.id, apply_now: false });
     await load();
     notify('Template published');
   } catch (e) {
@@ -126,6 +131,16 @@ async function publish(templateId) {
   } finally {
     busy.value = false;
   }
+}
+
+async function archive(t) {
+  try { const teeSheetId = route.params.teeSheetId; await settingsAPI.v2.archiveTemplate(teeSheetId, t.id); await load(); notify('Template archived'); } catch { notify('Failed to archive', 'error'); }
+}
+async function unarchive(t) {
+  try { const teeSheetId = route.params.teeSheetId; await settingsAPI.v2.unarchiveTemplate(teeSheetId, t.id); await load(); notify('Template unarchived'); } catch { notify('Failed to unarchive', 'error'); }
+}
+async function remove(t) {
+  try { const teeSheetId = route.params.teeSheetId; await settingsAPI.v2.deleteTemplate(teeSheetId, t.id); await load(); notify('Template deleted'); } catch (e) { notify(e?.response?.data?.error || 'Delete failed', 'error'); }
 }
 
 async function regenerateDate() {

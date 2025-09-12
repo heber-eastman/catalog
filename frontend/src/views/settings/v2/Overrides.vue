@@ -18,6 +18,7 @@
           <strong>{{ o.date }}</strong> — status: {{ o.status }}
           <button @click="addVersion(o.id)" class="btn sm ml-2" :disabled="busy" :data-cy="`override-add-version-${o.id}`">Add Version</button>
           <button @click="publish(o.id)" class="btn sm ml-2" :disabled="busy" :data-cy="`override-publish-${o.id}`">Publish</button>
+          <button @click="remove(o)" class="btn sm ml-2" :disabled="busy || o.status !== 'draft'" :data-cy="`override-delete-${o.id}`">Delete</button>
         </div>
         <div class="row mt-2">
           <label>Side</label>
@@ -127,6 +128,17 @@ async function publish(overrideId) {
     notify('Override published');
   } catch (e) {
     notify('Failed to publish override', 'error');
+  }
+}
+
+async function remove(o) {
+  try {
+    const teeSheetId = route.params.teeSheetId;
+    await settingsAPI.v2.deleteOverride(teeSheetId, o.id);
+    await load();
+    notify('Override deleted');
+  } catch (e) {
+    notify(e?.response?.data?.error || 'Failed to delete override', 'error');
   }
 }
 

@@ -29,6 +29,7 @@
         <div class="row">
           <button @click="addVersion(s.id)" class="btn sm" :disabled="busy || !startDate || !endDate || !templateVersionId || !startTime || !endTime" :data-cy="`season-add-version-${s.id}`">Add Version+Window</button>
           <button @click="publish(s.id)" class="btn sm" :disabled="busy" :data-cy="`season-publish-${s.id}`">Publish</button>
+          <button @click="remove(s)" class="btn sm" :disabled="busy || s.status !== 'draft'" :data-cy="`season-delete-${s.id}`">Delete</button>
         </div>
         <div class="mt-2">
           <h4 class="mb-1">Weekday windows (local preview)</h4>
@@ -143,6 +144,17 @@ async function publish(seasonId) {
     notify('Season published');
   } catch (e) {
     notify('Failed to publish season', 'error');
+  }
+}
+
+async function remove(s) {
+  try {
+    const teeSheetId = route.params.teeSheetId;
+    await settingsAPI.v2.deleteSeason(teeSheetId, s.id);
+    await load();
+    notify('Season deleted');
+  } catch (e) {
+    notify(e?.response?.data?.error || 'Failed to delete season', 'error');
   }
 }
 
