@@ -32,7 +32,7 @@
           <select v-model="teeSheetId" @change="onSheetChange" data-cy="tee-sheet-select" aria-label="Select tee sheet">
             <option v-for="s in teeSheets" :value="s.id" :key="s.id">{{ s.name }}</option>
           </select>
-          <div class="calendar">
+          <div class="calendar" tabindex="0" @keydown.prevent="onCalendarKeydown" aria-label="Calendar navigation region">
             <div class="cal-header">
               <button class="cal-nav" @click="prevMonth" aria-label="Previous month">‹</button>
               <span class="cal-title">{{ monthYear }}</span>
@@ -57,10 +57,15 @@
                 </span>
               </button>
             </div>
+            <div class="cal-legend" aria-label="Calendar legend" data-cy="cal-legend">
+              <span><span class="dot override" aria-hidden="true"></span> Override</span>
+              <span><span class="dot season" aria-hidden="true"></span> Season</span>
+            </div>
             <div class="cal-actions">
               <button class="btn sm" @click="goOverrides" :disabled="!selectedDateISO" data-cy="cal-btn-overrides" aria-label="Go to Overrides">Overrides</button>
               <button class="btn sm" @click="goSeasons" :disabled="!selectedDateISO" data-cy="cal-btn-seasons" aria-label="Go to Seasons">Seasons</button>
               <button class="btn sm" @click="regenSelected" :disabled="!selectedDateISO" data-cy="cal-btn-regenerate" aria-label="Regenerate selected date">Regenerate</button>
+              <button class="btn sm" @click="openRangeDialog" :disabled="!teeSheetId" data-cy="cal-btn-regenerate-range" aria-label="Regenerate date range">Range…</button>
             </div>
             <div class="cal-preview" v-if="selectedDateISO" data-cy="cal-preview">
               <div class="row head">
@@ -92,6 +97,20 @@
                     <span v-if="items.length > 3" class="more">+{{ items.length - 3 }} more</span>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+          <div v-if="showRangeDialog" class="dialog" role="dialog" aria-modal="true" aria-label="Regenerate Date Range" data-cy="regen-range-dialog">
+            <div class="dlg-body">
+              <div class="row">
+                <label>Start</label>
+                <input type="date" v-model="rangeStart" data-cy="regen-range-start" />
+                <label class="ml-2">End</label>
+                <input type="date" v-model="rangeEnd" data-cy="regen-range-end" />
+              </div>
+              <div class="row mt-2">
+                <button class="btn sm" @click="queueRange" :disabled="!isValidRange" data-cy="regen-range-queue">Queue</button>
+                <button class="btn sm ml-2" @click="closeRangeDialog" data-cy="regen-range-cancel">Cancel</button>
               </div>
             </div>
           </div>
@@ -155,6 +174,13 @@ const previewSlots = ref([]);
 const sidesById = ref({});
 const groupSize = ref(2);
 const enabledSides = ref([]);
+const showRangeDialog = ref(false);
+const rangeStart = ref('');
+const rangeEnd = ref('');
+const isValidRange = computed(() => {
+  if (!rangeStart.value || !rangeEnd.value) return false;
+  return rangeStart.value <= rangeEnd.value;
+});
 
 function prevMonth(){
   const d = new Date(current.value);
@@ -180,6 +206,45 @@ function ariaFor(d){
     const m = (current.value instanceof Date) ? current.value.getMonth() + 1 : (new Date().getMonth() + 1);
     return `Select ${y}-${pad(m)}-${pad(d)}`;
   } catch { return `Select day ${d}`; }
+}
+
+function onCalendarKeydown(ev){
+  const key = ev.key;
+  let day = selectedDay.value ?? 1;
+  let y = current.value.getFullYear();
+  let m = current.value.getMonth();
+  const curMonthDays = daysInMonth.value;
+  const adjust = (delta) => {
+    day += delta;
+    if (day < 1){
+      // go to previous month
+      const prev = new Date(y, m, 0); // last day of previous month
+      y = prev.getFullYear();
+      m = prev.getMonth();
+      day = prev.getDate();
+      current.value = new Date(y, m, 1);
+    } else if (day > curMonthDays){
+      // next month
+      const next = new Date(y, m + 1, 1);
+      y = next.getFullYear();
+      m = next.getMonth();
+      day = 1;
+      current.value = new Date(y, m, 1);
+    }
+    selectedDay.value = day;
+  };
+  switch (key){
+    case 'ArrowLeft': adjust(-1); break;
+    case 'ArrowRight': adjust(1); break;
+    case 'ArrowUp': adjust(-7); break;
+    case 'ArrowDown': adjust(7); break;
+    case 'PageUp': prevMonth(); break;
+    case 'PageDown': nextMonth(); break;
+    case 'Home': selectedDay.value = 1; break;
+    case 'End': selectedDay.value = curMonthDays; break;
+    case 'Enter': // noop; click is not necessary since selectDay sets it
+      break;
+  }
 }
 const selectedDateISO = computed(() => {
   if (!selectedDay.value) return '';
@@ -305,6 +370,17 @@ watch(sidesById, () => {
 
 function noop(){ }
 
+// Persist preview controls
+watch(groupSize, (v) => {
+  try { localStorage.setItem('settings:previewGroupSize', String(v)); } catch {}
+});
+
+watch(enabledSides, (v) => {
+  try {
+    if (teeSheetId.value) localStorage.setItem(`settings:enabledSides:${teeSheetId.value}`, JSON.stringify(v));
+  } catch {}
+}, { deep: true });
+
 function goOverrides(){
   if (!teeSheetId.value) return;
   router.push({ name: 'SettingsV2Overrides', params: { teeSheetId: teeSheetId.value } });
@@ -323,14 +399,53 @@ async function regenSelected(){
   }
 }
 
+function openRangeDialog(){
+  // prefill from selected date
+  try {
+    if (selectedDateISO.value) {
+      rangeStart.value = selectedDateISO.value;
+      const dt = new Date(selectedDateISO.value + 'T00:00:00');
+      dt.setDate(dt.getDate() + 1);
+      const pad2 = (n)=> (n<10?`0${n}`:`${n}`);
+      rangeEnd.value = `${dt.getFullYear()}-${pad2(dt.getMonth()+1)}-${pad2(dt.getDate())}`;
+    }
+  } catch {}
+  showRangeDialog.value = true;
+}
+
+function closeRangeDialog(){ showRangeDialog.value = false; }
+
+async function queueRange(){
+  if (!teeSheetId.value || !isValidRange.value) return;
+  try {
+    await settingsAPI.v2.regenerateRange(teeSheetId.value, rangeStart.value, rangeEnd.value);
+    try { window.dispatchEvent(new CustomEvent('snack', { detail: { color: 'success', text: `Regeneration queued for ${rangeStart.value} → ${rangeEnd.value}` } })); } catch {}
+  } catch (e) {
+    try { window.dispatchEvent(new CustomEvent('snack', { detail: { color: 'error', text: 'Failed to queue range regeneration' } })); } catch {}
+  } finally {
+    showRangeDialog.value = false;
+  }
+}
+
 onMounted(loadSheets);
 
 // URL always wins: keep local state in sync with route param
 watch(() => route.params.teeSheetId, (newId) => {
   if (typeof newId === 'string' && newId && teeSheetId.value !== newId) {
     teeSheetId.value = newId;
+    // load persisted side filters for this sheet
+    try {
+      const raw = localStorage.getItem(`settings:enabledSides:${newId}`);
+      if (raw) enabledSides.value = JSON.parse(raw);
+    } catch {}
   }
 });
+
+// initialize persisted group size
+try {
+  const gs = Number(localStorage.getItem('settings:previewGroupSize'));
+  if (gs >= 1 && gs <= 4) groupSize.value = gs;
+} catch {}
 </script>
 
 <style scoped>
@@ -376,6 +491,9 @@ watch(() => route.params.teeSheetId, (newId) => {
 .dot{ display:inline-block; width:6px; height:6px; border-radius:50%; margin:0 1px; vertical-align:middle; }
 .dot.override{ background:#d32f2f; }
 .dot.season{ background:#1976d2; }
+.cal-legend{ display:flex; gap:12px; font-size:12px; color:#6b778c; margin:6px 0; }
+.dialog{ position:fixed; inset:0; background:rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; }
+.dialog .dlg-body{ background:#fff; padding:12px; border-radius:8px; min-width:300px; }
 .content { padding: 16px; }
 </style>
 

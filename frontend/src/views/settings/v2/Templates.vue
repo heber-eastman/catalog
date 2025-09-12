@@ -22,6 +22,16 @@
         <div>
           <strong>{{ t.id }}</strong> — status: {{ t.status }} — interval: {{ t.interval_mins }}
         </div>
+        <div class="mt-1" v-if="t.versions && t.versions.length">
+          <div><strong>Versions</strong></div>
+          <ul class="versions" data-cy="template-versions">
+            <li v-for="v in t.versions" :key="v.id">
+              <span>v{{ v.version_number }}</span>
+              <span v-if="v.notes"> — {{ v.notes }}</span>
+              <span v-if="t.published_version && t.published_version.id === v.id" class="published" aria-label="Published"> (published)</span>
+            </li>
+          </ul>
+        </div>
         <div class="row">
           <input v-model="versionNotes[t.id]" placeholder="Version notes" :data-cy="`template-notes-${t.id}`" />
           <button @click="createVersion(t.id)" class="btn sm" :disabled="busy" :data-cy="`template-add-version-${t.id}`">Add Version</button>
@@ -159,6 +169,8 @@ watch(selectedDate, (v) => { if (v) regenDate.value = v; }, { immediate: true })
 .row { display: flex; align-items: center; gap: 8px; }
 .ml-2 { margin-left: 8px; }
 .mb-2 { margin-bottom: 8px; }
+.versions { margin: 4px 0 6px 12px; }
+.published { color: #2e7d32; font-weight: 600; }
 </style>
 
 

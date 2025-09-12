@@ -3,7 +3,7 @@
     <h2>Overrides (V2)</h2>
     <div class="mb-4 row">
       <button @click="backToCalendar" class="btn sm" data-cy="back-to-calendar">Back to Calendar</button>
-      <button @click="createOverride" class="btn" data-cy="override-new-btn">New Override</button>
+      <button @click="createOverride" class="btn" data-cy="override-new-btn" :disabled="busy || !overrideDate">New Override</button>
       <input v-model="overrideDate" type="date" data-cy="override-date-input" />
       <label class="ml-2">Template Version</label>
       <select v-model="templateVersionId" data-cy="override-tmplver-select">
@@ -16,8 +16,8 @@
       <li v-for="o in overrides" :key="o.id" class="mb-2">
         <div class="row">
           <strong>{{ o.date }}</strong> — status: {{ o.status }}
-          <button @click="addVersion(o.id)" class="btn sm ml-2" :data-cy="`override-add-version-${o.id}`">Add Version</button>
-          <button @click="publish(o.id)" class="btn sm ml-2" :data-cy="`override-publish-${o.id}`">Publish</button>
+          <button @click="addVersion(o.id)" class="btn sm ml-2" :disabled="busy" :data-cy="`override-add-version-${o.id}`">Add Version</button>
+          <button @click="publish(o.id)" class="btn sm ml-2" :disabled="busy" :data-cy="`override-publish-${o.id}`">Publish</button>
         </div>
         <div class="row mt-2">
           <label>Side</label>
@@ -41,7 +41,7 @@
           <select v-model="templateVersionId" data-cy="override-editor-tmplver-select">
             <option v-for="opt in templateVersionOptions" :key="opt.id" :value="opt.id">{{ opt.label }}</option>
           </select>
-          <button class="btn sm ml-2" @click="saveWindow(o.id)" :data-cy="`override-add-window-${o.id}`">Add Window</button>
+          <button class="btn sm ml-2" @click="saveWindow(o.id)" :disabled="busy || !templateVersionId || !editor.sideId || (editor.mode==='fixed' ? !editor.startTime || !editor.endTime : false)" :data-cy="`override-add-window-${o.id}`">Add Window</button>
         </div>
       </li>
     </ul>

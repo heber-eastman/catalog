@@ -3,7 +3,7 @@
     <h2>Seasons (V2)</h2>
     <div class="mb-4 row">
       <router-link :to="{ name: 'SettingsTeeSheetsSides', params: { teeSheetId: route.params.teeSheetId } }" class="btn sm" data-cy="back-to-calendar">Back to Calendar</router-link>
-      <button @click="createSeason" class="btn" data-cy="season-new-btn">New Season</button>
+      <button @click="createSeason" class="btn" data-cy="season-new-btn" :disabled="busy">New Season</button>
       <div class="ml-2 row">
         <label>Version dates</label>
         <input v-model="startDate" type="date" data-cy="season-start-date" />
@@ -27,8 +27,8 @@
       <li v-for="s in seasons" :key="s.id" class="mb-2">
         <div><strong>{{ s.id }}</strong> — status: {{ s.status }}</div>
         <div class="row">
-          <button @click="addVersion(s.id)" class="btn sm" :data-cy="`season-add-version-${s.id}`">Add Version+Window</button>
-          <button @click="publish(s.id)" class="btn sm" :data-cy="`season-publish-${s.id}`">Publish</button>
+          <button @click="addVersion(s.id)" class="btn sm" :disabled="busy || !startDate || !endDate || !templateVersionId || !startTime || !endTime" :data-cy="`season-add-version-${s.id}`">Add Version+Window</button>
+          <button @click="publish(s.id)" class="btn sm" :disabled="busy" :data-cy="`season-publish-${s.id}`">Publish</button>
         </div>
         <div class="mt-2">
           <h4 class="mb-1">Weekday windows (local preview)</h4>
@@ -46,7 +46,7 @@
               {{ index }} — wd: {{ w.weekday }} {{ w.start_time_local }} - {{ w.end_time_local }} (tv: {{ w.template_version_id.slice(0,8) }})
             </li>
           </ul>
-          <button class="btn sm" @click="saveOrder(s.id)" :disabled="!(windowsBySeason[s.id] && windowsBySeason[s.id].length)" :data-cy="`season-save-order-${s.id}`">Save order</button>
+          <button class="btn sm" @click="saveOrder(s.id)" :disabled="busy || !((windowsBySeason[s.id] && windowsBySeason[s.id].length)) || !orderDirtyBySeason[s.id]" :data-cy="`season-save-order-${s.id}`">Save order</button>
         </div>
       </li>
     </ul>
@@ -75,6 +75,7 @@ const endTime = ref('10:00');
 const templateVersionId = ref('');
 const templateVersionOptions = ref([]);
 const windowsBySeason = reactive({});
+const orderDirtyBySeason = reactive({});
 let dragState = { seasonId: null, fromIndex: -1 };
 
 // Toast state
@@ -159,6 +160,7 @@ function onDrop(seasonId, toIndex, ev) {
   const [moved] = list.splice(fromIndex, 1);
   list.splice(toIndex, 0, moved);
   dragState = { seasonId: null, fromIndex: -1 };
+  orderDirtyBySeason[seasonId] = true;
 }
 
 async function saveOrder(seasonId) {
@@ -176,6 +178,7 @@ async function saveOrder(seasonId) {
     if (!versionId) { notify('Missing season version to reorder', 'error'); return; }
     await settingsAPI.v2.reorderSeasonWeekdayWindows(teeSheetId, seasonId, versionId, { weekday: weekdayVal, order: orderIds });
     notify('Order saved');
+    orderDirtyBySeason[seasonId] = false;
   } catch (e) {
     notify('Failed to save order', 'error');
   }
