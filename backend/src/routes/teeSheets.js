@@ -542,6 +542,19 @@ router.post('/tee-sheets/:id/v2/seasons', requireAuth(['Admin']), async (req, re
   res.status(201).json(created);
 });
 
+// Season guarded delete: only when draft and has no versions
+router.delete('/tee-sheets/:id/v2/seasons/:seasonId', requireAuth(['Admin']), async (req, res) => {
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const season = await TeeSheetSeason.findOne({ where: { id: req.params.seasonId, tee_sheet_id: sheet.id } });
+  if (!season) return res.status(404).json({ error: 'Season not found' });
+  if (season.status !== 'draft') return res.status(400).json({ error: 'Only draft seasons can be deleted' });
+  const versionCount = await TeeSheetSeasonVersion.count({ where: { season_id: season.id } });
+  if (versionCount > 0) return res.status(400).json({ error: 'Cannot delete season with existing versions' });
+  await season.destroy();
+  res.status(204).end();
+});
+
 router.post('/tee-sheets/:id/v2/seasons/:seasonId/versions', requireAuth(['Admin']), async (req, res) => {
   const { error, value } = v2SeasonVersionCreateSchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.message });
@@ -745,6 +758,17 @@ router.post('/tee-sheets/:id/v2/overrides/:overrideId/publish', requireAuth(['Ad
     const status = e.status || 400;
     res.status(status).json({ error: e.message || 'Publish failed' });
   }
+});
+
+// Delete override (only if draft)
+router.delete('/tee-sheets/:id/v2/overrides/:overrideId', requireAuth(['Admin']), async (req, res) => {
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const ov = await TeeSheetOverride.findOne({ where: { id: req.params.overrideId, tee_sheet_id: sheet.id } });
+  if (!ov) return res.status(404).json({ error: 'Override not found' });
+  if (ov.status !== 'draft') return res.status(400).json({ error: 'Only draft overrides can be deleted' });
+  await ov.destroy();
+  res.status(204).end();
 });
 
 module.exports = router;

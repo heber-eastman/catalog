@@ -153,6 +153,9 @@ module.exports = (sequelize, DataTypes) => {
       { replacements: { versionId: instance.published_version_id } }
     );
     if (priced_count !== side_count) throw new Error('Template publish requires a public price for each side');
+    // Detect reround cycles for the version
+    const { detectReroundCycles } = require('../services/validators.v2');
+    await detectReroundCycles(instance.published_version_id);
   });
 
   TeeSheetTemplateSide.belongsTo(TeeSheetTemplateVersion, { foreignKey: 'version_id', as: 'version' });

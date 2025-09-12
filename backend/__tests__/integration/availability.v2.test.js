@@ -14,6 +14,7 @@ describe('Availability API V2 windows', () => {
     // Ensure required tables are present (run migrations programmatically for CI)
     const qi = models.sequelize.getQueryInterface();
     try { await require('../../migrations/20250612171419-create-golfcourseinstance').up(qi, SequelizeLib); } catch (_) {}
+    try { await require('../../migrations/20250612171421-create-staffuser').up(qi, SequelizeLib); } catch (_) {}
     try { await require('../../migrations/20250625000000-create-tee-sheet-schema').up(qi, SequelizeLib); } catch (_) {}
     try { await require('../../migrations/20250908090000-create-templates-seasons-overrides').up(qi, SequelizeLib); } catch (_) {}
     const course = await models.GolfCourseInstance.create({ name: 'Avail V2', subdomain: `a-${Date.now()}`, status: 'Active', timezone: 'UTC' });
