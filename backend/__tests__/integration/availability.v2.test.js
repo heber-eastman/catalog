@@ -4,23 +4,18 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const app = require('../../src/app');
 const models = require('../../src/models');
+const SequelizeLib = require('sequelize');
 
 describe('Availability API V2 windows', () => {
   let token; let courseId; let sheetId; let sideId;
 
   beforeAll(async () => {
     await models.sequelize.authenticate();
-    // Ensure base and V2 tables exist when running alone in CI
-    try {
-      const [rows] = await models.sequelize.query(`SELECT to_regclass('public."TeeSheets"') AS teesheets, to_regclass('public."TeeSheetTemplates"') AS templates`);
-      const hasSheets = !!rows?.[0]?.teesheets;
-      const hasV2 = !!rows?.[0]?.templates;
-      if (!hasSheets || !hasV2) {
-        const path = require('path');
-        const { execSync } = require('child_process');
-        execSync('npx sequelize-cli db:migrate', { stdio: 'inherit', cwd: path.join(__dirname, '../..') });
-      }
-    } catch (_) {}
+    // Ensure required tables are present (run migrations programmatically for CI)
+    const qi = models.sequelize.getQueryInterface();
+    try { await require('../../migrations/20250612171419-create-golfcourseinstance').up(qi, SequelizeLib); } catch (_) {}
+    try { await require('../../migrations/20250625000000-create-tee-sheet-schema').up(qi, SequelizeLib); } catch (_) {}
+    try { await require('../../migrations/20250908090000-create-templates-seasons-overrides').up(qi, SequelizeLib); } catch (_) {}
     const course = await models.GolfCourseInstance.create({ name: 'Avail V2', subdomain: `a-${Date.now()}`, status: 'Active', timezone: 'UTC' });
     courseId = course.id;
     const staff = await models.StaffUser.create({ course_id: courseId, email: 's@ex.com', password: 'p', role: 'Staff', is_active: true });
