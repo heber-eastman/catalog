@@ -77,6 +77,7 @@ const v2TemplateCreateSchema = Joi.object({
 const v2TemplateVersionCreateSchema = Joi.object({
   notes: Joi.string().allow('', null),
 });
+const v2TemplateRollbackSchema = Joi.object({ version_id: Joi.string().uuid().required() });
 
 const v2TemplatePublishSchema = Joi.object({
   version_id: Joi.string().uuid().required(),
@@ -462,6 +463,61 @@ router.post('/tee-sheets/:id/v2/templates/:templateId/publish', requireAuth(['Ad
   } catch (e) {
     const status = e.status || 400;
     res.status(status).json({ error: e.message || 'Publish failed' });
+  }
+});
+
+// V2 Template rollback to a specific version
+router.post('/tee-sheets/:id/v2/templates/:templateId/rollback', requireAuth(['Admin']), async (req, res) => {
+  const { error, value } = v2TemplateRollbackSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.message });
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: sheet.id } });
+  if (!tmpl) return res.status(404).json({ error: 'Template not found' });
+  const ver = await TeeSheetTemplateVersion.findOne({ where: { id: value.version_id, template_id: tmpl.id } });
+  if (!ver) return res.status(404).json({ error: 'Version not found' });
+  try {
+    tmpl.published_version_id = ver.id;
+    tmpl.status = 'published';
+    await tmpl.save();
+    const reloaded = await TeeSheetTemplate.findByPk(tmpl.id, { include: [{ model: TeeSheetTemplateVersion, as: 'versions' }, { model: TeeSheetTemplateVersion, as: 'published_version' }] });
+    res.json(reloaded);
+  } catch (e) {
+    const status = e.status || 400;
+    res.status(status).json({ error: e.message || 'Rollback failed' });
+  }
+});
+
+// V2 Template archive/unarchive
+router.post('/tee-sheets/:id/v2/templates/:templateId/archive', requireAuth(['Admin']), async (req, res) => {
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: sheet.id } });
+  if (!tmpl) return res.status(404).json({ error: 'Template not found' });
+  await tmpl.update({ archived: true });
+  res.json(tmpl);
+});
+
+router.post('/tee-sheets/:id/v2/templates/:templateId/unarchive', requireAuth(['Admin']), async (req, res) => {
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: sheet.id } });
+  if (!tmpl) return res.status(404).json({ error: 'Template not found' });
+  await tmpl.update({ archived: false });
+  res.json(tmpl);
+});
+
+// V2 Template guarded delete (model hook prevents delete when versions exist)
+router.delete('/tee-sheets/:id/v2/templates/:templateId', requireAuth(['Admin']), async (req, res) => {
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: sheet.id } });
+  if (!tmpl) return res.status(404).json({ error: 'Template not found' });
+  try {
+    await tmpl.destroy();
+    res.status(204).end();
+  } catch (e) {
+    res.status(400).json({ error: e.message || 'Delete failed' });
   }
 });
 
