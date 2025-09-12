@@ -72,7 +72,15 @@
               <div class="row head">
                 <strong>Availability Preview</strong>
                 <span class="muted" v-if="previewLoading">Loading…</span>
-                <span class="muted" v-else>{{ previewSlots.length }} slots</span>
+                <span class="muted" v-else>
+                  {{ previewSlots.length }} slots
+                  <template v-if="compareCustomer">
+                    (customers see {{ customerSlots.length }}, staff-only {{ Math.max(previewSlots.length - customerSlots.length, 0) }})
+                  </template>
+                </span>
+                <label class="ml-2" title="Show customer vs staff delta">
+                  <input type="checkbox" v-model="compareCustomer" /> Compare customer
+                </label>
               </div>
               <div class="row controls">
                 <label class="ml-2">Group size</label>
@@ -174,6 +182,8 @@ const seasonDates = ref(new Set());
 const previewLoading = ref(false);
 const previewError = ref('');
 const previewSlots = ref([]);
+const customerSlots = ref([]);
+const compareCustomer = ref(false);
 const sidesById = ref({});
 const groupSize = ref(2);
 const enabledSides = ref([]);
@@ -358,6 +368,7 @@ const groupedBySideFiltered = computed(() => {
 async function loadPreview(){
   previewError.value = '';
   previewSlots.value = [];
+  customerSlots.value = [];
   if (!teeSheetId.value || !selectedDateISO.value) return;
   previewLoading.value = true;
   try {
@@ -367,6 +378,11 @@ async function loadPreview(){
     }
     const { data } = await teeTimesAPI.available(params);
     previewSlots.value = Array.isArray(data) ? data : [];
+    if (compareCustomer.value){
+      const custParams = { ...params, customerView: true };
+      const { data: custData } = await teeTimesAPI.available(custParams);
+      customerSlots.value = Array.isArray(custData) ? custData : [];
+    }
   } catch (e) {
     previewError.value = 'Failed to load availability';
   } finally {
@@ -374,7 +390,7 @@ async function loadPreview(){
   }
 }
 
-watch([teeSheetId, selectedDateISO], () => { loadSides(); loadPreview(); }, { immediate: true });
+watch([teeSheetId, selectedDateISO, compareCustomer], () => { loadSides(); loadPreview(); }, { immediate: true });
 watch(sidesById, () => {
   enabledSides.value = Object.keys(sidesById.value || {});
 });

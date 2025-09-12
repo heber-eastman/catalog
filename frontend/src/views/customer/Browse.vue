@@ -12,10 +12,16 @@
       <label style="display:flex;align-items:center;gap:6px">
         <input type="checkbox" v-model="staffView" data-cy="staff-view-toggle" /> Staff view
       </label>
+      <label style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" v-model="compareCustomer" data-cy="compare-toggle" /> Compare customer
+      </label>
       <button @click="load" data-cy="search-button">Search</button>
     </div>
 
     <div class="results">
+      <div class="summary" v-if="compareCustomer">
+        Staff: {{ slots.length }} | Customer: {{ customerSlots.length }} | Staff-only: {{ Math.max(slots.length - customerSlots.length, 0) }}
+      </div>
       <div v-for="slot in slots" :key="slot.id" class="slot" :data-id="slot.id">
         <div>
           {{ new Date(slot.start_time).toLocaleTimeString() }}
@@ -44,7 +50,9 @@ const walkRide = ref('ride');
 const groupSize = ref(2);
 const classId = ref('Full');
 const staffView = ref(false);
+const compareCustomer = ref(false);
 const slots = ref([]);
+const customerSlots = ref([]);
 
 function parseComma(raw) {
   return (raw || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -54,11 +62,11 @@ function parseSides() { return parseComma(sidesRaw.value); }
 
 async function load() {
   const sheets = parseSheets();
-  if (!sheets.length) { slots.value = []; return; }
+  if (!sheets.length) { slots.value = []; customerSlots.value = []; return; }
   localStorage.setItem('cust:browse:sheets', teeSheetsRaw.value);
   localStorage.setItem('cust:browse:sides', sidesRaw.value);
   const sides = parseSides();
-  const params = {
+  const base = {
     date: date.value,
     teeSheets: sheets,
     groupSize: groupSize.value,
@@ -66,9 +74,16 @@ async function load() {
     classId: classId.value,
     customerView: !staffView.value,
   };
-  if (sides.length) params['sides[]'] = sides;
-  const { data } = await teeTimesAPI.available(params);
+  if (sides.length) base['sides[]'] = sides;
+  const { data } = await teeTimesAPI.available(base);
   slots.value = data;
+  if (compareCustomer.value && staffView.value === true){
+    const custParams = { ...base, customerView: true };
+    const { data: cdata } = await teeTimesAPI.available(custParams);
+    customerSlots.value = cdata;
+  } else {
+    customerSlots.value = [];
+  }
 }
 
 async function addToCart(slot) {
@@ -77,7 +92,6 @@ async function addToCart(slot) {
     source: 'checkout',
   });
   try { localStorage.setItem('hold:payload', JSON.stringify(data.hold)); } catch {}
-  // Navigate to cart
   window.location.href = '/cart';
 }
 
@@ -89,6 +103,8 @@ onMounted(load);
 .results { display: grid; gap: 8px; }
 .slot { border: 1px solid #ddd; padding: 8px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
 .muted { color: #777; margin-left: 6px; font-size: 12px; }
+.summary { color: #555; font-size: 13px; margin-bottom: 6px; }
+.start-disabled { color: #b26a00; margin-left: 6px; font-size: 12px; }
 </style>
 
 
