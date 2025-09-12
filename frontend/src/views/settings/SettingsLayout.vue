@@ -354,7 +354,11 @@ async function loadPreview(){
   if (!teeSheetId.value || !selectedDateISO.value) return;
   previewLoading.value = true;
   try {
-    const { data } = await teeTimesAPI.available({ date: selectedDateISO.value, teeSheets: teeSheetId.value, groupSize: groupSize.value || 2 });
+    const params = { date: selectedDateISO.value, teeSheets: teeSheetId.value, groupSize: groupSize.value || 2 };
+    if (enabledSides.value && enabledSides.value.length) {
+      params['sides[]'] = enabledSides.value;
+    }
+    const { data } = await teeTimesAPI.available(params);
     previewSlots.value = Array.isArray(data) ? data : [];
   } catch (e) {
     previewError.value = 'Failed to load availability';
