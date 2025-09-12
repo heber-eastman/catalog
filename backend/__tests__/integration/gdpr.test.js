@@ -3,6 +3,7 @@ const {
   GolfCourseInstance,
   Customer,
   CustomerNote,
+  StaffUser,
 } = require('../../src/models');
 const { gdprService, GDPRService } = require('../../src/services/gdprService');
 const { Op } = require('sequelize');
@@ -99,6 +100,18 @@ describe('GDPR Service Tests', () => {
       country: 'US',
     });
     testCourseId = testCourse.id;
+
+    // Ensure a staff author exists for notes foreign key
+    await StaffUser.create({
+      id: '00000000-0000-4000-8000-000000000001',
+      course_id: testCourseId,
+      email: `gdpr-staff-${timestamp}@example.com`,
+      password: 'hashedpassword123',
+      role: 'Staff',
+      is_active: true,
+      first_name: 'GDPR',
+      last_name: 'Staff',
+    });
   });
 
   afterAll(async () => {
