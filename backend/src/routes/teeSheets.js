@@ -36,6 +36,7 @@ const router = express.Router();
 const { DateTime } = require('luxon');
 const { generateForDateV2 } = require('../services/teeSheetGenerator.v2');
 const { prevalidateSeasonVersion } = require('../services/seasonPrevalidation');
+const { regenerateApplyNow } = require('../services/cascadeEngine');
 
 // Validation schemas
 const teeSheetSchema = Joi.object({
@@ -79,6 +80,9 @@ const v2TemplateVersionCreateSchema = Joi.object({
 
 const v2TemplatePublishSchema = Joi.object({
   version_id: Joi.string().uuid().required(),
+  apply_now: Joi.boolean().default(false),
+  start_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  end_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 // V2 season schemas
@@ -102,7 +106,7 @@ const v2SeasonWeekdayReorderSchema = Joi.object({
   weekday: Joi.number().integer().min(0).max(6).required(),
   order: Joi.array().items(Joi.string().uuid()).min(1).required(),
 });
-const v2SeasonPublishSchema = Joi.object({ version_id: Joi.string().uuid().required() });
+const v2SeasonPublishSchema = Joi.object({ version_id: Joi.string().uuid().required(), apply_now: Joi.boolean().default(false), start_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional(), end_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional() });
 
 // V2 override schemas
 const v2OverrideCreateSchema = Joi.object({ date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required() });
@@ -117,7 +121,7 @@ const v2OverrideWindowSchema = Joi.object({
   end_offset_mins: Joi.number().integer().allow(null),
   template_version_id: Joi.string().uuid().required(),
 });
-const v2OverridePublishSchema = Joi.object({ version_id: Joi.string().uuid().required() });
+const v2OverridePublishSchema = Joi.object({ version_id: Joi.string().uuid().required(), apply_now: Joi.boolean().default(false) });
 
 const timeframeSchema = Joi.object({
   side_id: Joi.string().uuid().required(),
@@ -447,6 +451,10 @@ router.post('/tee-sheets/:id/v2/templates/:templateId/publish', requireAuth(['Ad
     tmpl.published_version_id = ver.id;
     tmpl.status = 'published';
     await tmpl.save();
+    if (value.apply_now) {
+      const today = DateTime.now().toISODate();
+      await regenerateApplyNow({ teeSheetId: sheet.id, startDateISO: value.start_date || today, endDateISO: value.end_date || today });
+    }
     const reloaded = await TeeSheetTemplate.findByPk(tmpl.id, {
       include: [{ model: TeeSheetTemplateVersion, as: 'versions' }, { model: TeeSheetTemplateVersion, as: 'published_version' }],
     });
@@ -587,6 +595,11 @@ router.post('/tee-sheets/:id/v2/seasons/:seasonId/publish', requireAuth(['Admin'
     season.published_version_id = ver.id;
     season.status = 'published';
     await season.save();
+    if (value.apply_now) {
+      const startIso = value.start_date || ver.start_date;
+      const endIso = value.end_date || ver.end_date_exclusive;
+      await regenerateApplyNow({ teeSheetId: sheet.id, startDateISO: startIso, endDateISO: endIso });
+    }
     const reloaded = await TeeSheetSeason.findByPk(season.id, { include: [{ model: TeeSheetSeasonVersion, as: 'versions' }, { model: TeeSheetSeasonVersion, as: 'published_version' }] });
     res.json(reloaded);
   } catch (e) {
@@ -667,6 +680,9 @@ router.post('/tee-sheets/:id/v2/overrides/:overrideId/publish', requireAuth(['Ad
     ov.published_version_id = ver.id;
     ov.status = 'published';
     await ov.save();
+    if (value.apply_now) {
+      await regenerateApplyNow({ teeSheetId: sheet.id, startDateISO: ov.date, endDateISO: ov.date });
+    }
     const reloaded = await TeeSheetOverride.findByPk(ov.id, { include: [{ model: TeeSheetOverrideVersion, as: 'versions' }, { model: TeeSheetOverrideVersion, as: 'published_version' }] });
     res.json(reloaded);
   } catch (e) {
