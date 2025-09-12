@@ -193,8 +193,14 @@ npm run test --workspace=backend
 # Run frontend tests only
 npm run test --workspace=frontend
 
-# Run end-to-end tests
+# Run end-to-end tests (all)
 npm run test:e2e
+
+# Run focused V2 settings E2E (calendar, templates, seasons, overrides)
+cd frontend && npm run test:e2e:v2
+
+# Run a11y checks for settings (logs violations, does not fail build)
+cd frontend && npm run test:e2e:a11y
 
 # Run smoke tests
 npm run test:smoke
