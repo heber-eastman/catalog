@@ -89,6 +89,16 @@ describe('V2 Admin Templates API', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ notes: 'tv1' });
     const tmplVerId = vResp.body.id;
+    // Ensure template version covers sides and has public pricing, then publish template
+    const side = await TeeSheetSide.findOne({ where: { tee_sheet_id: sheetId } });
+    const { TeeSheetTemplateSide, TeeSheetTemplateSidePrices } = require('../../src/models');
+    await TeeSheetTemplateSide.create({ version_id: tmplVerId, side_id: side.id, start_slots_enabled: true });
+    await TeeSheetTemplateSidePrices.create({ version_id: tmplVerId, side_id: side.id, booking_class_id: 'public', greens_fee_cents: 1000, cart_fee_cents: 0 });
+    const tPub = await request(app)
+      .post(`/api/v1/tee-sheets/${sheetId}/v2/templates/${tmplId}/publish`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ version_id: tmplVerId });
+    expect(tPub.status).toBe(200);
 
     const s = await request(app)
       .post(`/api/v1/tee-sheets/${sheetId}/v2/seasons`)

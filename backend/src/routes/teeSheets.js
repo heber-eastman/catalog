@@ -35,6 +35,7 @@ const {
 const router = express.Router();
 const { DateTime } = require('luxon');
 const { generateForDateV2 } = require('../services/teeSheetGenerator.v2');
+const { prevalidateSeasonVersion } = require('../services/seasonPrevalidation');
 
 // Validation schemas
 const teeSheetSchema = Joi.object({
@@ -577,6 +578,11 @@ router.post('/tee-sheets/:id/v2/seasons/:seasonId/publish', requireAuth(['Admin'
   if (!season) return res.status(404).json({ error: 'Season not found' });
   const ver = await TeeSheetSeasonVersion.findOne({ where: { id: value.version_id, season_id: season.id } });
   if (!ver) return res.status(404).json({ error: 'Season version not found' });
+  // Pre-validate season version across its date range
+  const result = await prevalidateSeasonVersion({ teeSheetId: sheet.id, seasonVersionId: ver.id });
+  if (!result.ok) {
+    return res.status(400).json({ error: 'Prevalidation failed', violations: result.violations });
+  }
   try {
     season.published_version_id = ver.id;
     season.status = 'published';
