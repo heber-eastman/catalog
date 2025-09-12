@@ -24,6 +24,7 @@ const { resolveEffectiveWindows } = require('../services/templateResolver');
 const {
   TeeSheetTemplateSideAccess,
   TeeSheetTemplateSidePrices,
+  TeeSheetTemplateSide,
 } = require('../models');
 const { DateTime } = require('luxon');
 
@@ -117,26 +118,36 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
   for (const sheetId of teeSheets) {
     const { windows, source } = await resolveEffectiveWindows({ teeSheetId: sheetId, dateISO: date });
     if (windows && windows.length && source) {
-      // Collect side-level access/prices across all windows' template versions
+      // Collect side-level access/prices and side config per template version used by windows
       const versionIds = Array.from(new Set(windows.map(w => w.template_version_id).filter(Boolean)));
-      const accessList = await TeeSheetTemplateSideAccess.findAll({ where: { version_id: { [Op.in]: versionIds } } });
-      const priceList = await TeeSheetTemplateSidePrices.findAll({ where: { version_id: { [Op.in]: versionIds } } });
-      const accessBySide = {};
+      const [accessList, priceList, sideCfgList] = await Promise.all([
+        TeeSheetTemplateSideAccess.findAll({ where: { version_id: { [Op.in]: versionIds } } }),
+        TeeSheetTemplateSidePrices.findAll({ where: { version_id: { [Op.in]: versionIds } } }),
+        TeeSheetTemplateSide.findAll({ where: { version_id: { [Op.in]: versionIds } } }),
+      ]);
+      const accessByVS = {};
       for (const a of accessList) {
-        const sideMap = accessBySide[a.side_id] || (accessBySide[a.side_id] = {});
-        sideMap[(a.booking_class_id || '').toLowerCase()] = !!a.is_allowed;
+        const key = `${a.version_id}:${a.side_id}`;
+        const map = accessByVS[key] || (accessByVS[key] = {});
+        map[(a.booking_class_id || '').toLowerCase()] = !!a.is_allowed;
       }
-      const pricesBySide = {};
+      const pricesByVS = {};
       for (const p of priceList) {
-        const sideMap = pricesBySide[p.side_id] || (pricesBySide[p.side_id] = {});
-        sideMap[(p.booking_class_id || '').toLowerCase()] = { greens: p.greens_fee_cents || 0, cart: p.cart_fee_cents || 0 };
+        const key = `${p.version_id}:${p.side_id}`;
+        const map = pricesByVS[key] || (pricesByVS[key] = {});
+        map[(p.booking_class_id || '').toLowerCase()] = { greens: p.greens_fee_cents || 0, cart: p.cart_fee_cents || 0 };
+      }
+      const sideCfgByVS = {};
+      for (const s of sideCfgList) {
+        const key = `${s.version_id}:${s.side_id}`;
+        sideCfgByVS[key] = s;
       }
       const windowsBySide = {};
       for (const w of windows) {
         const arr = windowsBySide[w.side_id] || (windowsBySide[w.side_id] = []);
         arr.push(w);
       }
-      v2InfoBySheet[sheetId] = { accessBySide, pricesBySide, windowsBySide };
+      v2InfoBySheet[sheetId] = { accessByVS, pricesByVS, sideCfgByVS, windowsBySide };
     }
   }
 
@@ -176,31 +187,56 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
       const windows = v2.windowsBySide[slot.side_id] || [];
       const classNorm = String(classId || '').toLowerCase();
       const classLookup = classNorm === 'full' ? 'public' : classNorm;
-      const priceSide = v2.pricesBySide[slot.side_id] || {};
-      const accessSide = v2.accessBySide[slot.side_id] || {};
       let inWindow = false;
+      let matchedVersionId = null;
       for (const w of windows) {
         if (w.start_mode === 'fixed' && w.end_mode === 'fixed') {
           const start = (w.start_time_local || '00:00:00').padEnd(8, '0');
           const end = (w.end_time_local || '23:59:59').padEnd(8, '9');
-          if (start <= localHHMMSS && localHHMMSS < end) { inWindow = true; break; }
+          if (start <= localHHMMSS && localHHMMSS < end) { inWindow = true; matchedVersionId = w.template_version_id; break; }
         } else {
           // Approximate offsets as 07:00-18:00 with offsets like generator
           const baseStart = DateTime.fromFormat('07:00:00', 'HH:mm:ss', { zone }).plus({ minutes: w.start_offset_mins || 0 }).toFormat('HH:mm:ss');
           const baseEnd = DateTime.fromFormat('18:00:00', 'HH:mm:ss', { zone }).plus({ minutes: w.end_offset_mins || 0 }).toFormat('HH:mm:ss');
-          if (baseStart <= localHHMMSS && localHHMMSS < baseEnd) { inWindow = true; break; }
+          if (baseStart <= localHHMMSS && localHHMMSS < baseEnd) { inWindow = true; matchedVersionId = w.template_version_id; break; }
         }
       }
       if (!inWindow) continue;
-      // Access check for customer
+      const vsKey = `${matchedVersionId}:${slot.side_id}`;
+      const accessSide = v2.accessByVS[vsKey] || {};
+      const priceSide = v2.pricesByVS[vsKey] || {};
+      const sideCfg = v2.sideCfgByVS[vsKey];
+      // Customer visibility: start must be enabled and class allowed
       if (isCustomerView) {
+        if (sideCfg && sideCfg.start_slots_enabled === false) continue;
         const allowed = accessSide[classLookup] ?? accessSide['public'];
         if (!allowed) continue;
+        const minPlayers = sideCfg?.min_players || 1;
+        if (groupSize < minPlayers) continue;
       }
       const price = priceSide[classLookup] || priceSide['public'] || { greens: 0, cart: 0 };
       totalPriceCents = price.greens + (value.walkRide === 'ride' ? price.cart : 0);
       priceBreakdown = { greens_fee_cents: price.greens, cart_fee_cents: value.walkRide === 'ride' ? price.cart : 0 };
       usingV2 = true;
+
+      // Basic two-leg feasibility with reround target side (if specified in template side config)
+      if (value.roundOptionId) {
+        // compute reround at same side by default
+        const sideConfig = sideById[slot.side_id];
+        const reroundStart = computeReroundStart({ minutes_per_hole: sideConfig.minutes_per_hole, hole_count: sideConfig.hole_count }, slot.start_time);
+        const reroundSideId = sideCfg?.rerounds_to_side_id || slot.side_id;
+        const reroundSlot = await TeeTime.findOne({ where: { tee_sheet_id: slot.tee_sheet_id, side_id: reroundSideId, start_time: reroundStart } });
+        if (!reroundSlot) continue;
+        if (isCustomerView && reroundSlot.is_blocked) continue;
+        if ((reroundSlot.capacity - reroundSlot.assigned_count) < groupSize) continue;
+        // Price second leg using same template version mapping; fallback to public
+        const vsKey2 = `${matchedVersionId}:${reroundSideId}`;
+        const priceSide2 = v2.pricesByVS[vsKey2] || {};
+        const price2 = priceSide2[classLookup] || priceSide2['public'] || { greens: 0, cart: 0 };
+        totalPriceCents += price2.greens + (value.walkRide === 'ride' ? price2.cart : 0);
+        if (priceBreakdown) priceBreakdown.greens_fee_cents += price2.greens;
+        if (priceBreakdown && value.walkRide === 'ride') priceBreakdown.cart_fee_cents += price2.cart;
+      }
     } else {
       const template = await findTemplateForDate(slot.tee_sheet_id, date);
       if (!template) continue;
