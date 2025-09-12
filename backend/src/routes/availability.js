@@ -31,6 +31,8 @@ const querySchema = Joi.object({
   date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
   'teeSheets[]': Joi.alternatives().try(Joi.array().items(Joi.string().uuid()), Joi.string().uuid()),
   teeSheets: Joi.alternatives().try(Joi.array().items(Joi.string().uuid()), Joi.string().uuid()),
+  'sides[]': Joi.alternatives().try(Joi.array().items(Joi.string().uuid()), Joi.string().uuid()),
+  sides: Joi.alternatives().try(Joi.array().items(Joi.string().uuid()), Joi.string().uuid()),
   timeStart: Joi.string().pattern(/^\d{2}:\d{2}$/).optional(),
   timeEnd: Joi.string().pattern(/^\d{2}:\d{2}$/).optional(),
   groupSize: Joi.number().integer().min(1).max(4).default(2),
@@ -71,6 +73,12 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
   const classId = value.classId;
   const groupSize = value.groupSize;
   const isCustomerView = !!value.customerView;
+  let sideFilter = [];
+  if (value['sides[]']) {
+    sideFilter = Array.isArray(value['sides[]']) ? value['sides[]'] : [value['sides[]']];
+  } else if (value.sides) {
+    sideFilter = Array.isArray(value.sides) ? value.sides : [value.sides];
+  }
 
   // Build time window filter
   const dayStart = new Date(`${date}T00:00:00Z`);
@@ -88,6 +96,7 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
   const slots = await TeeTime.findAll({
     where: {
       tee_sheet_id: { [Op.in]: teeSheets },
+      ...(sideFilter.length ? { side_id: { [Op.in]: sideFilter } } : {}),
       start_time: {
         [Op.gte]: windowStart,
         [Op.lt]: windowEnd,
@@ -155,6 +164,7 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
     let templateMeta = null;
     let usingV2 = false;
     let totalPriceCents = 0;
+    let priceBreakdown = null;
 
     if (v2) {
       // Check if slot falls within any V2 window for its side
@@ -189,6 +199,7 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
       }
       const price = priceSide[classLookup] || priceSide['public'] || { greens: 0, cart: 0 };
       totalPriceCents = price.greens + (value.walkRide === 'ride' ? price.cart : 0);
+      priceBreakdown = { greens_fee_cents: price.greens, cart_fee_cents: value.walkRide === 'ride' ? price.cart : 0 };
       usingV2 = true;
     } else {
       const template = await findTemplateForDate(slot.tee_sheet_id, date);
@@ -210,7 +221,9 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
     let reroundOk = true;
     if (!usingV2) {
       const pricingRules = await TimeframePricingRule.findAll({ where: { timeframe_id: timeframe.id } });
-      totalPriceCents += calcFeesForLeg(pricingRules, classId, value.walkRide, undefined);
+      const legPrice = calcFeesForLeg(pricingRules, classId, value.walkRide, undefined);
+      totalPriceCents += legPrice;
+      priceBreakdown = { greens_fee_cents: legPrice, cart_fee_cents: 0 };
     }
 
     // First-leg capacity check
@@ -235,7 +248,9 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
           const tf2 = await findTimeframeForSlot(slot.tee_sheet_id, reroundSideId, templateMeta.day_template_id, reroundSlot.start_time);
           if (tf2) {
             const pricingRules2 = await TimeframePricingRule.findAll({ where: { timeframe_id: tf2.id } });
-            totalPriceCents += calcFeesForLeg(pricingRules2, classId, value.walkRide, undefined);
+            const leg2 = calcFeesForLeg(pricingRules2, classId, value.walkRide, undefined);
+            totalPriceCents += leg2;
+            if (priceBreakdown) priceBreakdown.greens_fee_cents += leg2;
           }
         }
       }
@@ -259,6 +274,7 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
       remaining: remainingAdjusted,
       is_blocked: isCustomerView ? undefined : slot.is_blocked,
       price_total_cents: totalPriceCents,
+      price_breakdown: priceBreakdown,
     });
   }
 

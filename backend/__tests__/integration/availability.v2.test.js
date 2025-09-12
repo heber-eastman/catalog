@@ -56,6 +56,20 @@ describe('Availability API V2 windows', () => {
     const item = res.body.find(r => r.side_id === sideId);
     expect(item).toBeTruthy();
     expect(item.price_total_cents).toBe(1000);
+    expect(item.price_breakdown).toMatchObject({ greens_fee_cents: 1000 });
+  });
+
+  test('filters by specific side via sides[] and includes breakdown', async () => {
+    const res = await request(app)
+      .get('/api/v1/tee-times/available')
+      .set('Cookie', `jwt=${token}`)
+      .query({ date: '2025-07-02', 'teeSheets[]': sheetId, 'sides[]': sideId, customerView: true, classId: 'Full' })
+      .expect(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.every(r => r.side_id === sideId)).toBe(true);
+    const item = res.body[0];
+    expect(item).toHaveProperty('price_breakdown');
+    expect(item.price_breakdown.greens_fee_cents).toBeGreaterThanOrEqual(0);
   });
 });
 
