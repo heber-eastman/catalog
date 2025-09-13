@@ -102,10 +102,17 @@
               <div v-if="previewError" class="err">{{ previewError }}</div>
               <div v-else class="preview-list">
                 <div v-for="(items, sideId) in groupedBySideFiltered" :key="sideId" class="preview-side">
-                  <div class="side-title">{{ sideName(sideId) }}</div>
+                  <div class="side-title">
+                    {{ sideName(sideId) }}
+                    <template v-if="compareCustomer">
+                      — staff {{ items.length }}, cust {{ countCustomerForSide(sideId) }}, staff-only {{ Math.max(items.length - countCustomerForSide(sideId), 0) }}
+                    </template>
+                  </div>
                   <div class="times">
                     <span v-for="t in items.slice(0,3)" :key="t.id" class="time">
                       {{ formatTime(t.start_time) }}
+                      <span v-if="t.is_start_disabled" class="time-tag" title="Start disabled">start-disabled</span>
+                      <span v-if="t.is_blocked" class="time-tag blocked" title="Blocked">blocked</span>
                       <span v-if="compareCustomer && !isInCustomer(t)" class="time-badge" title="Customer-hidden">•</span>
                     </span>
                     <span v-if="items.length > 3" class="more">+{{ items.length - 3 }} more</span>
@@ -347,6 +354,10 @@ function isInCustomer(t){
   if (!customerSlots.value?.length) return false;
   return customerSlots.value.some(cs => cs.id === t.id);
 }
+function countCustomerForSide(sideId){
+  if (!customerSlots.value?.length) return 0;
+  return customerSlots.value.filter(cs => String(cs.side_id) === String(sideId)).length;
+}
 
 function formatTime(ts){
   try { return new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
@@ -557,6 +568,8 @@ try {
 .content { padding: 16px; }
 .time { display:inline-block; padding:2px 6px; border:1px solid #ddd; border-radius:6px; margin-right:4px; }
 .time-badge { color:#d32f2f; margin-left:4px; font-size:14px; line-height:1; vertical-align:middle; }
+.time-tag { margin-left:6px; font-size:11px; color:#8d6e63; background:#fbe9e7; border:1px solid #ffccbc; border-radius:4px; padding:1px 4px; }
+.time-tag.blocked { color:#b71c1c; background:#ffebee; border-color:#ffcdd2; }
 </style>
 
 

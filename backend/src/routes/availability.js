@@ -309,6 +309,7 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
       capacity: slot.capacity,
       remaining: remainingAdjusted,
       is_blocked: isCustomerView ? undefined : slot.is_blocked,
+      is_start_disabled: isCustomerView ? undefined : slot.is_start_disabled,
       price_total_cents: totalPriceCents,
       price_breakdown: priceBreakdown,
     });
