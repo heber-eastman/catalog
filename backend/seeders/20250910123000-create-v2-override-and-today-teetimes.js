@@ -31,7 +31,7 @@ module.exports = {
     const overrideVerId = uuidv4();
     // Ensure template version exists
     const tmplVerRows = await queryInterface.sequelize.query(
-      'SELECT id FROM "TeeSheetTemplateVersions" tv JOIN "TeeSheetTemplates" t ON t.id = tv.template_id WHERE t.tee_sheet_id = :sid ORDER BY version_number DESC LIMIT 1',
+      'SELECT tv.id AS id FROM "TeeSheetTemplateVersions" tv JOIN "TeeSheetTemplates" t ON t.id = tv.template_id WHERE t.tee_sheet_id = :sid ORDER BY tv.version_number DESC LIMIT 1',
       { replacements: { sid: teeSheetId }, type: Sequelize.QueryTypes.SELECT }
     );
     if (tmplVerRows.length === 0) return;

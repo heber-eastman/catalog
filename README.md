@@ -164,6 +164,7 @@ npm run dev:frontend
 - `npm run db:migrate --workspace=backend` - Run database migrations
 - `npm run db:seed --workspace=backend` - Seed database with sample data
 - `npm run db:reset --workspace=backend` - Reset database (drop, create, migrate, seed)
+- `npm run seed:demo:v2 --workspace=backend` - Run demo seeders for Tee Sheet V2 (creates demo course tee sheet, template, season, override, and sample tee times)
 
 ### Frontend
 
