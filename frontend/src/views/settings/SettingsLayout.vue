@@ -67,6 +67,7 @@
               <button class="btn sm" @click="regenSelected" :disabled="!selectedDateISO" data-cy="cal-btn-regenerate" aria-label="Regenerate selected date">Regenerate</button>
               <button class="btn sm" @click="openRangeDialog" :disabled="!teeSheetId" data-cy="cal-btn-regenerate-range" aria-label="Regenerate date range">Range…</button>
               <button class="btn sm" @click="goToday" data-cy="cal-btn-today" aria-label="Go to today">Today</button>
+              <button class="btn sm" @click="createStarterPreset" :disabled="!teeSheetId" data-cy="cal-btn-starter" aria-label="Create starter preset">Starter</button>
             </div>
             <div class="cal-preview" v-if="selectedDateISO" data-cy="cal-preview">
               <div class="row head">
@@ -479,6 +480,19 @@ function goToday(){
   current.value = new Date(now.getFullYear(), now.getMonth(), 1);
   selectedDay.value = now.getDate();
   persistSelected();
+}
+
+async function createStarterPreset(){
+  if (!teeSheetId.value) return;
+  try {
+    await settingsAPI.v2.starterPreset(teeSheetId.value);
+    try { window.dispatchEvent(new CustomEvent('snack', { detail: { color: 'success', text: 'Starter preset created and published' } })); } catch {}
+    // refresh flags and preview
+    await loadCalendarFlags();
+    await loadPreview();
+  } catch (e) {
+    try { window.dispatchEvent(new CustomEvent('snack', { detail: { color: 'error', text: 'Failed to create starter preset' } })); } catch {}
+  }
 }
 
 function persistSelected(){
