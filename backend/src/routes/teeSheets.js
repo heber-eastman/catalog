@@ -37,6 +37,7 @@ const { DateTime } = require('luxon');
 const { generateForDateV2 } = require('../services/teeSheetGenerator.v2');
 const { prevalidateSeasonVersion } = require('../services/seasonPrevalidation');
 const { regenerateApplyNow } = require('../services/cascadeEngine');
+const { templateCoversSideSet } = require('../services/validators.v2');
 
 // Validation schemas
 const teeSheetSchema = Joi.object({
@@ -769,6 +770,55 @@ router.delete('/tee-sheets/:id/v2/overrides/:overrideId', requireAuth(['Admin'])
   if (ov.status !== 'draft') return res.status(400).json({ error: 'Only draft overrides can be deleted' });
   await ov.destroy();
   res.status(204).end();
+});
+
+// V2 Starter Preset: creates draft template+version with public prices, season+version with weekday windows, publishes both
+router.post('/tee-sheets/:id/v2/starters/preset', requireAuth(['Admin']), async (req, res) => {
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const sides = await TeeSheetSide.findAll({ where: { tee_sheet_id: sheet.id } });
+  if (sides.length === 0) return res.status(400).json({ error: 'No sides configured' });
+
+  const tx = await sequelize.transaction();
+  try {
+    // Create template + version
+    const tmpl = await TeeSheetTemplate.create({ tee_sheet_id: sheet.id, status: 'draft', interval_mins: 8 }, { transaction: tx });
+    const ver = await TeeSheetTemplateVersion.create({ template_id: tmpl.id, version_number: 1, notes: 'Starter preset' }, { transaction: tx });
+    // Cover all sides + add public price
+    for (const s of sides) {
+      await TeeSheetTemplateSide.create({ version_id: ver.id, side_id: s.id, start_slots_enabled: true, max_legs_starting: 1, min_players: 1, walk_ride_mode: 'either' }, { transaction: tx });
+      await TeeSheetTemplateSidePrices.create({ version_id: ver.id, side_id: s.id, booking_class_id: 'public', greens_fee_cents: 4500, cart_fee_cents: 2000 }, { transaction: tx });
+    }
+
+    // Season + version with daily fixed window 06:30-18:00
+    const season = await TeeSheetSeason.create({ tee_sheet_id: sheet.id, status: 'draft', archived: false }, { transaction: tx });
+    const today = DateTime.now().toISODate();
+    const sixMonths = DateTime.now().plus({ months: 6 }).toISODate();
+    const seasonVer = await TeeSheetSeasonVersion.create({ season_id: season.id, start_date: today, end_date_exclusive: sixMonths, notes: 'Starter preset' }, { transaction: tx });
+    for (let wd = 0; wd < 7; wd += 1) {
+      await TeeSheetSeasonWeekdayWindow.create({ season_version_id: seasonVer.id, weekday: wd, position: 0, start_mode: 'fixed', end_mode: 'fixed', start_time_local: '06:30:00', end_time_local: '18:00:00', template_version_id: ver.id }, { transaction: tx });
+    }
+
+    await tx.commit();
+
+    // Publish template (hooks enforce coverage/price and cycle detection)
+    tmpl.published_version_id = ver.id;
+    tmpl.status = 'published';
+    await tmpl.save();
+
+    // Prevalidate and publish season
+    const pre = await prevalidateSeasonVersion({ teeSheetId: sheet.id, seasonVersionId: seasonVer.id });
+    if (!pre.ok) return res.status(400).json({ error: 'Prevalidation failed', violations: pre.violations });
+    season.published_version_id = seasonVer.id;
+    season.status = 'published';
+    await season.save();
+
+    res.status(201).json({ template: await TeeSheetTemplate.findByPk(tmpl.id, { include: [{ model: TeeSheetTemplateVersion, as: 'published_version' }] }), season: await TeeSheetSeason.findByPk(season.id, { include: [{ model: TeeSheetSeasonVersion, as: 'published_version' }] }) });
+  } catch (e) {
+    try { await tx.rollback(); } catch {}
+    const status = e.status || 400;
+    res.status(status).json({ error: e.message || 'Failed to create starter preset' });
+  }
 });
 
 module.exports = router;
