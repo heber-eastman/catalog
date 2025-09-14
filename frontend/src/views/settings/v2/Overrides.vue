@@ -2,11 +2,12 @@
   <div class="pa-4" data-cy="overrides-v2">
     <h2>Overrides (V2)</h2>
     <div class="mb-4 row">
-      <button @click="backToCalendar" class="btn sm" data-cy="back-to-calendar">Back to Calendar</button>
-      <button @click="createOverride" class="btn" data-cy="override-new-btn" :disabled="busy || !overrideDate">New Override</button>
-      <input v-model="overrideDate" type="date" data-cy="override-date-input" />
-      <label class="ml-2">Template Version</label>
-      <select v-model="templateVersionId" data-cy="override-tmplver-select">
+      <button @click="backToCalendar" class="btn sm" data-cy="back-to-calendar" aria-label="Back to Calendar">Back to Calendar</button>
+      <button @click="createOverride" class="btn" data-cy="override-new-btn" :disabled="busy || !overrideDate" aria-label="Create override for selected date">New Override</button>
+      <label for="override-date">Date</label>
+      <input id="override-date" v-model="overrideDate" type="date" data-cy="override-date-input" />
+      <label class="ml-2" for="override-tmplver">Template Version</label>
+      <select id="override-tmplver" v-model="templateVersionId" data-cy="override-tmplver-select">
         <option v-for="opt in templateVersionOptions" :key="opt.id" :value="opt.id">{{ opt.label }}</option>
       </select>
     </div>
@@ -21,28 +22,32 @@
           <button @click="remove(o)" class="btn sm ml-2" :disabled="busy || o.status !== 'draft'" :data-cy="`override-delete-${o.id}`">Delete</button>
         </div>
         <div class="row mt-2">
-          <label>Side</label>
-          <select v-model="editor.sideId" data-cy="override-side-select">
+          <label for="override-side">Side</label>
+          <select id="override-side" v-model="editor.sideId" data-cy="override-side-select">
             <option v-for="s in sideOptions" :key="s.id" :value="s.id">{{ s.name }}</option>
           </select>
-          <label class="ml-2">Mode</label>
-          <select v-model="editor.mode" data-cy="override-mode-select">
+          <label class="ml-2" for="override-mode">Mode</label>
+          <select id="override-mode" v-model="editor.mode" data-cy="override-mode-select">
             <option value="fixed">Fixed</option>
             <option value="sunrise_sunset">Sunrise/Sunset</option>
           </select>
           <template v-if="editor.mode === 'fixed'">
-            <input v-model="editor.startTime" type="time" data-cy="override-start-time" />
-            <input v-model="editor.endTime" type="time" data-cy="override-end-time" />
+            <label for="override-start-time">Start time</label>
+            <input id="override-start-time" v-model="editor.startTime" type="time" data-cy="override-start-time" />
+            <label for="override-end-time">End time</label>
+            <input id="override-end-time" v-model="editor.endTime" type="time" data-cy="override-end-time" />
           </template>
           <template v-else>
-            <input v-model.number="editor.startOffset" type="number" placeholder="start offset mins" data-cy="override-start-offset" />
-            <input v-model.number="editor.endOffset" type="number" placeholder="end offset mins" data-cy="override-end-offset" />
+            <label for="override-start-offset">Start offset (mins)</label>
+            <input id="override-start-offset" v-model.number="editor.startOffset" type="number" data-cy="override-start-offset" />
+            <label for="override-end-offset">End offset (mins)</label>
+            <input id="override-end-offset" v-model.number="editor.endOffset" type="number" data-cy="override-end-offset" />
           </template>
-          <label class="ml-2">Template Version</label>
-          <select v-model="templateVersionId" data-cy="override-editor-tmplver-select">
+          <label class="ml-2" for="override-editor-tmplver">Template Version</label>
+          <select id="override-editor-tmplver" v-model="templateVersionId" data-cy="override-editor-tmplver-select">
             <option v-for="opt in templateVersionOptions" :key="opt.id" :value="opt.id">{{ opt.label }}</option>
           </select>
-          <button class="btn sm ml-2" @click="saveWindow(o.id)" :disabled="busy || !templateVersionId || !editor.sideId || (editor.mode==='fixed' ? !editor.startTime || !editor.endTime : false)" :data-cy="`override-add-window-${o.id}`">Add Window</button>
+          <button class="btn sm ml-2" @click="saveWindow(o.id)" :disabled="busy || !templateVersionId || !editor.sideId || (editor.mode==='fixed' ? !editor.startTime || !editor.endTime : false)" :data-cy="`override-add-window-${o.id}`" aria-label="Add override window">Add Window</button>
         </div>
       </li>
     </ul>

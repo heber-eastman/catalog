@@ -1,0 +1,27 @@
+config:
+  target: "http://localhost:3000/api/v1"
+  phases:
+    - duration: 60
+      arrivalRate: 10
+      name: warmup
+    - duration: 120
+      arrivalRate: 25
+      name: steady
+  defaults:
+    headers:
+      Authorization: "Bearer {{ token }}"
+  processor: |
+    function authToken(userContext, events, done) {
+      userContext.vars.token = process.env.ARTILLERY_JWT || 'test-token';
+      return done();
+    }
+scenarios:
+  - name: availability
+    beforeRequest: authToken
+    flow:
+      - get:
+          url: "/tee-times/available?date=2025-08-15&teeSheets={{ teeSheetId }}&groupSize=2"
+          capture:
+            - json: "$..length"
+              as: "count"
+
