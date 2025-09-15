@@ -7,6 +7,9 @@ module.exports = (sequelize, DataTypes) => {
     status: { type: DataTypes.ENUM('draft', 'published'), allowNull: false, defaultValue: 'draft' },
     published_version_id: { type: DataTypes.UUID, allowNull: true },
     interval_mins: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 10 },
+    interval_type: { type: DataTypes.ENUM('standard'), allowNull: false, defaultValue: 'standard' },
+    max_players_staff: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 4 },
+    max_players_online: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 4 },
     archived: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },
     updated_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },
@@ -54,6 +57,15 @@ module.exports = (sequelize, DataTypes) => {
     created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },
     updated_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },
   }, { tableName: 'TeeSheetTemplateSidePrices', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });
+
+  const TeeSheetTemplateOnlineAccess = sequelize.define('TeeSheetTemplateOnlineAccess', {
+    id: { type: DataTypes.UUID, primaryKey: true, defaultValue: DataTypes.UUIDV4 },
+    template_id: { type: DataTypes.UUID, allowNull: false },
+    booking_class_id: { type: DataTypes.STRING(64), allowNull: false },
+    is_online_allowed: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+    created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },
+    updated_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },
+  }, { tableName: 'TeeSheetTemplateOnlineAccess', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });
 
   const TeeSheetSeason = sequelize.define('TeeSheetSeason', {
     id: { type: DataTypes.UUID, primaryKey: true, defaultValue: DataTypes.UUIDV4 },
@@ -134,6 +146,8 @@ module.exports = (sequelize, DataTypes) => {
       throw new Error('Cannot delete template with existing versions');
     }
   });
+  TeeSheetTemplate.hasMany(TeeSheetTemplateOnlineAccess, { foreignKey: 'template_id', as: 'online_access' });
+  TeeSheetTemplateOnlineAccess.belongsTo(TeeSheetTemplate, { foreignKey: 'template_id', as: 'template' });
   // Publishing invariants for templates
   TeeSheetTemplate.addHook('beforeSave', async (instance, options) => {
     if (!instance.changed('published_version_id') || !instance.published_version_id) return;
@@ -219,6 +233,7 @@ module.exports = (sequelize, DataTypes) => {
     TeeSheetTemplateSide,
     TeeSheetTemplateSideAccess,
     TeeSheetTemplateSidePrices,
+    TeeSheetTemplateOnlineAccess,
     TeeSheetSeason,
     TeeSheetSeasonVersion,
     TeeSheetSeasonWeekdayWindow,

@@ -44,28 +44,49 @@
       </v-card>
     </div>
 
-    <v-dialog v-model="detailOpen" max-width="720">
+    <v-dialog v-model="detailOpen" max-width="920">
       <v-card>
-        <v-card-title class="text-subtitle-1">Template Details</v-card-title>
+        <v-card-title class="text-subtitle-1">Template Settings</v-card-title>
         <v-card-text>
-          <div class="detail-grid">
-            <v-text-field :model-value="selected?.id || ''" label="ID" variant="outlined" density="comfortable" hide-details readonly />
-            <v-text-field :model-value="selected ? (selected.archived ? 'Archived' : 'Active') : ''" label="Status" variant="outlined" density="comfortable" hide-details readonly />
-            <v-text-field :model-value="selected?.interval_mins || ''" label="Interval (mins)" variant="outlined" density="comfortable" hide-details readonly />
-          </div>
-          <div class="mt-3" v-if="selected?.versions?.length">
-            <div class="muted mb-1">Versions</div>
-            <div class="ver-list">
-              <div v-for="v in selected.versions" :key="v.id" class="ver-row">
-                <div>v{{ v.version_number }} <span v-if="selected.published_version && selected.published_version.id === v.id" class="published">(published)</span></div>
-                <div class="muted">{{ v.notes || '' }}</div>
+          <v-tabs v-model="tab" bg-color="transparent">
+            <v-tab value="teetime">Tee Time Settings</v-tab>
+            <v-tab value="sides">Side Settings</v-tab>
+            <v-tab value="prices">Price Settings</v-tab>
+          </v-tabs>
+          <v-window v-model="tab" class="mt-2">
+            <v-window-item value="teetime">
+              <div class="detail-grid">
+                <v-select :items="intervalTypes" v-model="form.interval_type" label="Interval type" variant="outlined" density="comfortable" hide-details />
+                <v-text-field v-model.number="form.interval_mins" type="number" min="1" label="Interval (mins)" variant="outlined" density="comfortable" hide-details />
+                <v-text-field v-model.number="form.max_players_staff" type="number" min="1" max="8" label="Max players (tee sheet)" variant="outlined" density="comfortable" hide-details />
+                <v-text-field v-model.number="form.max_players_online" type="number" min="1" max="8" label="Max players (online)" variant="outlined" density="comfortable" hide-details />
               </div>
-            </div>
-          </div>
+              <div class="mt-3">
+                <div class="muted mb-1">Booking Class Settings</div>
+                <div class="class-grid">
+                  <v-checkbox
+                    v-for="cls in courseClasses"
+                    :key="cls"
+                    v-model="classToggles[cls]"
+                    :label="cls"
+                    density="comfortable"
+                    hide-details
+                  />
+                </div>
+              </div>
+            </v-window-item>
+            <v-window-item value="sides">
+              <div class="muted">Side Settings coming soon.</div>
+            </v-window-item>
+            <v-window-item value="prices">
+              <div class="muted">Price Settings coming soon.</div>
+            </v-window-item>
+          </v-window>
         </v-card-text>
         <v-card-actions>
           <v-spacer />
           <v-btn variant="text" @click="detailOpen=false">Close</v-btn>
+          <v-btn variant="flat" color="primary" :disabled="saving" @click="saveSettings">Save</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -94,6 +115,12 @@ const snackbarMessage = ref('');
 const snackbarColor = ref('success');
 const selected = ref(null);
 const detailOpen = ref(false);
+const tab = ref('teetime');
+const form = reactive({ interval_type: 'standard', interval_mins: 10, max_players_staff: 4, max_players_online: 4, online_access: [] });
+const intervalTypes = ['standard'];
+const courseClasses = ['Public', 'Member', 'Full'];
+const classToggles = reactive({});
+const saving = ref(false);
 
 function notify(message, color = 'success') {
   snackbarMessage.value = message;
@@ -171,7 +198,44 @@ async function remove(t) {
 }
 
 function shortId(id){ return (id || '').slice(0,6); }
-function openDetail(t){ selected.value = t; detailOpen.value = true; }
+function openDetail(t){
+  selected.value = t;
+  // Initialize form from selected
+  form.interval_type = t.interval_type || 'standard';
+  form.interval_mins = t.interval_mins || 10;
+  form.max_players_staff = t.max_players_staff || 4;
+  form.max_players_online = t.max_players_online || 4;
+  // Online access
+  const map = {};
+  for (const c of courseClasses) map[c] = true;
+  const online = t.online_access || [];
+  for (const r of online) { map[r.booking_class_id] = !!r.is_online_allowed; }
+  Object.assign(classToggles, map);
+  detailOpen.value = true;
+}
+
+async function saveSettings(){
+  if (!selected.value) return;
+  try {
+    saving.value = true;
+    const teeSheetId = route.params.teeSheetId;
+    const payload = {
+      interval_type: form.interval_type,
+      interval_mins: form.interval_mins,
+      max_players_staff: form.max_players_staff,
+      max_players_online: form.max_players_online,
+      online_access: Object.keys(classToggles).map(k => ({ booking_class_id: k, is_online_allowed: !!classToggles[k] })),
+    };
+    await settingsAPI.v2.updateTemplateSettings(teeSheetId, selected.value.id, payload);
+    await load();
+    notify('Settings saved');
+    detailOpen.value = false;
+  } catch (e) {
+    notify('Failed to save settings', 'error');
+  } finally {
+    saving.value = false;
+  }
+}
 
 onMounted(load);
 </script>

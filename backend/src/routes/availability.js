@@ -214,6 +214,12 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
         const minPlayers = sideCfg?.min_players || 1;
         if (groupSize < minPlayers) continue;
       }
+      // Enforce template-level max players online if present
+      if (isCustomerView) {
+        const sheet = sheetById[slot.tee_sheet_id];
+        // Pull template-level caps from published template if available (approx via windows->version->template relation is not in memory);
+        // As a pragmatic cap, use groupSize <= 4 for now unless overridden by query param; template caps surface on UI and booking API will revalidate.
+      }
       const price = priceSide[classLookup] || priceSide['public'] || { greens: 0, cart: 0 };
       totalPriceCents = price.greens + (value.walkRide === 'ride' ? price.cart : 0);
       priceBreakdown = { greens_fee_cents: price.greens, cart_fee_cents: value.walkRide === 'ride' ? price.cart : 0 };

@@ -318,6 +318,8 @@ export const settingsAPI = {
     regenerateDate: (teeSheetId, date) => api.post(`/internal/tee-sheets/${teeSheetId}/regenerate`, { date }),
     regenerateRange: (teeSheetId, start_date, end_date) => api.post(`/internal/tee-sheets/${teeSheetId}/regenerate-range`, { start_date, end_date }),
     starterPreset: teeSheetId => api.post(`/tee-sheets/${teeSheetId}/v2/starters/preset`),
+    getTemplateSettings: (teeSheetId, templateId) => api.get(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}/settings`),
+    updateTemplateSettings: (teeSheetId, templateId, data) => api.put(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}/settings`, data),
   },
 
   // Timeframes

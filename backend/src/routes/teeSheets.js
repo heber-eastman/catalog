@@ -20,6 +20,7 @@ const {
   sequelize,
   // V2 models
   TeeSheetTemplate,
+  TeeSheetTemplateOnlineAccess,
   TeeSheetTemplateVersion,
   TeeSheetTemplateSide,
   TeeSheetTemplateSideAccess,
@@ -73,6 +74,9 @@ const templateSchema = Joi.object({
 // V2 template schemas
 const v2TemplateCreateSchema = Joi.object({
   interval_mins: Joi.number().integer().min(1).max(60).default(10),
+  interval_type: Joi.string().valid('standard').default('standard'),
+  max_players_staff: Joi.number().integer().min(1).max(8).default(4),
+  max_players_online: Joi.number().integer().min(1).max(8).default(4),
 });
 
 const v2TemplateVersionCreateSchema = Joi.object({
@@ -86,6 +90,17 @@ const v2TemplatePublishSchema = Joi.object({
   start_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional(),
   end_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
+
+// V2 Template settings
+const v2TemplateSettingsSchema = Joi.object({
+  interval_type: Joi.string().valid('standard').optional(),
+  interval_mins: Joi.number().integer().min(1).max(60).optional(),
+  max_players_staff: Joi.number().integer().min(1).max(8).optional(),
+  max_players_online: Joi.number().integer().min(1).max(8).optional(),
+  online_access: Joi.array()
+    .items(Joi.object({ booking_class_id: Joi.string().min(1).required(), is_online_allowed: Joi.boolean().required() }))
+    .optional(),
+}).min(1);
 
 // V2 season schemas
 const v2SeasonCreateSchema = Joi.object({});
@@ -409,10 +424,64 @@ router.get('/tee-sheets/:id/v2/templates', requireAuth(['Admin', 'Manager', 'Sup
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
   const items = await TeeSheetTemplate.findAll({
     where: { tee_sheet_id: sheet.id },
-    include: [{ model: TeeSheetTemplateVersion, as: 'versions' }, { model: TeeSheetTemplateVersion, as: 'published_version' }],
+    include: [
+      { model: TeeSheetTemplateVersion, as: 'versions' },
+      { model: TeeSheetTemplateVersion, as: 'published_version' },
+      { model: TeeSheetTemplateOnlineAccess, as: 'online_access' },
+    ],
     order: [['created_at', 'ASC']],
   });
   res.json(items);
+});
+
+// Read/update template settings
+router.get('/tee-sheets/:id/v2/templates/:templateId/settings', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
+  const tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: req.params.id } });
+  if (!tmpl) return res.status(404).json({ error: 'Template not found' });
+  const online = await TeeSheetTemplateOnlineAccess.findAll({ where: { template_id: tmpl.id }, order: [['booking_class_id', 'ASC']] });
+  res.json({
+    interval_type: tmpl.interval_type,
+    interval_mins: tmpl.interval_mins,
+    max_players_staff: tmpl.max_players_staff,
+    max_players_online: tmpl.max_players_online,
+    online_access: online.map(r => ({ booking_class_id: r.booking_class_id, is_online_allowed: r.is_online_allowed })),
+  });
+});
+
+router.put('/tee-sheets/:id/v2/templates/:templateId/settings', requireAuth(['Admin']), async (req, res) => {
+  const { error, value } = v2TemplateSettingsSchema.validate(req.body || {});
+  if (error) return res.status(400).json({ error: error.message });
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: sheet.id } });
+  if (!tmpl) return res.status(404).json({ error: 'Template not found' });
+
+  await tmpl.update({
+    interval_type: value.interval_type ?? tmpl.interval_type,
+    interval_mins: value.interval_mins ?? tmpl.interval_mins,
+    max_players_staff: value.max_players_staff ?? tmpl.max_players_staff,
+    max_players_online: value.max_players_online ?? tmpl.max_players_online,
+  });
+
+  if (Array.isArray(value.online_access)) {
+    // upsert rows
+    for (const r of value.online_access) {
+      const [row] = await TeeSheetTemplateOnlineAccess.findOrCreate({
+        where: { template_id: tmpl.id, booking_class_id: r.booking_class_id },
+        defaults: { template_id: tmpl.id, booking_class_id: r.booking_class_id, is_online_allowed: !!r.is_online_allowed },
+      });
+      if (row.is_online_allowed !== !!r.is_online_allowed) await row.update({ is_online_allowed: !!r.is_online_allowed });
+    }
+  }
+
+  const online = await TeeSheetTemplateOnlineAccess.findAll({ where: { template_id: tmpl.id }, order: [['booking_class_id', 'ASC']] });
+  res.json({
+    interval_type: tmpl.interval_type,
+    interval_mins: tmpl.interval_mins,
+    max_players_staff: tmpl.max_players_staff,
+    max_players_online: tmpl.max_players_online,
+    online_access: online.map(r => ({ booking_class_id: r.booking_class_id, is_online_allowed: r.is_online_allowed })),
+  });
 });
 
 router.post('/tee-sheets/:id/v2/templates', requireAuth(['Admin']), async (req, res) => {
@@ -420,7 +489,14 @@ router.post('/tee-sheets/:id/v2/templates', requireAuth(['Admin']), async (req, 
   if (error) return res.status(400).json({ error: error.message });
   const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
-  const created = await TeeSheetTemplate.create({ tee_sheet_id: sheet.id, status: 'draft', interval_mins: value.interval_mins });
+  const created = await TeeSheetTemplate.create({
+    tee_sheet_id: sheet.id,
+    status: 'draft',
+    interval_mins: value.interval_mins,
+    interval_type: value.interval_type || 'standard',
+    max_players_staff: value.max_players_staff,
+    max_players_online: value.max_players_online,
+  });
   res.status(201).json(created);
 });
 
@@ -458,7 +534,11 @@ router.post('/tee-sheets/:id/v2/templates/:templateId/publish', requireAuth(['Ad
       await regenerateApplyNow({ teeSheetId: sheet.id, startDateISO: value.start_date || today, endDateISO: value.end_date || today });
     }
     const reloaded = await TeeSheetTemplate.findByPk(tmpl.id, {
-      include: [{ model: TeeSheetTemplateVersion, as: 'versions' }, { model: TeeSheetTemplateVersion, as: 'published_version' }],
+      include: [
+        { model: TeeSheetTemplateVersion, as: 'versions' },
+        { model: TeeSheetTemplateVersion, as: 'published_version' },
+        { model: TeeSheetTemplateOnlineAccess, as: 'online_access' },
+      ],
     });
     res.json(reloaded);
   } catch (e) {
@@ -481,7 +561,11 @@ router.post('/tee-sheets/:id/v2/templates/:templateId/rollback', requireAuth(['A
     tmpl.published_version_id = ver.id;
     tmpl.status = 'published';
     await tmpl.save();
-    const reloaded = await TeeSheetTemplate.findByPk(tmpl.id, { include: [{ model: TeeSheetTemplateVersion, as: 'versions' }, { model: TeeSheetTemplateVersion, as: 'published_version' }] });
+    const reloaded = await TeeSheetTemplate.findByPk(tmpl.id, { include: [
+      { model: TeeSheetTemplateVersion, as: 'versions' },
+      { model: TeeSheetTemplateVersion, as: 'published_version' },
+      { model: TeeSheetTemplateOnlineAccess, as: 'online_access' },
+    ] });
     res.json(reloaded);
   } catch (e) {
     const status = e.status || 400;
