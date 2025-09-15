@@ -1,7 +1,0 @@
-[
-  {
-    "Id": "1",
-    "Arn": "arn:aws:lambda:us-east-1:722895251763:function:ecs-scheduler",
-    "Input": "{\"action\": \"scale-down\", \"clusterName\": \"catalog-golf-cluster\", \"services\": [{\"name\": \"catalog-golf-backend\"}, {\"name\": \"catalog-golf-frontend\"}]}"
-  }
-]

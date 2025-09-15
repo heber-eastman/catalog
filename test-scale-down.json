@@ -1,8 +1,0 @@
-{
-  "action": "scale-down",
-  "clusterName": "catalog-golf-cluster",
-  "services": [
-    { "name": "catalog-golf-backend" },
-    { "name": "catalog-golf-frontend" }
-  ]
-}
