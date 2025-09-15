@@ -137,12 +137,11 @@
             </div>
           </div>
         </div>
-        <router-link :to="{ name: 'SettingsTeeSheetsSides', params:{ teeSheetId } }"><i class="mdi mdi-table-large nav-ico"></i><span>Sides</span></router-link>
-        <router-link :to="{ name: 'SettingsDayTemplates', params:{ teeSheetId } }">Day Templates</router-link>
-        <router-link :to="{ name: 'SettingsTimeframes', params:{ teeSheetId } }">Timeframes</router-link>
-        <router-link :to="{ name: 'SettingsCalendar', params:{ teeSheetId } }">Calendar</router-link>
-        <router-link :to="{ name: 'SettingsClosures', params:{ teeSheetId } }">Closures</router-link>
-        <router-link :to="{ name: 'SettingsBookingClasses', params:{ teeSheetId } }">Booking Classes</router-link>
+        <router-link :to="{ name: 'SettingsGeneral' }" data-cy="subnav-general-info">General Info</router-link>
+        <router-link :to="{ name: 'SettingsTeeSheetsSides', params:{ teeSheetId } }" data-cy="subnav-sides"><i class="mdi mdi-table-large nav-ico"></i><span>Sides</span></router-link>
+        <router-link :to="{ name: 'SettingsV2Seasons', params:{ teeSheetId } }" data-cy="subnav-seasons">Seasons</router-link>
+        <router-link :to="{ name: 'SettingsV2Templates', params:{ teeSheetId } }" data-cy="subnav-templates">Templates</router-link>
+        <router-link :to="{ name: 'SettingsV2Overrides', params:{ teeSheetId } }" data-cy="subnav-overrides">Overrides</router-link>
     </aside>
     <main class="content">
       <router-view />
@@ -158,11 +157,9 @@ const route = useRoute();
 const router = useRouter();
 const teeSheetRouteNames = new Set([
   'SettingsTeeSheetsSides',
-  'SettingsDayTemplates',
-  'SettingsTimeframes',
-  'SettingsCalendar',
-  'SettingsClosures',
-  'SettingsBookingClasses',
+  'SettingsV2Seasons',
+  'SettingsV2Templates',
+  'SettingsV2Overrides',
 ]);
 const isTeeSheet = computed(() => teeSheetRouteNames.has(route.name));
 const teeSheets = ref([]);
