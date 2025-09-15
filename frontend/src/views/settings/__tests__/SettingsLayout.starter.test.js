@@ -39,19 +39,12 @@ describe('SettingsLayout Starter Preset', () => {
     vi.restoreAllMocks();
   });
 
-  it('calls starter preset API and shows success snack', async () => {
+  it('does not render Starter button in simplified calendar panel', async () => {
     const wrapper = mount(SettingsLayout, {
       global: { stubs: ['router-link', 'router-view'] },
     });
     await wrapper.vm.$nextTick();
     const btn = wrapper.find('[data-cy="cal-btn-starter"]');
-    expect(btn.exists()).toBe(true);
-    await btn.trigger('click');
-    expect(dispatchSpy).toHaveBeenCalled();
-    const texts = dispatchSpy.mock.calls
-      .map(args => args[0])
-      .filter(evt => evt && evt.type === 'snack')
-      .map(evt => evt.detail?.text || '');
-    expect(texts.some(t => t.includes('Starter preset created'))).toBe(true);
+    expect(btn.exists()).toBe(false);
   });
 });
