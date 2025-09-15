@@ -1,0 +1,16 @@
+{
+  "Changes": [
+    {
+      "Action": "CREATE",
+      "ResourceRecordSet": {
+        "Name": "api.catalog.golf",
+        "Type": "A",
+        "AliasTarget": {
+          "DNSName": "catalog-backend-alb-871648486.us-east-1.elb.amazonaws.com",
+          "EvaluateTargetHealth": false,
+          "HostedZoneId": "Z35SXDOTRQ7X7K"
+        }
+      }
+    }
+  ]
+}

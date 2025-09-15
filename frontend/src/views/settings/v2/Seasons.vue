@@ -1,0 +1,277 @@
+<template>
+  <div class="pa-4" data-cy="seasons-v2">
+    <h2>Seasons (V2)</h2>
+    <div class="mb-4 row">
+      <router-link :to="{ name: 'SettingsTeeSheetsSides', params: { teeSheetId: route.params.teeSheetId } }" class="btn sm" data-cy="back-to-calendar">Back to Calendar</router-link>
+      <button @click="createSeason" class="btn" data-cy="season-new-btn" :disabled="busy">New Season</button>
+      <div class="ml-2 row">
+        <label>Version dates</label>
+        <input v-model="startDate" type="date" data-cy="season-start-date" />
+        <input v-model="endDate" type="date" data-cy="season-end-date" />
+        <label class="ml-2">Weekday</label>
+        <select v-model.number="weekday" data-cy="season-weekday-select">
+          <option v-for="w in 7" :key="w-1" :value="w-1">{{ w-1 }}</option>
+        </select>
+        <label class="ml-2">Template Version</label>
+        <select v-model="templateVersionId" data-cy="season-tmplver-select">
+          <option v-for="opt in templateVersionOptions" :key="opt.id" :value="opt.id">{{ opt.label }}</option>
+        </select>
+        <input v-model="startTime" type="time" data-cy="season-start-time" />
+        <input v-model="endTime" type="time" data-cy="season-end-time" />
+        <input v-model="templateVersionId" placeholder="template_version_id" />
+      </div>
+    </div>
+    <div v-if="busy" class="muted" data-cy="seasons-loading">Loading…</div>
+    <div v-else-if="!seasons.length" class="muted" data-cy="seasons-empty">No seasons yet</div>
+    <ul>
+      <li v-for="s in seasons" :key="s.id" class="mb-2">
+        <div><strong>{{ s.id }}</strong> — status: {{ s.status }}</div>
+        <div class="row">
+          <button @click="addVersion(s.id)" class="btn sm" :disabled="busy || !startDate || !endDate || !templateVersionId || !startTime || !endTime" :data-cy="`season-add-version-${s.id}`">Add Version+Window</button>
+          <button @click="publish(s.id)" class="btn sm" :disabled="busy" :data-cy="`season-publish-${s.id}`">Publish</button>
+          <button @click="remove(s)" class="btn sm" :disabled="busy || s.status !== 'draft'" :data-cy="`season-delete-${s.id}`">Delete</button>
+        </div>
+        <div class="mt-2">
+          <h4 class="mb-1">Weekday windows (local preview)</h4>
+          <ul class="dnd-list" role="listbox" aria-label="Reorder weekday windows">
+            <li
+              v-for="(w, index) in (windowsBySeason[s.id] || [])"
+              :key="w.id || w.localId"
+              class="dnd-item"
+              draggable="true"
+              role="option"
+              :tabindex="0"
+              :aria-grabbed="dragState.seasonId === s.id && dragState.fromIndex === index ? 'true' : 'false'"
+              :aria-posinset="index + 1"
+              :aria-setsize="(windowsBySeason[s.id] || []).length"
+              @keydown="onItemKeydown(s.id, index, $event)"
+              @dragstart="onDragStart(s.id, index, $event)"
+              @dragover.prevent
+              @drop="onDrop(s.id, index, $event)"
+              :data-cy="`season-window-${s.id}-${index}`"
+            >
+              {{ index }} — wd: {{ w.weekday }} {{ w.start_time_local }} - {{ w.end_time_local }} (tv: {{ w.template_version_id.slice(0,8) }})
+            </li>
+          </ul>
+          <button class="btn sm" @click="saveOrder(s.id)" :disabled="busy || !((windowsBySeason[s.id] && windowsBySeason[s.id].length)) || !orderDirtyBySeason[s.id]" :data-cy="`season-save-order-${s.id}`">Save order</button>
+        </div>
+      </li>
+    </ul>
+    <v-snackbar v-model="showSnackbar" :color="snackbarColor" :timeout="2500">
+      {{ snackbarMessage }}
+      <template #actions>
+        <v-btn color="white" variant="text" @click="showSnackbar = false">Close</v-btn>
+      </template>
+    </v-snackbar>
+  </div>
+</template>
+
+<script setup>
+import { onMounted, ref, reactive, inject, watch } from 'vue';
+import { useRoute } from 'vue-router';
+import { settingsAPI } from '@/services/api';
+
+const route = useRoute();
+const seasons = ref([]);
+const busy = ref(false);
+const startDate = ref('');
+const endDate = ref('');
+const weekday = ref(0);
+const startTime = ref('07:00');
+const endTime = ref('10:00');
+const templateVersionId = ref('');
+const templateVersionOptions = ref([]);
+const windowsBySeason = reactive({});
+const orderDirtyBySeason = reactive({});
+let dragState = { seasonId: null, fromIndex: -1 };
+
+// Toast state
+const showSnackbar = ref(false);
+const snackbarMessage = ref('');
+const snackbarColor = ref('success');
+
+function notify(message, color = 'success') {
+  snackbarMessage.value = message;
+  snackbarColor.value = color;
+  showSnackbar.value = true;
+}
+
+function cryptoRandom() {
+  try { return crypto.randomUUID(); } catch { return Math.random().toString(36).slice(2); }
+}
+
+async function load() {
+  try {
+    busy.value = true;
+    const teeSheetId = route.params.teeSheetId;
+    if (!teeSheetId) { seasons.value = []; return; }
+    const { data } = await settingsAPI.v2.listSeasons(teeSheetId);
+    seasons.value = data || [];
+    await loadTemplateVersions();
+  } catch (e) {
+    notify('Failed to load seasons', 'error');
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function createSeason() {
+  const teeSheetId = route.params.teeSheetId;
+  await settingsAPI.v2.createSeason(teeSheetId, {});
+  await load();
+  notify('Season created');
+}
+
+async function addVersion(seasonId) {
+  const teeSheetId = route.params.teeSheetId;
+  const sd = startDate.value; const ed = endDate.value;
+  if (!sd || !ed) return;
+  try {
+    const { data: v } = await settingsAPI.v2.createSeasonVersion(teeSheetId, seasonId, { start_date: sd, end_date_exclusive: ed });
+    const st = (startTime.value || '07:00') + ':00';
+    const et = (endTime.value || '10:00') + ':00';
+    if (!templateVersionId.value) return;
+    const { data: createdWindow } = await settingsAPI.v2.addSeasonWeekdayWindow(teeSheetId, seasonId, v.id, { weekday: Number(weekday.value) || 0, position: 0, start_mode: 'fixed', end_mode: 'fixed', start_time_local: st, end_time_local: et, template_version_id: templateVersionId.value });
+    // Append to local list with real id for reorder
+    const list = windowsBySeason[seasonId] || (windowsBySeason[seasonId] = []);
+    list.push({ id: createdWindow.id, weekday: Number(weekday.value) || 0, start_time_local: st, end_time_local: et, template_version_id: templateVersionId.value });
+    await load();
+    notify('Window added');
+  } catch (e) {
+    notify('Failed to add version/window', 'error');
+  }
+}
+
+async function publish(seasonId) {
+  try {
+    const teeSheetId = route.params.teeSheetId;
+    await settingsAPI.v2.publishSeason(teeSheetId, seasonId, {});
+    await load();
+    notify('Season published');
+  } catch (e) {
+    notify('Failed to publish season', 'error');
+  }
+}
+
+async function remove(s) {
+  try {
+    const teeSheetId = route.params.teeSheetId;
+    await settingsAPI.v2.deleteSeason(teeSheetId, s.id);
+    await load();
+    notify('Season deleted');
+  } catch (e) {
+    notify(e?.response?.data?.error || 'Failed to delete season', 'error');
+  }
+}
+
+function onDragStart(seasonId, index, ev) {
+  dragState.seasonId = seasonId;
+  dragState.fromIndex = index;
+  try { ev.dataTransfer.setData('text/plain', String(index)); } catch {}
+}
+
+function onDrop(seasonId, toIndex, ev) {
+  const list = windowsBySeason[seasonId];
+  if (!list) return;
+  const fromIndex = dragState.seasonId === seasonId ? dragState.fromIndex : parseInt(ev.dataTransfer.getData('text/plain') || '-1', 10);
+  if (fromIndex < 0 || fromIndex === toIndex) return;
+  const [moved] = list.splice(fromIndex, 1);
+  list.splice(toIndex, 0, moved);
+  dragState = { seasonId: null, fromIndex: -1 };
+  orderDirtyBySeason[seasonId] = true;
+}
+
+function onItemKeydown(seasonId, index, ev){
+  const list = windowsBySeason[seasonId] || [];
+  if (!list.length) return;
+  if (ev.key === ' ' || ev.key === 'Spacebar'){
+    // toggle grabbed
+    ev.preventDefault();
+    dragState = (dragState.seasonId === seasonId && dragState.fromIndex === index)
+      ? { seasonId: null, fromIndex: -1 }
+      : { seasonId, fromIndex: index };
+    return;
+  }
+  if (dragState.seasonId === seasonId && dragState.fromIndex === index){
+    let newIndex = index;
+    if (ev.key === 'ArrowUp') newIndex = Math.max(0, index - 1);
+    if (ev.key === 'ArrowDown') newIndex = Math.min(list.length - 1, index + 1);
+    if (newIndex !== index){
+      const [moved] = list.splice(index, 1);
+      list.splice(newIndex, 0, moved);
+      dragState = { seasonId, fromIndex: newIndex };
+      orderDirtyBySeason[seasonId] = true;
+    }
+  }
+}
+
+async function saveOrder(seasonId) {
+  const list = windowsBySeason[seasonId] || [];
+  if (!list.length) return;
+  const weekdayVal = list[0].weekday;
+  const orderIds = list.map(w => w.id).filter(Boolean);
+  if (!orderIds.length) { notify('No persisted windows to reorder yet.', 'error'); return; }
+  try {
+    const teeSheetId = route.params.teeSheetId;
+    // Need latest version id to scope reorder; assume last created for now
+    const { data: seasonsList } = await settingsAPI.v2.listSeasons(teeSheetId);
+    const season = (seasonsList || []).find(s => s.id === seasonId);
+    const versionId = season?.versions?.[season.versions.length - 1]?.id || season?.published_version?.id;
+    if (!versionId) { notify('Missing season version to reorder', 'error'); return; }
+    await settingsAPI.v2.reorderSeasonWeekdayWindows(teeSheetId, seasonId, versionId, { weekday: weekdayVal, order: orderIds });
+    notify('Order saved');
+    orderDirtyBySeason[seasonId] = false;
+  } catch (e) {
+    notify('Failed to save order', 'error');
+  }
+}
+
+onMounted(load);
+
+// Sync calendar-selected date
+const selectedDate = inject('settings:selectedDate', ref(''));
+watch(selectedDate, (v) => {
+  if (!v) return;
+  // Default start to selected date and end to +1 day
+  startDate.value = v;
+  try {
+    const dt = new Date(v + 'T00:00:00');
+    dt.setDate(dt.getDate() + 1);
+    const pad = (n)=> (n<10?`0${n}`:`${n}`);
+    endDate.value = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+  } catch {}
+}, { immediate: true });
+
+async function loadTemplateVersions() {
+  const teeSheetId = route.params.teeSheetId;
+  if (!teeSheetId) { templateVersionOptions.value = []; return; }
+  try {
+    const { data } = await settingsAPI.v2.listTemplates(teeSheetId);
+    const opts = [];
+    for (const t of data || []) {
+      for (const v of (t.versions || [])) {
+        const note = v.notes ? ` — ${v.notes}` : '';
+        const tmplShort = (t.id || '').slice(0, 6);
+        opts.push({ id: v.id, label: `Tmpl ${tmplShort} v${v.version_number}${note}` });
+      }
+    }
+    templateVersionOptions.value = opts;
+  } catch (_) {
+    templateVersionOptions.value = [];
+  }
+}
+</script>
+
+<style scoped>
+.btn { padding: 6px 10px; border: 1px solid #ccc; border-radius: 6px; }
+.btn.sm { padding: 4px 8px; }
+.row { display: flex; align-items: center; gap: 8px; }
+.ml-2 { margin-left: 8px; }
+.mb-2 { margin-bottom: 8px; }
+.dnd-list { list-style: none; padding: 0; margin: 0; }
+.dnd-item { padding: 6px 8px; border: 1px dashed #ccc; border-radius: 6px; margin-bottom: 6px; cursor: grab; }
+.dnd-item[aria-grabbed="true"] { outline: 2px solid #1976d2; cursor: grabbing; }
+.dnd-item:focus { outline: 2px solid #90caf9; }
+</style>
+
+

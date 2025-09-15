@@ -1,0 +1,100 @@
+{
+  "taskDefinitionArn": "arn:aws:ecs:us-east-1:722895251763:task-definition/catalog-golf-backend:3",
+  "containerDefinitions": [
+    {
+      "name": "catalog-golf-backend",
+      "image": "722895251763.dkr.ecr.us-east-1.amazonaws.com/catalog-golf-backend:latest",
+      "cpu": 0,
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "hostPort": 3000,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "environment": [
+        {
+          "name": "PORT",
+          "value": "3000"
+        },
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        }
+      ],
+      "mountPoints": [],
+      "volumesFrom": [],
+      "secrets": [
+        {
+          "name": "DATABASE_URL",
+          "valueFrom": "arn:aws:ssm:us-east-1:722895251763:parameter/catalog-golf/database-url"
+        },
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "arn:aws:ssm:us-east-1:722895251763:parameter/catalog-golf/jwt-secret"
+        },
+        {
+          "name": "EMAIL_QUEUE_URL",
+          "valueFrom": "arn:aws:ssm:us-east-1:722895251763:parameter/catalog-golf/email-queue-url"
+        },
+        {
+          "name": "AWS_REGION",
+          "valueFrom": "arn:aws:ssm:us-east-1:722895251763:parameter/catalog-golf/aws-region"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/catalog-golf-backend",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "systemControls": []
+    }
+  ],
+  "family": "catalog-golf-backend",
+  "taskRoleArn": "arn:aws:iam::722895251763:role/ecsTaskExecutionRole-catalog-golf",
+  "executionRoleArn": "arn:aws:iam::722895251763:role/ecsTaskExecutionRole-catalog-golf",
+  "networkMode": "awsvpc",
+  "revision": 3,
+  "volumes": [],
+  "status": "ACTIVE",
+  "requiresAttributes": [
+    {
+      "name": "com.amazonaws.ecs.capability.logging-driver.awslogs"
+    },
+    {
+      "name": "ecs.capability.execution-role-awslogs"
+    },
+    {
+      "name": "com.amazonaws.ecs.capability.ecr-auth"
+    },
+    {
+      "name": "com.amazonaws.ecs.capability.docker-remote-api.1.19"
+    },
+    {
+      "name": "com.amazonaws.ecs.capability.task-iam-role"
+    },
+    {
+      "name": "ecs.capability.execution-role-ecr-pull"
+    },
+    {
+      "name": "ecs.capability.secrets.ssm.environment-variables"
+    },
+    {
+      "name": "com.amazonaws.ecs.capability.docker-remote-api.1.18"
+    },
+    {
+      "name": "ecs.capability.task-eni"
+    }
+  ],
+  "placementConstraints": [],
+  "compatibilities": ["EC2", "FARGATE"],
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "registeredAt": "2025-07-07T17:48:31.859000-06:00",
+  "registeredBy": "arn:aws:iam::722895251763:user/cursor"
+}
