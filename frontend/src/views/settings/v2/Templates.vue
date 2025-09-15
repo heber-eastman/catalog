@@ -30,15 +30,16 @@
             </v-list>
           </v-menu>
         </div>
-        <div class="tpl-card__meta">
+        <div class="tpl-card__row">
           <span class="pill" :class="{ archived: t.archived }">{{ t.archived ? 'Archived' : 'Active' }}</span>
           <span class="sep">•</span>
           <span>Interval {{ t.interval_mins }} mins</span>
-        </div>
-        <div class="tpl-card__versions" v-if="t.versions && t.versions.length">
-          <span v-for="v in t.versions" :key="v.id" class="ver">
-            v{{ v.version_number }}<span v-if="t.published_version && t.published_version.id === v.id" class="published" aria-label="Published"> • published</span>
-          </span>
+          <template v-if="t.versions && t.versions.length">
+            <span class="sep">•</span>
+            <span v-for="v in t.versions" :key="v.id" class="ver">
+              v{{ v.version_number }}<span v-if="t.published_version && t.published_version.id === v.id" class="published" aria-label="Published"> • published</span>
+            </span>
+          </template>
         </div>
       </v-card>
     </div>
@@ -184,8 +185,7 @@ onMounted(load);
 .tpl-card{ padding:10px 12px; cursor:pointer; width:100%; }
 .tpl-card__header{ display:flex; align-items:center; justify-content:space-between; }
 .tpl-card__title{ font-weight:700; font-size:18px; }
-.tpl-card__meta{ color:#6b778c; margin-top:4px; }
-.tpl-card__versions{ margin-top:6px; display:flex; gap:8px; flex-wrap:wrap; }
+.tpl-card__row{ color:#6b778c; margin-top:6px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .ver{ background:#f1f5f9; border-radius:12px; padding:2px 8px; font-size:12px; }
 .published{ color:#2e7d32; font-weight:600; }
 .pill{ background:#eef7ff; border-radius:10px; padding:2px 8px; font-size:12px; }
