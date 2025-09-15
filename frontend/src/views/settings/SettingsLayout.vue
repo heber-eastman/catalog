@@ -57,85 +57,9 @@
                 </span>
               </button>
             </div>
-            <div class="cal-legend" aria-label="Calendar legend" data-cy="cal-legend">
-              <span><span class="dot override" aria-hidden="true"></span> Override</span>
-              <span><span class="dot season" aria-hidden="true"></span> Season</span>
-            </div>
-            <div class="cal-actions">
-              <button class="btn sm" @click="goOverrides" :disabled="!selectedDateISO" data-cy="cal-btn-overrides" aria-label="Go to Overrides">Overrides</button>
-              <button class="btn sm" @click="goSeasons" :disabled="!selectedDateISO" data-cy="cal-btn-seasons" aria-label="Go to Seasons">Seasons</button>
-              <button class="btn sm" @click="regenSelected" :disabled="!selectedDateISO" data-cy="cal-btn-regenerate" aria-label="Regenerate selected date">Regenerate</button>
-              <button class="btn sm" @click="openRangeDialog" :disabled="!teeSheetId" data-cy="cal-btn-regenerate-range" aria-label="Regenerate date range">Range…</button>
-              <button class="btn sm" @click="goToday" data-cy="cal-btn-today" aria-label="Go to today">Today</button>
-              <button class="btn sm" @click="createStarterPreset" :disabled="!teeSheetId" data-cy="cal-btn-starter" aria-label="Create starter preset">Starter</button>
-            </div>
-            <div class="cal-preview" v-if="selectedDateISO" data-cy="cal-preview">
-              <div class="row head">
-                <strong>Availability Preview</strong>
-                <span class="muted" v-if="previewLoading">Loading…</span>
-                <span class="muted" v-else>
-                  {{ previewSlots.length }} slots
-                  <template v-if="compareCustomer">
-                    (customers see {{ customerSlots.length }}, staff-only {{ Math.max(previewSlots.length - customerSlots.length, 0) }})
-                  </template>
-                </span>
-                <label class="ml-2" title="Show customer vs staff delta">
-                  <input type="checkbox" v-model="compareCustomer" /> Compare customer
-                </label>
-              </div>
-              <div class="row controls">
-                <label class="ml-2">Group size</label>
-                <select v-model.number="groupSize" @change="loadPreview" data-cy="preview-group-size">
-                  <option :value="1">1</option>
-                  <option :value="2">2</option>
-                  <option :value="3">3</option>
-                  <option :value="4">4</option>
-                </select>
-                <button class="btn xs ml-2" @click="enableAllSides" data-cy="preview-sides-all">All</button>
-                <button class="btn xs ml-1" @click="enableNoSides" data-cy="preview-sides-none">None</button>
-                <template v-for="(side, sid) in sidesById" :key="sid">
-                  <label class="ml-2">
-                    <input type="checkbox" :value="sid" v-model="enabledSides" @change="noop" :data-cy="`preview-side-${sid}`" />
-                    {{ side.name || `Side ${String(sid).slice(0,6)}` }}
-                  </label>
-                </template>
-              </div>
-              <div v-if="previewError" class="err">{{ previewError }}</div>
-              <div v-else class="preview-list">
-                <div v-for="(items, sideId) in groupedBySideFiltered" :key="sideId" class="preview-side">
-                  <div class="side-title">
-                    {{ sideName(sideId) }}
-                    <template v-if="compareCustomer">
-                      — staff {{ items.length }}, cust {{ countCustomerForSide(sideId) }}, staff-only {{ Math.max(items.length - countCustomerForSide(sideId), 0) }}
-                    </template>
-                  </div>
-                  <div class="times">
-                    <span v-for="t in items.slice(0,3)" :key="t.id" class="time">
-                      {{ formatTime(t.start_time) }}
-                      <span v-if="t.is_start_disabled" class="time-tag" title="Start disabled">start-disabled</span>
-                      <span v-if="t.is_blocked" class="time-tag blocked" title="Blocked">blocked</span>
-                      <span v-if="compareCustomer && !isInCustomer(t)" class="time-badge" title="Customer-hidden">•</span>
-                    </span>
-                    <span v-if="items.length > 3" class="more">+{{ items.length - 3 }} more</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+            
           </div>
-          <div v-if="showRangeDialog" class="dialog" role="dialog" aria-modal="true" aria-label="Regenerate Date Range" data-cy="regen-range-dialog">
-            <div class="dlg-body">
-              <div class="row">
-                <label>Start</label>
-                <input type="date" v-model="rangeStart" data-cy="regen-range-start" />
-                <label class="ml-2">End</label>
-                <input type="date" v-model="rangeEnd" data-cy="regen-range-end" />
-              </div>
-              <div class="row mt-2">
-                <button class="btn sm" @click="queueRange" :disabled="!isValidRange" data-cy="regen-range-queue">Queue</button>
-                <button class="btn sm ml-2" @click="closeRangeDialog" data-cy="regen-range-cancel">Cancel</button>
-              </div>
-            </div>
-          </div>
+          
         </div>
         <router-link :to="{ name: 'SettingsGeneral' }" data-cy="subnav-general-info">General Info</router-link>
         <router-link :to="{ name: 'SettingsTeeSheetsSides', params:{ teeSheetId } }" data-cy="subnav-sides"><i class="mdi mdi-table-large nav-ico"></i><span>Sides</span></router-link>
@@ -573,7 +497,6 @@ try {
 .dot{ display:inline-block; width:6px; height:6px; border-radius:50%; margin:0 1px; vertical-align:middle; }
 .dot.override{ background:#d32f2f; }
 .dot.season{ background:#1976d2; }
-.cal-legend{ display:flex; gap:12px; font-size:12px; color:#6b778c; margin:6px 0; }
 .dialog{ position:fixed; inset:0; background:rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; }
 .dialog .dlg-body{ background:#fff; padding:12px; border-radius:8px; min-width:300px; }
 .content { padding: 16px; }
