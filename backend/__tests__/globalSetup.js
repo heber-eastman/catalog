@@ -59,12 +59,12 @@ module.exports = async () => {
       await verifyClient.query(`
         DO $$
         BEGIN
-          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_teesheettemplates_interval_type') THEN
-            CREATE TYPE enum_teesheettemplates_interval_type AS ENUM ('standard');
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_TeeSheetTemplates_interval_type') THEN
+            CREATE TYPE "enum_TeeSheetTemplates_interval_type" AS ENUM ('standard');
           END IF;
         END $$;`);
       await verifyClient.query(`ALTER TABLE "TeeSheetTemplates" ADD COLUMN IF NOT EXISTS "name" VARCHAR(120) NOT NULL DEFAULT 'Untitled Template';`);
-      await verifyClient.query(`ALTER TABLE "TeeSheetTemplates" ADD COLUMN IF NOT EXISTS "interval_type" enum_teesheettemplates_interval_type NOT NULL DEFAULT 'standard';`);
+      await verifyClient.query(`ALTER TABLE "TeeSheetTemplates" ADD COLUMN IF NOT EXISTS "interval_type" "enum_TeeSheetTemplates_interval_type" NOT NULL DEFAULT 'standard';`);
       await verifyClient.query(`ALTER TABLE "TeeSheetTemplates" ADD COLUMN IF NOT EXISTS "max_players_staff" INTEGER NOT NULL DEFAULT 4;`);
       await verifyClient.query(`ALTER TABLE "TeeSheetTemplates" ADD COLUMN IF NOT EXISTS "max_players_online" INTEGER NOT NULL DEFAULT 4;`);
     } catch (e) {

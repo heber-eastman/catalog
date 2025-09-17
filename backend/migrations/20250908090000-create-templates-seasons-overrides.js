@@ -563,18 +563,41 @@ module.exports = {
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('TeeSheetOverrideWindows');
-    await queryInterface.dropTable('TeeSheetOverrideVersions');
-    await queryInterface.dropTable('TeeSheetOverrides');
-    await queryInterface.dropTable('TeeSheetSeasonWeekdayWindows');
-    await queryInterface.dropTable('TeeSheetSeasonVersions');
-    await queryInterface.dropTable('TeeSheetSeasons');
-    await queryInterface.dropTable('TeeSheetTemplateSidePrices');
-    await queryInterface.dropTable('TeeSheetTemplateSideAccess');
-    await queryInterface.dropTable('TeeSheetTemplateSides');
-    await queryInterface.dropTable('TeeSheetTemplateVersions');
-    await queryInterface.dropTable('TeeSheetTemplates');
+    // Drop in reverse order, remove constraints/enums when needed
+    const drop = async (table) => { try { await queryInterface.dropTable(table); } catch (e) {} };
+
+    try { await queryInterface.removeConstraint('TeeSheetTemplateOnlineAccess', 'tmpl_online_access_unique_template_class'); } catch (e) {}
+    await drop('TeeSheetTemplateOnlineAccess');
+
+    await drop('TeeSheetOverrideWindows');
+    await drop('TeeSheetOverrideVersions');
+    await drop('TeeSheetOverrides');
+
+    try { await queryInterface.removeConstraint('TeeSheetSeasonWeekdayWindows', 'season_weekday_windows_unique_version_weekday_position'); } catch (e) {}
+    await drop('TeeSheetSeasonWeekdayWindows');
+    await drop('TeeSheetSeasonVersions');
+    await drop('TeeSheetSeasons');
+
+    try { await queryInterface.removeConstraint('TeeSheetTemplateSidePrices', 'tmpl_side_prices_unique_version_side_class'); } catch (e) {}
+    await drop('TeeSheetTemplateSidePrices');
+    try { await queryInterface.removeConstraint('TeeSheetTemplateSideAccess', 'tmpl_side_access_unique_version_side_class'); } catch (e) {}
+    await drop('TeeSheetTemplateSideAccess');
+    await drop('TeeSheetTemplateSides');
+
+    try { await queryInterface.removeConstraint('TeeSheetTemplateVersions', 'tmpl_versions_unique_template_version'); } catch (e) {}
+    await drop('TeeSheetTemplateVersions');
+
+    await drop('TeeSheetTemplates');
+
+    // Remove ENUMs to avoid leftover type errors in Postgres
+    try { await queryInterface.sequelize.query("DROP TYPE IF EXISTS \"enum_TeeSheetTemplates_status\"; "); } catch (e) {}
+    try { await queryInterface.sequelize.query("DROP TYPE IF EXISTS \"enum_TeeSheetTemplates_interval_type\"; "); } catch (e) {}
+    try { await queryInterface.sequelize.query("DROP TYPE IF EXISTS \"enum_TeeSheetTemplateSides_walk_ride_mode\"; "); } catch (e) {}
+    try { await queryInterface.sequelize.query("DROP TYPE IF EXISTS \"enum_TeeSheetSeasonWeekdayWindows_start_mode\"; "); } catch (e) {}
+    try { await queryInterface.sequelize.query("DROP TYPE IF EXISTS \"enum_TeeSheetSeasonWeekdayWindows_end_mode\"; "); } catch (e) {}
+    try { await queryInterface.sequelize.query("DROP TYPE IF EXISTS \"enum_TeeSheetOverrides_status\"; "); } catch (e) {}
+    try { await queryInterface.sequelize.query("DROP TYPE IF EXISTS \"enum_TeeSheetOverrideWindows_start_mode\"; "); } catch (e) {}
+    try { await queryInterface.sequelize.query("DROP TYPE IF EXISTS \"enum_TeeSheetOverrideWindows_end_mode\"; "); } catch (e) {}
   },
 };
-
 
