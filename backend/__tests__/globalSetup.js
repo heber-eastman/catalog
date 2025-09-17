@@ -49,11 +49,26 @@ module.exports = async () => {
       database: process.env.TEST_DB_NAME || 'catalog_test',
     });
     await verifyClient.connect();
-    const needTemplates = await verifyClient.query(
-      `SELECT to_regclass('"TeeSheetTemplates"') IS NULL AS missing`
-    );
+    const needTemplates = await verifyClient.query(`SELECT to_regclass('"TeeSheetTemplates"') IS NULL AS missing`);
     if (needTemplates.rows[0] && needTemplates.rows[0].missing) {
       execSync('npx sequelize-cli db:migrate --to 20250908090000-create-templates-seasons-overrides.js', { stdio: 'inherit', env: process.env });
+    }
+
+    // Hardening: ensure required columns/types exist for TeeSheetTemplates in test DB
+    try {
+      await verifyClient.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_teesheettemplates_interval_type') THEN
+            CREATE TYPE enum_teesheettemplates_interval_type AS ENUM ('standard');
+          END IF;
+        END $$;`);
+      await verifyClient.query(`ALTER TABLE "TeeSheetTemplates" ADD COLUMN IF NOT EXISTS "name" VARCHAR(120) NOT NULL DEFAULT 'Untitled Template';`);
+      await verifyClient.query(`ALTER TABLE "TeeSheetTemplates" ADD COLUMN IF NOT EXISTS "interval_type" enum_teesheettemplates_interval_type NOT NULL DEFAULT 'standard';`);
+      await verifyClient.query(`ALTER TABLE "TeeSheetTemplates" ADD COLUMN IF NOT EXISTS "max_players_staff" INTEGER NOT NULL DEFAULT 4;`);
+      await verifyClient.query(`ALTER TABLE "TeeSheetTemplates" ADD COLUMN IF NOT EXISTS "max_players_online" INTEGER NOT NULL DEFAULT 4;`);
+    } catch (e) {
+      console.warn('Template column/type hardening skipped:', e.message);
     }
     await verifyClient.end();
   } catch (e) {

@@ -4,6 +4,7 @@ module.exports = (sequelize, DataTypes) => {
   const TeeSheetTemplate = sequelize.define('TeeSheetTemplate', {
     id: { type: DataTypes.UUID, primaryKey: true, defaultValue: DataTypes.UUIDV4 },
     tee_sheet_id: { type: DataTypes.UUID, allowNull: false },
+    name: { type: DataTypes.STRING(120), allowNull: false, defaultValue: 'Untitled Template' },
     status: { type: DataTypes.ENUM('draft', 'published'), allowNull: false, defaultValue: 'draft' },
     published_version_id: { type: DataTypes.UUID, allowNull: true },
     interval_mins: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 10 },

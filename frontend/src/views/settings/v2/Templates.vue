@@ -1,7 +1,7 @@
 <template>
   <div class="pa-4" data-cy="templates-v2">
     <div class="toolbar">
-      <h2 class="title">Templates</h2>
+      <h2 class="title">Templates (V2)</h2>
       <v-btn variant="text" class="create-btn" :disabled="busy" @click="createTemplate" data-cy="template-create-btn">Create new template</v-btn>
     </div>
 
@@ -18,7 +18,7 @@
         :data-cy="`template-card-${shortId(t.id)}`"
       >
         <div class="tpl-card__header">
-          <div class="tpl-card__title">Template • {{ shortId(t.id) }}</div>
+          <div class="tpl-card__title">{{ t.name || 'Untitled Template' }}</div>
           <v-menu location="bottom end">
             <template #activator="{ props }">
               <v-btn v-bind="props" icon="mdi-dots-vertical" variant="text" density="comfortable" @click.stop></v-btn>
@@ -53,23 +53,40 @@
             <v-tab value="sides">Side Settings</v-tab>
             <v-tab value="prices">Price Settings</v-tab>
           </v-tabs>
-          <v-window v-model="tab" class="mt-2">
+          <v-window v-model="tab" class="after-tabs">
             <v-window-item value="teetime">
-              <div class="detail-grid">
-                <v-select :items="intervalTypes" v-model="form.interval_type" label="Interval type" variant="outlined" density="comfortable" hide-details />
-                <v-text-field v-model.number="form.interval_mins" type="number" min="1" label="Interval (mins)" variant="outlined" density="comfortable" hide-details />
-                <v-text-field v-model.number="form.max_players_staff" type="number" min="1" max="8" label="Max players (tee sheet)" variant="outlined" density="comfortable" hide-details />
-                <v-text-field v-model.number="form.max_players_online" type="number" min="1" max="8" label="Max players (online)" variant="outlined" density="comfortable" hide-details />
+              <div class="section">
+                <div class="section__header">Template Details</div>
+                <div class="section__grid single">
+                  <v-text-field v-model="form.name" label="Name" variant="outlined" density="comfortable" hide-details />
+                </div>
               </div>
-              <div class="mt-3">
-                <div class="muted mb-1">Booking Class Settings</div>
+
+              <div class="section">
+                <div class="section__header">Intervals</div>
+                <div class="section__grid two-cols">
+                  <v-select :items="intervalTypes" v-model="form.interval_type" label="Type" variant="outlined" density="comfortable" hide-details />
+                  <v-text-field v-model.number="form.interval_mins" type="number" min="1" label="Minutes" variant="outlined" density="comfortable" hide-details />
+                </div>
+              </div>
+
+              <div class="section">
+                <div class="section__header">Players Allowed</div>
+                <div class="section__grid two-cols">
+                  <v-text-field v-model.number="form.max_players_staff" type="number" min="1" max="8" label="Max players (tee sheet)" variant="outlined" density="comfortable" hide-details />
+                  <v-text-field v-model.number="form.max_players_online" type="number" min="1" max="8" label="Max players (online booking)" variant="outlined" density="comfortable" hide-details />
+                </div>
+              </div>
+
+              <div class="section">
+                <div class="section__header">Booking Class Settings</div>
                 <div class="class-grid">
                   <v-checkbox
                     v-for="cls in courseClasses"
                     :key="cls"
                     v-model="classToggles[cls]"
                     :label="cls"
-                    density="comfortable"
+                    density="compact"
                     hide-details
                   />
                 </div>
@@ -116,7 +133,7 @@ const snackbarColor = ref('success');
 const selected = ref(null);
 const detailOpen = ref(false);
 const tab = ref('teetime');
-const form = reactive({ interval_type: 'standard', interval_mins: 10, max_players_staff: 4, max_players_online: 4, online_access: [] });
+const form = reactive({ name: '', interval_type: 'standard', interval_mins: 10, max_players_staff: 4, max_players_online: 4, online_access: [] });
 const intervalTypes = ['standard'];
 const courseClasses = ['Public', 'Member', 'Full'];
 const classToggles = reactive({});
@@ -201,6 +218,7 @@ function shortId(id){ return (id || '').slice(0,6); }
 function openDetail(t){
   selected.value = t;
   // Initialize form from selected
+  form.name = t.name || '';
   form.interval_type = t.interval_type || 'standard';
   form.interval_mins = t.interval_mins || 10;
   form.max_players_staff = t.max_players_staff || 4;
@@ -220,6 +238,7 @@ async function saveSettings(){
     saving.value = true;
     const teeSheetId = route.params.teeSheetId;
     const payload = {
+      name: form.name || 'Untitled Template',
       interval_type: form.interval_type,
       interval_mins: form.interval_mins,
       max_players_staff: form.max_players_staff,
@@ -255,9 +274,18 @@ onMounted(load);
 .pill{ background:#eef7ff; border-radius:10px; padding:2px 8px; font-size:12px; }
 .pill.archived{ background:#fdecea; color:#b71c1c; }
 .sep{ margin:0 6px; color:#9aa0a6; }
-.detail-grid{ display:grid; grid-template-columns: repeat(3, minmax(180px,1fr)); gap:12px; }
-.mt-3{ margin-top:12px; }
-.mb-1{ margin-bottom:6px; }
+.after-tabs{ margin-top:20px; }
+.section{ margin-top:16px; }
+.section__header{ font-weight:700; font-size:14px; color:#2b2f36; margin-bottom:10px; letter-spacing:0.02em; }
+.section__grid{ display:grid; column-gap:16px; row-gap:16px; }
+.section__grid.two-cols{ grid-template-columns: repeat(2, minmax(160px,1fr)); }
+.detail-grid{ display:grid; grid-template-columns: repeat(4, minmax(160px,1fr)); column-gap:16px; row-gap:16px; padding-top:6px; }
+.mt-3{ margin-top:16px; }
+.mb-1{ margin-bottom:8px; }
+.class-grid{ display:flex; flex-direction:column; gap:5px; align-items:flex-start; }
+/* Reduce Vuetify checkbox vertical margins inside list */
+:deep(.class-grid .v-input){ margin-top: 0 !important; margin-bottom: 0 !important; }
+:deep(.class-grid .v-selection-control){ min-height: 28px; }
 .ver-list{ display:flex; flex-direction:column; gap:8px; }
 .ver-row{ padding:6px 8px; border:1px solid #eee; border-radius:6px; }
 </style>
