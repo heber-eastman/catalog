@@ -72,8 +72,31 @@ module.exports = async () => {
       execSync('npx sequelize-cli db:migrate --to 20250908090000-create-templates-seasons-overrides.js', { stdio: 'inherit', env: process.env });
     }
 
-    // Hardening: ensure required columns/types exist for TeeSheetTemplates in test DB
+    // Hardening: ensure required table/columns/types exist for TeeSheetTemplates in test DB
     try {
+      // Create status enum and base table if missing, then enforce required columns with defaults
+      await verifyClient.query(`
+        DO $$
+        BEGIN
+          -- status enum
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_TeeSheetTemplates_status') THEN
+            CREATE TYPE "enum_TeeSheetTemplates_status" AS ENUM ('draft','published');
+          END IF;
+          -- create minimal table if missing
+          IF to_regclass('"TeeSheetTemplates"') IS NULL THEN
+            CREATE TABLE "TeeSheetTemplates" (
+              id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+              tee_sheet_id UUID NOT NULL,
+              status "enum_TeeSheetTemplates_status" NOT NULL DEFAULT 'draft',
+              published_version_id UUID NULL,
+              interval_mins INTEGER NOT NULL DEFAULT 10,
+              archived BOOLEAN NOT NULL DEFAULT false,
+              created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+              updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+          END IF;
+        END $$;`);
+
       await verifyClient.query(`
         DO $$
         BEGIN
