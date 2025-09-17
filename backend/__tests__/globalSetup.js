@@ -26,6 +26,24 @@ module.exports = async () => {
     }
     await adminClient.end();
 
+    // Ensure required extensions at DB level
+    {
+      const extClient = new Client({
+        host: process.env.DB_HOST || '127.0.0.1',
+        port: Number(process.env.DB_PORT || 5432),
+        user: process.env.DB_USER || 'postgres',
+        password: process.env.DB_PASSWORD || 'postgres',
+        database: process.env.TEST_DB_NAME || 'catalog_test',
+      });
+      await extClient.connect();
+      try {
+        await extClient.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');
+      } catch (e) {
+        console.warn('uuid-ossp extension ensure skipped:', e.message);
+      }
+      await extClient.end();
+    }
+
     // Reset schema in test DB
     const client = new Client({
       host: process.env.DB_HOST || '127.0.0.1',
