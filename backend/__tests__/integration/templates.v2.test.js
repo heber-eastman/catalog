@@ -28,6 +28,9 @@ describe('V2 Admin Templates API', () => {
         execSync('npx sequelize-cli db:migrate', { stdio: 'inherit', cwd: path.join(__dirname, '../..') });
       }
     } catch (_) {}
+    // Ensure columns used by models exist in this test DB
+    try { await sequelize.query('ALTER TABLE "TeeSheetSeasons" ADD COLUMN IF NOT EXISTS name VARCHAR(120) NOT NULL DEFAULT \'Untitled Season\';'); } catch (e) {}
+    try { await require('../../migrations/20250918150000-add-allowed-hole-totals').up(sequelize.getQueryInterface(), require('sequelize')); } catch (e) {}
   });
 
   beforeEach(async () => {
@@ -57,6 +60,7 @@ describe('V2 Admin Templates API', () => {
   });
 
   test('create template, add version, publish fails without coverage/prices', async () => {
+    jest.setTimeout(20000);
     const created = await request(app)
       .post(`/api/v1/tee-sheets/${sheetId}/v2/templates`)
       .set('Authorization', `Bearer ${token}`)
@@ -78,6 +82,7 @@ describe('V2 Admin Templates API', () => {
   });
 
   test('season create/version/window publish succeeds', async () => {
+    jest.setTimeout(20000);
     // Create a template+version to reference in weekday window
     const tResp = await request(app)
       .post(`/api/v1/tee-sheets/${sheetId}/v2/templates`)
@@ -90,10 +95,12 @@ describe('V2 Admin Templates API', () => {
       .send({ notes: 'tv1' });
     const tmplVerId = vResp.body.id;
     // Ensure template version covers sides and has public pricing, then publish template
-    const side = await TeeSheetSide.findOne({ where: { tee_sheet_id: sheetId } });
+    const sides = await TeeSheetSide.findAll({ where: { tee_sheet_id: sheetId } });
     const { TeeSheetTemplateSide, TeeSheetTemplateSidePrices } = require('../../src/models');
-    await TeeSheetTemplateSide.create({ version_id: tmplVerId, side_id: side.id, start_slots_enabled: true });
-    await TeeSheetTemplateSidePrices.create({ version_id: tmplVerId, side_id: side.id, booking_class_id: 'public', greens_fee_cents: 1000, cart_fee_cents: 0 });
+    for (const s of sides) {
+      await TeeSheetTemplateSide.create({ version_id: tmplVerId, side_id: s.id, start_slots_enabled: true });
+      await TeeSheetTemplateSidePrices.create({ version_id: tmplVerId, side_id: s.id, booking_class_id: 'public', greens_fee_cents: 1000, cart_fee_cents: 0 });
+    }
     const tPub = await request(app)
       .post(`/api/v1/tee-sheets/${sheetId}/v2/templates/${tmplId}/publish`)
       .set('Authorization', `Bearer ${token}`)
@@ -109,7 +116,7 @@ describe('V2 Admin Templates API', () => {
     const sv = await request(app)
       .post(`/api/v1/tee-sheets/${sheetId}/v2/seasons/${seasonId}/versions`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ start_date: '2025-01-01', end_date_exclusive: '2025-12-31' });
+      .send({ start_date: '2025-07-07', end_date_exclusive: '2025-07-14' });
     expect(sv.status).toBe(201);
     const seasonVerId = sv.body.id;
     const ww = await request(app)
@@ -134,7 +141,7 @@ describe('V2 Admin Templates API', () => {
     const pub = await request(app)
       .post(`/api/v1/tee-sheets/${sheetId}/v2/seasons/${seasonId}/publish`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ version_id: seasonVerId });
+      .send({ version_id: seasonVerId, start_date: '2025-07-07', end_date: '2025-07-14' });
     expect(pub.status).toBe(200);
     expect(pub.body).toHaveProperty('published_version');
   });

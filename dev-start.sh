@@ -99,7 +99,9 @@ EOF
 fi
 
 print_status "Ensuring database is up to date..."
+# Run migrations and V2 schema hardening so local DB always matches models
 npx sequelize-cli db:migrate > /dev/null 2>&1 || true
+node ./scripts/ensure_v2_schema.js > /dev/null 2>&1 || true
 npx sequelize-cli db:seed:all > /dev/null 2>&1 || true
 
 print_status "Starting backend server..."

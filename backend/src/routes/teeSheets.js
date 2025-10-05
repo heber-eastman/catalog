@@ -104,8 +104,25 @@ const v2TemplateSettingsSchema = Joi.object({
     .optional(),
 }).min(1);
 
+// V2 template side settings schemas
+const v2TemplateSideSettingsItemSchema = Joi.object({
+  side_id: Joi.string().uuid().required(),
+  bookable_holes: Joi.number().integer().min(1).required(),
+  minutes_per_hole: Joi.number().integer().min(1).max(30).optional(),
+  cart_policy: Joi.string().valid('not_allowed', 'required', 'optional').optional(),
+  rotates_to_side_id: Joi.string().uuid().allow(null),
+  start_slots_enabled: Joi.boolean().optional(),
+  min_players: Joi.number().integer().min(1).max(4).optional(),
+  allowed_hole_totals: Joi.array().items(Joi.number().integer().min(1)).default([]),
+});
+const v2TemplateSideSettingsPutSchema = Joi.object({
+  version_id: Joi.string().uuid().optional(),
+  sides: Joi.array().items(v2TemplateSideSettingsItemSchema).min(1).required(),
+});
+
 // V2 season schemas
-const v2SeasonCreateSchema = Joi.object({});
+const v2SeasonCreateSchema = Joi.object({ name: Joi.string().min(1).max(120).default('Untitled Season') });
+const v2SeasonUpdateSchema = Joi.object({ name: Joi.string().min(1).max(120).required() });
 const v2SeasonVersionCreateSchema = Joi.object({
   start_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
   end_date_exclusive: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
@@ -125,7 +142,7 @@ const v2SeasonWeekdayReorderSchema = Joi.object({
   weekday: Joi.number().integer().min(0).max(6).required(),
   order: Joi.array().items(Joi.string().uuid()).min(1).required(),
 });
-const v2SeasonPublishSchema = Joi.object({ version_id: Joi.string().uuid().required(), apply_now: Joi.boolean().default(false), start_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional(), end_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional() });
+const v2SeasonPublishSchema = Joi.object({ version_id: Joi.string().uuid().required(), apply_now: Joi.boolean().default(true), start_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional(), end_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional() });
 
 // V2 override schemas
 const v2OverrideCreateSchema = Joi.object({ date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required() });
@@ -140,7 +157,7 @@ const v2OverrideWindowSchema = Joi.object({
   end_offset_mins: Joi.number().integer().allow(null),
   template_version_id: Joi.string().uuid().required(),
 });
-const v2OverridePublishSchema = Joi.object({ version_id: Joi.string().uuid().required(), apply_now: Joi.boolean().default(false) });
+const v2OverridePublishSchema = Joi.object({ version_id: Joi.string().uuid().required(), apply_now: Joi.boolean().default(true) });
 
 const timeframeSchema = Joi.object({
   side_id: Joi.string().uuid().required(),
@@ -243,6 +260,24 @@ async function ensureNoOverlap({ tee_sheet_id, side_id, day_template_id, start_t
   }
 }
 
+// Safe season fetch that tolerates missing columns (e.g., name) in local DBs
+async function findSeasonSafe(teeSheetId, seasonId) {
+  try {
+    return await TeeSheetSeason.findOne({ where: { id: seasonId, tee_sheet_id: teeSheetId } });
+  } catch (e) {
+    const code = e && (e.parent?.code || e.original?.code);
+    if (String(code) === '42703' || String(code) === '42P01') {
+      const [rows] = await sequelize.query(
+        'SELECT id FROM "TeeSheetSeasons" WHERE id = :sid AND tee_sheet_id = :tsid',
+        { replacements: { sid: seasonId, tsid: teeSheetId } }
+      );
+      if (Array.isArray(rows) && rows.length > 0) return { id: rows[0].id, tee_sheet_id: teeSheetId };
+      return null;
+    }
+    throw e;
+  }
+}
+
 // Routes
 router.get('/tee-sheets', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
   const items = await TeeSheet.findAll({ where: { course_id: req.userRole === 'SuperAdmin' ? { [Op.ne]: null } : req.courseId } });
@@ -281,7 +316,9 @@ router.post('/tee-sheets/:id/sides', requireAuth(['Admin']), async (req, res) =>
 });
 
 router.put('/tee-sheets/:id/sides/:sideId', requireAuth(['Admin']), async (req, res) => {
-  const { error, value } = sideUpdateSchema.validate(req.body);
+  // Allow updating minutes_per_hole as part of side settings UX
+  const sideUpdateSchemaExtended = sideUpdateSchema.keys({ minutes_per_hole: Joi.number().integer().min(1).max(30).optional() });
+  const { error, value } = sideUpdateSchemaExtended.validate(req.body);
   if (error) return res.status(400).json({ error: error.message });
   const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
@@ -424,16 +461,68 @@ router.post('/tee-sheets/:id/templates/:templateId/timeframes', requireAuth(['Ad
 router.get('/tee-sheets/:id/v2/templates', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
   const sheet = await TeeSheet.findOne({ where: { id: req.params.id } });
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
-  const items = await TeeSheetTemplate.findAll({
-    where: { tee_sheet_id: sheet.id },
-    order: [['created_at', 'ASC']],
-  });
-  res.json(items);
+  try {
+    const items = await TeeSheetTemplate.findAll({
+      where: { tee_sheet_id: sheet.id },
+      include: [
+        { model: TeeSheetTemplateVersion, as: 'versions' },
+        { model: TeeSheetTemplateVersion, as: 'published_version' },
+      ],
+      order: [['created_at', 'ASC']],
+    });
+    return res.json(items);
+  } catch (e) {
+    // Fallback for local DBs that don't yet have all V2 columns
+    try {
+      const sequelize = require('../models').sequelize;
+      const [rows] = await sequelize.query(
+        'SELECT id, tee_sheet_id, status, interval_mins, archived, created_at, updated_at FROM "TeeSheetTemplates" WHERE tee_sheet_id = :sid ORDER BY created_at ASC',
+        { replacements: { sid: sheet.id } }
+      );
+      const items = (rows || []).map(r => ({
+        id: r.id,
+        tee_sheet_id: r.tee_sheet_id,
+        name: r.name || 'Untitled Template',
+        status: r.status || 'draft',
+        published_version_id: r.published_version_id || null,
+        interval_mins: r.interval_mins || 10,
+        interval_type: r.interval_type || 'standard',
+        max_players_staff: r.max_players_staff || 4,
+        max_players_online: r.max_players_online || 4,
+        archived: !!r.archived,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+        versions: [],
+        published_version: null,
+      }));
+      return res.json(items);
+    } catch (e2) {
+      // eslint-disable-next-line no-console
+      console.error('List templates fallback error:', e2);
+      return res.json([]);
+    }
+  }
 });
 
 // Read/update template settings
 router.get('/tee-sheets/:id/v2/templates/:templateId/settings', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
-  const tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: req.params.id } });
+  let tmpl = null;
+  try {
+    tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: req.params.id } });
+  } catch (e) {
+    const code = e && (e.parent?.code || e.original?.code);
+    if (String(code) === '42703' || String(code) === '42P01') {
+      const [rows] = await sequelize.query(
+        'SELECT id, interval_mins FROM "TeeSheetTemplates" WHERE id = :tid AND tee_sheet_id = :sid',
+        { replacements: { tid: req.params.templateId, sid: req.params.id } }
+      );
+      if (Array.isArray(rows) && rows.length > 0) {
+        tmpl = { id: rows[0].id, name: 'Untitled Template', interval_type: 'standard', interval_mins: rows[0].interval_mins || 10, max_players_staff: 4, max_players_online: 4 };
+      }
+    } else {
+      throw e;
+    }
+  }
   if (!tmpl) return res.status(404).json({ error: 'Template not found' });
   res.json({
     name: tmpl.name,
@@ -450,27 +539,107 @@ router.put('/tee-sheets/:id/v2/templates/:templateId/settings', requireAuth(['Ad
   if (error) return res.status(400).json({ error: error.message });
   const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
-  const tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: sheet.id } });
+
+  // Load template with graceful fallback when columns are missing locally
+  let tmpl = null;
+  try {
+    tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: sheet.id } });
+  } catch (e) {
+    const code = e && (e.parent?.code || e.original?.code);
+    if (String(code) === '42703' || String(code) === '42P01') {
+      const [rows] = await sequelize.query(
+        'SELECT id, interval_mins FROM "TeeSheetTemplates" WHERE id = :tid AND tee_sheet_id = :sid',
+        { replacements: { tid: req.params.templateId, sid: sheet.id } }
+      );
+      if (Array.isArray(rows) && rows.length > 0) {
+        tmpl = { id: rows[0].id, interval_mins: rows[0].interval_mins || 10 };
+      }
+    } else {
+      // Unexpected error; rethrow
+      throw e;
+    }
+  }
   if (!tmpl) return res.status(404).json({ error: 'Template not found' });
 
-  await tmpl.update({
-    name: value.name ?? tmpl.name,
-    interval_type: value.interval_type ?? tmpl.interval_type,
-    interval_mins: value.interval_mins ?? tmpl.interval_mins,
-    max_players_staff: value.max_players_staff ?? tmpl.max_players_staff,
-    max_players_online: value.max_players_online ?? tmpl.max_players_online,
-  });
+  // First attempt: normal ORM update
+  try {
+    if (typeof tmpl.update === 'function') {
+      await tmpl.update({
+        name: value.name ?? tmpl.name,
+        interval_type: value.interval_type ?? tmpl.interval_type,
+        interval_mins: value.interval_mins ?? tmpl.interval_mins,
+        max_players_staff: value.max_players_staff ?? tmpl.max_players_staff,
+        max_players_online: value.max_players_online ?? tmpl.max_players_online,
+      });
+    } else {
+      // If tmpl is a raw object (fallback path), skip ORM update
+      throw Object.assign(new Error('Model update unavailable; using raw fallback'), { code: 'RAW_FALLBACK' });
+    }
 
-  // online_access temporarily disabled until table is stable
+    return res.json({
+      name: tmpl.name,
+      interval_type: tmpl.interval_type,
+      interval_mins: tmpl.interval_mins,
+      max_players_staff: tmpl.max_players_staff,
+      max_players_online: tmpl.max_players_online,
+      online_access: [],
+    });
+  } catch (e) {
+    // Fallback path: ensure columns exist locally, then perform a minimal raw UPDATE
+    try {
+      await sequelize.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'TeeSheetTemplates' AND column_name = 'name') THEN
+            ALTER TABLE "TeeSheetTemplates" ADD COLUMN name VARCHAR(120) NOT NULL DEFAULT 'Untitled Template';
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_TeeSheetTemplates_interval_type') THEN
+            CREATE TYPE "enum_TeeSheetTemplates_interval_type" AS ENUM ('standard');
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'TeeSheetTemplates' AND column_name = 'interval_type') THEN
+            ALTER TABLE "TeeSheetTemplates" ADD COLUMN interval_type "enum_TeeSheetTemplates_interval_type" NOT NULL DEFAULT 'standard';
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'TeeSheetTemplates' AND column_name = 'max_players_staff') THEN
+            ALTER TABLE "TeeSheetTemplates" ADD COLUMN max_players_staff INTEGER NOT NULL DEFAULT 4;
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'TeeSheetTemplates' AND column_name = 'max_players_online') THEN
+            ALTER TABLE "TeeSheetTemplates" ADD COLUMN max_players_online INTEGER NOT NULL DEFAULT 4;
+          END IF;
+        END $$;
+      `);
 
-  res.json({
-    name: tmpl.name,
-    interval_type: tmpl.interval_type,
-    interval_mins: tmpl.interval_mins,
-    max_players_staff: tmpl.max_players_staff,
-    max_players_online: tmpl.max_players_online,
-    online_access: [],
-  });
+      const sets = [];
+      const params = { tid: req.params.templateId, sid: sheet.id };
+      if (Object.prototype.hasOwnProperty.call(value, 'name')) { sets.push('name = :name'); params.name = value.name; }
+      if (Object.prototype.hasOwnProperty.call(value, 'interval_type')) { sets.push('interval_type = :interval_type'); params.interval_type = value.interval_type; }
+      if (Object.prototype.hasOwnProperty.call(value, 'interval_mins')) { sets.push('interval_mins = :interval_mins'); params.interval_mins = value.interval_mins; }
+      if (Object.prototype.hasOwnProperty.call(value, 'max_players_staff')) { sets.push('max_players_staff = :max_players_staff'); params.max_players_staff = value.max_players_staff; }
+      if (Object.prototype.hasOwnProperty.call(value, 'max_players_online')) { sets.push('max_players_online = :max_players_online'); params.max_players_online = value.max_players_online; }
+
+      if (sets.length > 0) {
+        const sql = `UPDATE "TeeSheetTemplates" SET ${sets.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = :tid AND tee_sheet_id = :sid`;
+        await sequelize.query(sql, { replacements: params });
+      }
+
+      const [rows2] = await sequelize.query(
+        'SELECT name, interval_type, interval_mins, max_players_staff, max_players_online FROM "TeeSheetTemplates" WHERE id = :tid AND tee_sheet_id = :sid',
+        { replacements: params }
+      );
+      const row = Array.isArray(rows2) && rows2.length > 0 ? rows2[0] : {};
+      return res.json({
+        name: row.name || value.name || 'Untitled Template',
+        interval_type: row.interval_type || value.interval_type || 'standard',
+        interval_mins: row.interval_mins ?? value.interval_mins ?? tmpl.interval_mins ?? 10,
+        max_players_staff: row.max_players_staff ?? value.max_players_staff ?? 4,
+        max_players_online: row.max_players_online ?? value.max_players_online ?? 4,
+        online_access: [],
+      });
+    } catch (e2) {
+      // eslint-disable-next-line no-console
+      console.error('Update template settings fallback error:', e2);
+      return res.status(500).json({ error: 'Failed to update template settings' });
+    }
+  }
 });
 
 router.post('/tee-sheets/:id/v2/templates', requireAuth(['Admin']), async (req, res) => {
@@ -478,16 +647,47 @@ router.post('/tee-sheets/:id/v2/templates', requireAuth(['Admin']), async (req, 
   if (error) return res.status(400).json({ error: error.message });
   const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
-  const created = await TeeSheetTemplate.create({
-    tee_sheet_id: sheet.id,
-    name: value.name || 'Untitled Template',
-    status: 'draft',
-    interval_mins: value.interval_mins,
-    interval_type: value.interval_type || 'standard',
-    max_players_staff: value.max_players_staff,
-    max_players_online: value.max_players_online,
-  });
-  res.status(201).json(created);
+  try {
+    const created = await TeeSheetTemplate.create({
+      tee_sheet_id: sheet.id,
+      name: value.name || 'Untitled Template',
+      status: 'draft',
+      interval_mins: value.interval_mins,
+      interval_type: value.interval_type || 'standard',
+      max_players_staff: value.max_players_staff,
+      max_players_online: value.max_players_online,
+    });
+    return res.status(201).json(created);
+  } catch (e) {
+    // Attempt minimal insert for local DBs missing some columns
+    try {
+      const sequelize = require('../models').sequelize;
+      const [rows] = await sequelize.query(
+        'INSERT INTO "TeeSheetTemplates" (id, tee_sheet_id, status, interval_mins, archived, created_at, updated_at) VALUES (gen_random_uuid(), :sid, :status, :mins, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) RETURNING id, tee_sheet_id, status, interval_mins, archived, created_at, updated_at',
+        { replacements: { sid: sheet.id, status: 'draft', mins: value.interval_mins || 10 } }
+      );
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      return res.status(201).json({
+        id: row.id,
+        tee_sheet_id: row.tee_sheet_id,
+        name: value.name || 'Untitled Template',
+        status: row.status,
+        interval_mins: row.interval_mins,
+        interval_type: value.interval_type || 'standard',
+        max_players_staff: value.max_players_staff || 4,
+        max_players_online: value.max_players_online || 4,
+        archived: !!row.archived,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        versions: [],
+        published_version: null,
+      });
+    } catch (e2) {
+      // eslint-disable-next-line no-console
+      console.error('Create template error (fallback failed):', e2);
+      return res.status(500).json({ error: 'Failed to create template' });
+    }
+  }
 });
 
 router.post('/tee-sheets/:id/v2/templates/:templateId/versions', requireAuth(['Admin']), async (req, res) => {
@@ -495,7 +695,18 @@ router.post('/tee-sheets/:id/v2/templates/:templateId/versions', requireAuth(['A
   if (error) return res.status(400).json({ error: error.message });
   const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
-  const tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: sheet.id } });
+  let tmpl = null;
+  try {
+    tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: sheet.id } });
+  } catch (e) {
+    const code = e && (e.parent?.code || e.original?.code);
+    if (String(code) === '42703' || String(code) === '42P01') {
+      const [rows] = await sequelize.query('SELECT id FROM "TeeSheetTemplates" WHERE id = :tid AND tee_sheet_id = :sid', { replacements: { tid: req.params.templateId, sid: sheet.id } });
+      if (Array.isArray(rows) && rows.length > 0) tmpl = { id: rows[0].id };
+    } else {
+      throw e;
+    }
+  }
   if (!tmpl) return res.status(404).json({ error: 'Template not found' });
   const maxRow = await TeeSheetTemplateVersion.findOne({
     where: { template_id: tmpl.id },
@@ -599,30 +810,100 @@ router.delete('/tee-sheets/:id/v2/templates/:templateId', requireAuth(['Admin'])
 
 // V2 Seasons API
 router.get('/tee-sheets/:id/v2/seasons', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
-  const sheet = await TeeSheet.findOne({ where: { id: req.params.id } });
-  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
-  const items = await TeeSheetSeason.findAll({
-    where: { tee_sheet_id: sheet.id },
-    include: [{ model: TeeSheetSeasonVersion, as: 'versions' }, { model: TeeSheetSeasonVersion, as: 'published_version' }],
-    order: [['created_at', 'ASC']],
-  });
-  res.json(items);
+  try {
+    const sheet = await TeeSheet.findOne({ where: { id: req.params.id } });
+    if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+    const items = await TeeSheetSeason.findAll({
+      where: { tee_sheet_id: sheet.id },
+      include: [
+        // Order versions so the latest is deterministic
+        { model: TeeSheetSeasonVersion, as: 'versions', separate: true, order: [['created_at', 'ASC']] },
+        { model: TeeSheetSeasonVersion, as: 'published_version' },
+      ],
+      order: [['created_at', 'ASC']],
+    });
+    return res.json(items);
+  } catch (e) {
+    const code = e && (e.parent?.code || e.original?.code);
+    // Missing table or missing column in local DB → fall back to minimal raw query
+    if (String(code) === '42P01' || String(code) === '42703') {
+      try {
+        const [rows] = await sequelize.query(
+          'SELECT id, tee_sheet_id, status, archived, created_at, updated_at FROM "TeeSheetSeasons" WHERE tee_sheet_id = :sid ORDER BY created_at ASC',
+          { replacements: { sid: req.params.id } }
+        );
+        const items = (rows || []).map(r => ({
+          id: r.id,
+          tee_sheet_id: r.tee_sheet_id,
+          name: r.name || 'Untitled Season',
+          status: r.status || 'draft',
+          published_version_id: r.published_version_id || null,
+          archived: !!r.archived,
+          created_at: r.created_at,
+          updated_at: r.updated_at,
+          versions: [],
+          published_version: null,
+        }));
+        return res.json(items);
+      } catch (e2) {
+        return res.json([]);
+      }
+    }
+    return res.status(500).json({ error: 'Failed to load seasons' });
+  }
 });
 
 router.post('/tee-sheets/:id/v2/seasons', requireAuth(['Admin']), async (req, res) => {
-  const { error } = v2SeasonCreateSchema.validate(req.body || {});
+  const { error, value } = v2SeasonCreateSchema.validate(req.body || {});
   if (error) return res.status(400).json({ error: error.message });
   const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
-  const created = await TeeSheetSeason.create({ tee_sheet_id: sheet.id, status: 'draft' });
-  res.status(201).json(created);
+  try {
+    const created = await TeeSheetSeason.create({ tee_sheet_id: sheet.id, status: 'draft', name: value?.name || 'Untitled Season' });
+    return res.status(201).json(created);
+  } catch (e) {
+    // Fallback for local DBs missing columns like name/published_version_id
+    try {
+      const { randomUUID } = require('crypto');
+      const sid = sheet.id;
+      const newId = randomUUID();
+      const [rows] = await sequelize.query(
+        'INSERT INTO "TeeSheetSeasons" (id, tee_sheet_id, status, archived, created_at, updated_at) VALUES (:id, :sid, :status, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) RETURNING id, tee_sheet_id, status, archived, created_at, updated_at',
+        { replacements: { id: newId, sid, status: 'draft' } }
+      );
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      return res.status(201).json({
+        id: row.id,
+        tee_sheet_id: row.tee_sheet_id,
+        name: value?.name || 'Untitled Season',
+        status: row.status || 'draft',
+        published_version_id: null,
+        archived: !!row.archived,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      });
+    } catch (e2) {
+      return res.status(500).json({ error: 'Failed to create season' });
+    }
+  }
+});
+
+router.put('/tee-sheets/:id/v2/seasons/:seasonId', requireAuth(['Admin']), async (req, res) => {
+  const { error, value } = v2SeasonUpdateSchema.validate(req.body || {});
+  if (error) return res.status(400).json({ error: error.message });
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const season = await findSeasonSafe(sheet.id, req.params.seasonId);
+  if (!season) return res.status(404).json({ error: 'Season not found' });
+  await season.update({ name: value.name });
+  res.json(season);
 });
 
 // Season guarded delete: only when draft and has no versions
 router.delete('/tee-sheets/:id/v2/seasons/:seasonId', requireAuth(['Admin']), async (req, res) => {
   const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
-  const season = await TeeSheetSeason.findOne({ where: { id: req.params.seasonId, tee_sheet_id: sheet.id } });
+  const season = await findSeasonSafe(sheet.id, req.params.seasonId);
   if (!season) return res.status(404).json({ error: 'Season not found' });
   if (season.status !== 'draft') return res.status(400).json({ error: 'Only draft seasons can be deleted' });
   const versionCount = await TeeSheetSeasonVersion.count({ where: { season_id: season.id } });
@@ -636,7 +917,7 @@ router.post('/tee-sheets/:id/v2/seasons/:seasonId/versions', requireAuth(['Admin
   if (error) return res.status(400).json({ error: error.message });
   const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
-  const season = await TeeSheetSeason.findOne({ where: { id: req.params.seasonId, tee_sheet_id: sheet.id } });
+  const season = await findSeasonSafe(sheet.id, req.params.seasonId);
   if (!season) return res.status(404).json({ error: 'Season not found' });
   const created = await TeeSheetSeasonVersion.create({ season_id: season.id, start_date: value.start_date, end_date_exclusive: value.end_date_exclusive, notes: value.notes || null });
   res.status(201).json(created);
@@ -647,7 +928,7 @@ router.post('/tee-sheets/:id/v2/seasons/:seasonId/versions/:versionId/weekday-wi
   if (error) return res.status(400).json({ error: error.message });
   const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
-  const season = await TeeSheetSeason.findOne({ where: { id: req.params.seasonId, tee_sheet_id: sheet.id } });
+  const season = await findSeasonSafe(sheet.id, req.params.seasonId);
   if (!season) return res.status(404).json({ error: 'Season not found' });
   const version = await TeeSheetSeasonVersion.findOne({ where: { id: req.params.versionId, season_id: season.id } });
   if (!version) return res.status(404).json({ error: 'Season version not found' });
@@ -670,6 +951,60 @@ router.post('/tee-sheets/:id/v2/seasons/:seasonId/versions/:versionId/weekday-wi
     template_version_id: value.template_version_id,
   });
   res.status(201).json(created);
+});
+
+// Update a single weekday window
+router.put('/tee-sheets/:id/v2/seasons/:seasonId/versions/:versionId/weekday-windows/:windowId', requireAuth(['Admin']), async (req, res) => {
+  const { error, value } = v2SeasonWeekdayWindowSchema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.message });
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const season = await TeeSheetSeason.findOne({ where: { id: req.params.seasonId, tee_sheet_id: sheet.id } });
+  if (!season) return res.status(404).json({ error: 'Season not found' });
+  const version = await TeeSheetSeasonVersion.findOne({ where: { id: req.params.versionId, season_id: season.id } });
+  if (!version) return res.status(404).json({ error: 'Season version not found' });
+  const wnd = await TeeSheetSeasonWeekdayWindow.findOne({ where: { id: req.params.windowId, season_version_id: version.id } });
+  if (!wnd) return res.status(404).json({ error: 'Window not found' });
+  await wnd.update({
+    weekday: value.weekday,
+    start_mode: value.start_mode,
+    end_mode: value.end_mode,
+    start_time_local: value.start_time_local || null,
+    end_time_local: value.end_time_local || null,
+    start_offset_mins: value.start_offset_mins || null,
+    end_offset_mins: value.end_offset_mins || null,
+    template_version_id: value.template_version_id,
+  });
+  res.json(wnd);
+});
+
+// Delete a single weekday window
+router.delete('/tee-sheets/:id/v2/seasons/:seasonId/versions/:versionId/weekday-windows/:windowId', requireAuth(['Admin']), async (req, res) => {
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const season = await TeeSheetSeason.findOne({ where: { id: req.params.seasonId, tee_sheet_id: sheet.id } });
+  if (!season) return res.status(404).json({ error: 'Season not found' });
+  const version = await TeeSheetSeasonVersion.findOne({ where: { id: req.params.versionId, season_id: season.id } });
+  if (!version) return res.status(404).json({ error: 'Season version not found' });
+  const wnd = await TeeSheetSeasonWeekdayWindow.findOne({ where: { id: req.params.windowId, season_version_id: version.id } });
+  if (!wnd) return res.status(404).json({ error: 'Window not found' });
+  await wnd.destroy();
+  res.status(204).end();
+});
+
+// List weekday windows for a specific season version (to restore UI state)
+router.get('/tee-sheets/:id/v2/seasons/:seasonId/versions/:versionId/weekday-windows', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const season = await TeeSheetSeason.findOne({ where: { id: req.params.seasonId, tee_sheet_id: sheet.id } });
+  if (!season) return res.status(404).json({ error: 'Season not found' });
+  const version = await TeeSheetSeasonVersion.findOne({ where: { id: req.params.versionId, season_id: season.id } });
+  if (!version) return res.status(404).json({ error: 'Season version not found' });
+  const items = await TeeSheetSeasonWeekdayWindow.findAll({
+    where: { season_version_id: version.id },
+    order: [['weekday', 'ASC'], ['position', 'ASC']],
+  });
+  res.json(items);
 });
 
 router.patch('/tee-sheets/:id/v2/seasons/:seasonId/versions/:versionId/weekday-windows/reorder', requireAuth(['Admin']), async (req, res) => {
@@ -722,6 +1057,199 @@ router.patch('/tee-sheets/:id/v2/seasons/:seasonId/versions/:versionId/weekday-w
   res.json({ success: true, windows: reloaded });
 });
 
+// Helper to determine working version for editing side settings
+async function getWorkingVersion(template) {
+  if (template.published_version_id) {
+    const v = await TeeSheetTemplateVersion.findOne({ where: { id: template.published_version_id, template_id: template.id } });
+    if (v) return v;
+  }
+  const latest = await TeeSheetTemplateVersion.findOne({ where: { template_id: template.id }, order: [['version_number', 'DESC']] });
+  if (latest) return latest;
+  // Create an initial version if none exists
+  return await TeeSheetTemplateVersion.create({ template_id: template.id, version_number: 1, notes: null });
+}
+
+// V2 Template Side Settings - GET snapshot for editing
+router.get('/tee-sheets/:id/v2/templates/:templateId/side-settings', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  let tmpl = null;
+  try {
+    tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: sheet.id } });
+  } catch (e) {
+    // Fallback when V2 columns like interval_type are missing locally
+    const code = e && (e.parent?.code || e.original?.code);
+    if (String(code) === '42703' || String(code) === '42P01') {
+      const [rows] = await sequelize.query(
+        'SELECT id FROM "TeeSheetTemplates" WHERE id = :tid AND tee_sheet_id = :sid',
+        { replacements: { tid: req.params.templateId, sid: sheet.id } }
+      );
+      if (Array.isArray(rows) && rows.length > 0) tmpl = { id: rows[0].id };
+    } else {
+      throw e;
+    }
+  }
+  if (!tmpl) return res.status(404).json({ error: 'Template not found' });
+  try {
+    const version = await getWorkingVersion(tmpl);
+    const sides = await TeeSheetSide.findAll({ where: { tee_sheet_id: sheet.id }, order: [['valid_from', 'ASC']] });
+    const cfgList = await TeeSheetTemplateSide.findAll({ where: { version_id: version.id } });
+    const cfgBySide = Object.fromEntries(cfgList.map(c => [String(c.side_id), c]));
+
+    const payload = sides.map(s => {
+      const cfg = cfgBySide[String(s.id)];
+      const cart_policy = cfg?.walk_ride_mode === 'walk' ? 'not_allowed' : (cfg?.walk_ride_mode === 'ride' ? 'required' : 'optional');
+      const bookable_holes = (cfg?.max_legs_starting === 2 && cfg?.rerounds_to_side_id)
+        ? (s.hole_count + (sides.find(x => x.id === cfg.rerounds_to_side_id)?.hole_count || 0))
+        : s.hole_count;
+      return {
+        side_id: s.id,
+        name: s.name,
+        hole_count: s.hole_count,
+        minutes_per_hole: s.minutes_per_hole,
+        start_slots_enabled: cfg?.start_slots_enabled ?? true,
+        min_players: cfg?.min_players ?? 1,
+        cart_policy,
+        rotates_to_side_id: cfg?.rerounds_to_side_id || null,
+        bookable_holes,
+        allowed_hole_totals: cfg?.allowed_hole_totals || [],
+      };
+    });
+
+    res.json({ version_id: version.id, sides: payload });
+  } catch (e) {
+    // If any V2 table/column is missing, fall back to side defaults only
+    const code = e && (e.parent?.code || e.original?.code);
+    if (String(code) === '42P01' || String(code) === '42703') {
+      const sides = await TeeSheetSide.findAll({ where: { tee_sheet_id: sheet.id }, order: [['valid_from', 'ASC']] });
+      const payload = sides.map(s => ({
+        side_id: s.id,
+        name: s.name,
+        hole_count: s.hole_count,
+        minutes_per_hole: s.minutes_per_hole,
+        start_slots_enabled: true,
+        min_players: 1,
+        cart_policy: 'optional',
+        rotates_to_side_id: null,
+        bookable_holes: s.hole_count,
+        allowed_hole_totals: [],
+      }));
+      return res.json({ version_id: null, sides: payload });
+    }
+    // Otherwise return error
+    return res.status(500).json({ error: 'Failed to load side settings' });
+  }
+});
+
+// V2 Template Side Settings - PUT batch upsert
+router.put('/tee-sheets/:id/v2/templates/:templateId/side-settings', requireAuth(['Admin']), async (req, res) => {
+  const { error, value } = v2TemplateSideSettingsPutSchema.validate(req.body || {});
+  if (error) return res.status(400).json({ error: error.message });
+
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: sheet.id } });
+  if (!tmpl) return res.status(404).json({ error: 'Template not found' });
+
+  let version = null;
+  if (value.version_id) {
+    version = await TeeSheetTemplateVersion.findOne({ where: { id: value.version_id, template_id: tmpl.id } });
+    if (!version) return res.status(400).json({ error: 'Version not found for template' });
+  } else {
+    version = await getWorkingVersion(tmpl);
+  }
+
+  const sides = await TeeSheetSide.findAll({ where: { tee_sheet_id: sheet.id } });
+  const sideById = Object.fromEntries(sides.map(s => [String(s.id), s]));
+
+  for (const item of value.sides) {
+    const side = sideById[String(item.side_id)];
+    if (!side) return res.status(400).json({ error: `Side not found: ${item.side_id}` });
+
+    // Update minutes_per_hole at side level if provided
+    if (typeof item.minutes_per_hole === 'number' && item.minutes_per_hole > 0) {
+      await side.update({ minutes_per_hole: item.minutes_per_hole });
+    }
+
+    // Determine cart policy mapping
+    let walk_ride_mode = undefined;
+    if (item.cart_policy) {
+      if (item.cart_policy === 'not_allowed') walk_ride_mode = 'walk';
+      else if (item.cart_policy === 'required') walk_ride_mode = 'ride';
+      else walk_ride_mode = 'either';
+    }
+
+    // Compute legs/rotation from bookable_holes
+    let max_legs_starting = 1;
+    let rerounds_to_side_id = null;
+    if (item.bookable_holes > side.hole_count) {
+      // Need a rotate target that sums correctly
+      const candidates = sides.filter(s => s.id !== side.id && (s.hole_count + side.hole_count) === item.bookable_holes);
+      if (item.rotates_to_side_id) {
+        const target = sides.find(s => String(s.id) === String(item.rotates_to_side_id));
+        if (!target) return res.status(400).json({ error: 'Invalid rotates_to_side_id' });
+        if ((target.hole_count + side.hole_count) !== item.bookable_holes) {
+          return res.status(400).json({ error: 'rotates_to_side_id hole_count does not match bookable_holes total' });
+        }
+        max_legs_starting = 2;
+        rerounds_to_side_id = target.id;
+      } else {
+        // Require explicit rotate target selection when ambiguous or any (per spec)
+        return res.status(400).json({ error: 'Ambiguous rotate target for selected bookable_holes; specify rotates_to_side_id' });
+      }
+    }
+
+    // Upsert template-side config
+    const [cfg, created] = await TeeSheetTemplateSide.findOrCreate({
+      where: { version_id: version.id, side_id: side.id },
+      defaults: {
+        version_id: version.id,
+        side_id: side.id,
+        start_slots_enabled: item.start_slots_enabled !== undefined ? !!item.start_slots_enabled : true,
+        min_players: item.min_players || 1,
+        walk_ride_mode: walk_ride_mode || 'either',
+        max_legs_starting,
+        rerounds_to_side_id,
+        allowed_hole_totals: Array.isArray(item.allowed_hole_totals) ? item.allowed_hole_totals : [],
+      },
+    });
+    if (!created) {
+      await cfg.update({
+        start_slots_enabled: item.start_slots_enabled !== undefined ? !!item.start_slots_enabled : cfg.start_slots_enabled,
+        min_players: item.min_players || cfg.min_players,
+        walk_ride_mode: walk_ride_mode || cfg.walk_ride_mode,
+        max_legs_starting,
+        rerounds_to_side_id,
+        allowed_hole_totals: Array.isArray(item.allowed_hole_totals) ? item.allowed_hole_totals : cfg.allowed_hole_totals,
+      });
+    }
+  }
+
+  // Return updated snapshot
+  const cfgList = await TeeSheetTemplateSide.findAll({ where: { version_id: version.id } });
+  const cfgBySide = Object.fromEntries(cfgList.map(c => [String(c.side_id), c]));
+  const response = sides.map(s => {
+    const cfg = cfgBySide[String(s.id)];
+    const cart_policy = cfg?.walk_ride_mode === 'walk' ? 'not_allowed' : (cfg?.walk_ride_mode === 'ride' ? 'required' : 'optional');
+    const bookable_holes = (cfg?.max_legs_starting === 2 && cfg?.rerounds_to_side_id)
+      ? (s.hole_count + (sides.find(x => x.id === cfg.rerounds_to_side_id)?.hole_count || 0))
+      : s.hole_count;
+    return {
+      side_id: s.id,
+      name: s.name,
+      hole_count: s.hole_count,
+      minutes_per_hole: s.minutes_per_hole,
+      start_slots_enabled: cfg?.start_slots_enabled ?? true,
+      min_players: cfg?.min_players ?? 1,
+      cart_policy,
+      rotates_to_side_id: cfg?.rerounds_to_side_id || null,
+      bookable_holes,
+      allowed_hole_totals: cfg?.allowed_hole_totals || [],
+    };
+  });
+  res.json({ version_id: version.id, sides: response });
+});
+
 router.post('/tee-sheets/:id/v2/seasons/:seasonId/publish', requireAuth(['Admin']), async (req, res) => {
   const { error, value } = v2SeasonPublishSchema.validate(req.body);
   if (error) return res.status(400).json({ error: error.message });
@@ -740,11 +1268,10 @@ router.post('/tee-sheets/:id/v2/seasons/:seasonId/publish', requireAuth(['Admin'
     season.published_version_id = ver.id;
     season.status = 'published';
     await season.save();
-    if (value.apply_now) {
-      const startIso = value.start_date || ver.start_date;
-      const endIso = value.end_date || ver.end_date_exclusive;
-      await regenerateApplyNow({ teeSheetId: sheet.id, startDateISO: startIso, endDateISO: endIso });
-    }
+    // Always regenerate slots on publish (simplified model)
+    const startIso = value.start_date || ver.start_date;
+    const endIso = value.end_date || ver.end_date_exclusive;
+    await regenerateApplyNow({ teeSheetId: sheet.id, startDateISO: startIso, endDateISO: endIso });
     const reloaded = await TeeSheetSeason.findByPk(season.id, { include: [{ model: TeeSheetSeasonVersion, as: 'versions' }, { model: TeeSheetSeasonVersion, as: 'published_version' }] });
     res.json(reloaded);
   } catch (e) {
@@ -755,14 +1282,24 @@ router.post('/tee-sheets/:id/v2/seasons/:seasonId/publish', requireAuth(['Admin'
 
 // V2 Overrides API
 router.get('/tee-sheets/:id/v2/overrides', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
-  const sheet = await TeeSheet.findOne({ where: { id: req.params.id } });
-  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
-  const items = await TeeSheetOverride.findAll({
-    where: { tee_sheet_id: sheet.id },
-    include: [{ model: TeeSheetOverrideVersion, as: 'versions' }, { model: TeeSheetOverrideVersion, as: 'published_version' }],
-    order: [['date', 'ASC']],
-  });
-  res.json(items);
+  try {
+    const sheet = await TeeSheet.findOne({ where: { id: req.params.id } });
+    if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+    const items = await TeeSheetOverride.findAll({
+      where: { tee_sheet_id: sheet.id },
+      include: [
+        { model: TeeSheetOverrideVersion, as: 'versions' },
+        { model: TeeSheetOverrideVersion, as: 'published_version' },
+      ],
+      order: [['date', 'ASC']],
+    });
+    return res.json(items);
+  } catch (e) {
+    // If V2 overrides tables are not present in a local DB, degrade gracefully
+    const code = e && (e.parent?.code || e.original?.code);
+    if (String(code) === '42P01') return res.json([]);
+    return res.status(500).json({ error: 'Failed to load overrides' });
+  }
 });
 
 router.post('/tee-sheets/:id/v2/overrides', requireAuth(['Admin']), async (req, res) => {
@@ -825,9 +1362,8 @@ router.post('/tee-sheets/:id/v2/overrides/:overrideId/publish', requireAuth(['Ad
     ov.published_version_id = ver.id;
     ov.status = 'published';
     await ov.save();
-    if (value.apply_now) {
-      await regenerateApplyNow({ teeSheetId: sheet.id, startDateISO: ov.date, endDateISO: ov.date });
-    }
+    // Always regenerate slots on override publish for its date
+    await regenerateApplyNow({ teeSheetId: sheet.id, startDateISO: ov.date, endDateISO: ov.date });
     const reloaded = await TeeSheetOverride.findByPk(ov.id, { include: [{ model: TeeSheetOverrideVersion, as: 'versions' }, { model: TeeSheetOverrideVersion, as: 'published_version' }] });
     res.json(reloaded);
   } catch (e) {

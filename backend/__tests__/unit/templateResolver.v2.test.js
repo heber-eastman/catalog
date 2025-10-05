@@ -10,6 +10,10 @@ describe('templateResolver v2', () => {
     // Ensure migrations applied if running in isolation (CI guard)
     try {
       const qi = sequelize.getQueryInterface();
+      try { await require('../../migrations/20250625000000-create-tee-sheet-schema').up(qi, require('sequelize')); } catch {}
+      try { await require('../../migrations/20250908090000-create-templates-seasons-overrides').up(qi, require('sequelize')); } catch {}
+      try { await require('../../migrations/20250918150000-add-allowed-hole-totals').up(qi, require('sequelize')); } catch {}
+      try { await sequelize.query('ALTER TABLE "TeeSheetSeasons" ADD COLUMN IF NOT EXISTS name VARCHAR(120) NOT NULL DEFAULT \'Untitled Season\';'); } catch {}
       const tables = await qi.showAllTables();
       const tableNames = (tables || []).map(t => (typeof t === 'object' && t.tableName ? t.tableName : t));
       const hasSheets = tableNames.some(n => String(n).toLowerCase() === 'teesheets');
@@ -35,7 +39,9 @@ describe('templateResolver v2', () => {
     const tmpl = await TeeSheetTemplate.create({ tee_sheet_id: sheet.id, status: 'draft', interval_mins: 10 });
     const tv = await TeeSheetTemplateVersion.create({ template_id: tmpl.id, version_number: 1 });
 
-    const season = await TeeSheetSeason.create({ tee_sheet_id: sheet.id, status: 'draft' });
+    // Ensure seasons table has name column in this test DB
+    try { await models.sequelize.query('ALTER TABLE "TeeSheetSeasons" ADD COLUMN IF NOT EXISTS name VARCHAR(120) NOT NULL DEFAULT \'Untitled Season\';'); } catch (e) {}
+    const season = await TeeSheetSeason.create({ tee_sheet_id: sheet.id, name: 'Test Season', status: 'draft' });
     const sv = await TeeSheetSeasonVersion.create({ season_id: season.id, start_date: '2025-01-01', end_date_exclusive: '2026-01-01' });
     season.published_version_id = sv.id; season.status = 'published'; await season.save();
     await TeeSheetSeasonWeekdayWindow.create({ season_version_id: sv.id, weekday: 1, position: 0, start_mode: 'fixed', end_mode: 'fixed', start_time_local: '07:00:00', end_time_local: '10:00:00', template_version_id: tv.id });

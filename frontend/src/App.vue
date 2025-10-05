@@ -171,7 +171,7 @@
           <template v-slot:activator="{ props }">
             <v-list-item
               v-bind="props"
-              :to="'/settings/tee-sheet'"
+              :to="'/settings'"
               :prepend-icon="'mdi-cog'"
               data-cy="nav-settings"
               :class="[smAndUp ? 'narrow-nav-item' : 'full-nav-item', { 'v-list-item--active': isSettingsRoute }]"

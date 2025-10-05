@@ -11,6 +11,8 @@ describe('cascadeEngine', () => {
     try { await require('../../migrations/20250612171419-create-golfcourseinstance').up(qi, SequelizeLib); } catch {}
     try { await require('../../migrations/20250625000000-create-tee-sheet-schema').up(qi, SequelizeLib); } catch {}
     try { await require('../../migrations/20250908090000-create-templates-seasons-overrides').up(qi, SequelizeLib); } catch {}
+    try { await require('../../migrations/20250918150000-add-allowed-hole-totals').up(qi, SequelizeLib); } catch {}
+    try { await sequelize.query('ALTER TABLE "TeeSheetSeasons" ADD COLUMN IF NOT EXISTS name VARCHAR(120) NOT NULL DEFAULT \'Untitled Season\';'); } catch {}
   });
 
   test('regenerateApplyNow regenerates for a day', async () => {
@@ -23,7 +25,7 @@ describe('cascadeEngine', () => {
     await TeeSheetTemplateSide.create({ version_id: tv.id, side_id: side.id, start_slots_enabled: true });
     await TeeSheetTemplateSidePrices.create({ version_id: tv.id, side_id: side.id, booking_class_id: 'public', greens_fee_cents: 0, cart_fee_cents: 0 });
     t.published_version_id = tv.id; t.status = 'published'; await t.save();
-    const season = await TeeSheetSeason.create({ tee_sheet_id: sheet.id, status: 'draft' });
+    const season = await TeeSheetSeason.create({ tee_sheet_id: sheet.id, name: 'Test Season', status: 'draft' });
     const sv = await TeeSheetSeasonVersion.create({ season_id: season.id, start_date: '2025-08-01', end_date_exclusive: '2025-08-03' });
     await TeeSheetSeasonWeekdayWindow.create({ season_version_id: sv.id, weekday: 5, position: 0, start_mode: 'fixed', end_mode: 'fixed', start_time_local: '08:00:00', end_time_local: '09:00:00', template_version_id: tv.id });
     season.published_version_id = sv.id; season.status = 'published'; await season.save();

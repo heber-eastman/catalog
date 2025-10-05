@@ -14,6 +14,7 @@ const courseMigration = require('../../migrations/20250612171419-create-golfcour
 const staffMigration = require('../../migrations/20250612171421-create-staffuser');
 const customerMigration = require('../../migrations/20250612171422-create-customer');
 const teeSchemaMigration = require('../../migrations/20250625000000-create-tee-sheet-schema');
+const addCustomerToAssignment = require('../../migrations/20251003090000-add-customer-to-assignment');
 
 describe('POST /api/v1/bookings', () => {
   const sequelize = models.sequelize;
@@ -33,6 +34,8 @@ describe('POST /api/v1/bookings', () => {
     await staffMigration.up(qi, SequelizeLib);
     await customerMigration.up(qi, SequelizeLib);
     await teeSchemaMigration.up(qi, SequelizeLib);
+    // Ensure TeeTimeAssignments has customer_id for tests
+    await addCustomerToAssignment.up(qi, SequelizeLib);
 
     course = await models.GolfCourseInstance.create({ name: 'B Course', subdomain: 'b', status: 'Active' });
     const staff = await models.StaffUser.create({ course_id: course.id, email: 's@ex.com', password: 'p', role: 'Staff', is_active: true });
@@ -65,7 +68,7 @@ describe('POST /api/v1/bookings', () => {
     const body = {
       tee_sheet_id: sheet.id,
       classId: 'Full',
-      players: [{ email: 'a@ex.com' }, { email: 'b@ex.com' }],
+      players: [{ email: 'a@ex.com', walkRide: 'ride' }, { email: 'b@ex.com', walkRide: 'ride' }],
       legs: [{ tee_time_id: tt.id, round_option_id: null, leg_index: 0 }],
     };
 
@@ -77,6 +80,21 @@ describe('POST /api/v1/bookings', () => {
       .expect(201);
     expect(res.body.success).toBe(true);
     expect(res.body.total_price_cents).toBe(3000); // 2 players riding at 1500
+    // Verify booking leg walk_ride persisted as ride
+    const booking = await models.Booking.findOne({ where: { tee_sheet_id: sheet.id }, order: [['created_at','DESC']] });
+    const legs = await models.BookingRoundLeg.findAll({ where: { booking_id: booking.id } });
+    expect(legs[0].walk_ride).toBe('ride');
+    // And availability reflects ride for that slot
+    const dateStr = '2025-07-01';
+    const avail = await request(app)
+      .get(`/api/v1/tee-times/available?date=${encodeURIComponent(dateStr)}&teeSheets=${encodeURIComponent(sheet.id)}&customerView=false&classId=Full&groupSize=1`)
+      .set('Cookie', `jwt=${token}`)
+      .expect(200);
+    const found = (avail.body || []).find(s => s.id === tt.id);
+    expect(found).toBeTruthy();
+    // Ensure at least one assignment reports ride via round_leg.walk_ride -> our reducer will show car icon
+    const anyRide = (found.assignments || []).some(a => (a.walk_ride || '').toLowerCase() === 'ride' || (a.round_leg && String(a.round_leg.walk_ride||'').toLowerCase() === 'ride'));
+    expect(anyRide).toBe(true);
     expect(sendEmail).toHaveBeenCalled();
   });
 

@@ -271,7 +271,10 @@ export const holdsAPI = {
 
 // Bookings
 export const bookingsAPI = {
-  create: body => api.post('/bookings', body),
+  create: (body, idempotencyKey) => {
+    const key = idempotencyKey || `web-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    return api.post('/bookings', body, { headers: { 'Idempotency-Key': key } });
+  },
   reschedule: (id, body) => api.patch(`/bookings/${id}/reschedule`, body),
   cancel: id => api.delete(`/bookings/${id}`),
   mine: () => api.get('/bookings/mine'),
@@ -280,7 +283,7 @@ export const bookingsAPI = {
 // Settings/Admin APIs (thin helpers; endpoints may be stubbed in tests)
 export const settingsAPI = {
   // Tee sheets
-  listTeeSheets: () => api.get('/tee-sheets'),
+  listTeeSheets: () => api.get('/tee-sheets', { params: { ts: Date.now() } }),
   createTeeSheet: data => api.post('/tee-sheets', data),
 
   // Sides
@@ -304,8 +307,12 @@ export const settingsAPI = {
     deleteTemplate: (teeSheetId, templateId) => api.delete(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}`),
     listSeasons: teeSheetId => api.get(`/tee-sheets/${teeSheetId}/v2/seasons`),
     createSeason: (teeSheetId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/seasons`, data),
+    updateSeason: (teeSheetId, seasonId, data) => api.put(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}`, data),
     createSeasonVersion: (teeSheetId, seasonId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}/versions`, data),
+    listSeasonWeekdayWindows: (teeSheetId, seasonId, seasonVersionId) => api.get(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}/versions/${seasonVersionId}/weekday-windows`),
     addSeasonWeekdayWindow: (teeSheetId, seasonId, seasonVersionId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}/versions/${seasonVersionId}/weekday-windows`, data),
+    updateSeasonWeekdayWindow: (teeSheetId, seasonId, seasonVersionId, windowId, data) => api.put(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}/versions/${seasonVersionId}/weekday-windows/${windowId}`, data),
+    deleteSeasonWeekdayWindow: (teeSheetId, seasonId, seasonVersionId, windowId) => api.delete(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}/versions/${seasonVersionId}/weekday-windows/${windowId}`),
     reorderSeasonWeekdayWindows: (teeSheetId, seasonId, seasonVersionId, data) => api.patch(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}/versions/${seasonVersionId}/weekday-windows/reorder`, data),
     publishSeason: (teeSheetId, seasonId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}/publish`, data),
     deleteSeason: (teeSheetId, seasonId) => api.delete(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}`),
@@ -320,6 +327,9 @@ export const settingsAPI = {
     starterPreset: teeSheetId => api.post(`/tee-sheets/${teeSheetId}/v2/starters/preset`),
     getTemplateSettings: (teeSheetId, templateId) => api.get(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}/settings`),
     updateTemplateSettings: (teeSheetId, templateId, data) => api.put(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}/settings`, data),
+    // Side Settings
+    getTemplateSideSettings: (teeSheetId, templateId) => api.get(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}/side-settings`, { params: { ts: Date.now() } }),
+    updateTemplateSideSettings: (teeSheetId, templateId, data) => api.put(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}/side-settings`, data),
   },
 
   // Timeframes

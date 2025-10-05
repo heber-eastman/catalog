@@ -37,6 +37,28 @@ async function generateForDateV2({ teeSheetId, dateISO }) {
 
     const startsEnabled = c.start_slots_enabled !== false; // may not exist; default true
 
+    // Cleanup: remove misaligned, unassigned tee times inside this window for this side
+    const windowStartUtc = c.start.toUTC().toJSDate();
+    const windowEndUtc = c.end.toUTC().toJSDate();
+    const expected = new Set();
+    for (let t = c.start; t < c.end; t = t.plus({ minutes: c.interval_mins })) {
+      expected.add(t.toUTC().toJSDate().getTime());
+    }
+    const existing = await TeeTime.findAll({
+      where: {
+        tee_sheet_id: teeSheetId,
+        side_id: c.side_id,
+        start_time: { [Op.gte]: windowStartUtc, [Op.lt]: windowEndUtc },
+      },
+      order: [['start_time', 'ASC']],
+    });
+    for (const row of existing) {
+      const ts = row.start_time instanceof Date ? row.start_time.getTime() : new Date(row.start_time).getTime();
+      if (!expected.has(ts) && Number(row.assigned_count || 0) === 0) {
+        try { await row.destroy(); } catch (_) {}
+      }
+    }
+
     // Disallow cross-midnight: compiler already clamps to same day
     for (let t = c.start; t < c.end; t = t.plus({ minutes: c.interval_mins })) {
       if (!startsEnabled) continue; // generate no start rows if start-disabled

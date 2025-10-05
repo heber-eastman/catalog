@@ -1,6 +1,7 @@
 'use strict';
 
 const { DateTime } = require('luxon');
+const { Op } = require('sequelize');
 const {
   TeeSheet,
   TeeSheetOverride,
@@ -41,21 +42,17 @@ async function resolveEffectiveWindows({ teeSheetId, dateISO }) {
     return { source: 'override', windows };
   }
 
-  // 2) Published season version whose date range covers the date
-  const seasonVersion = await TeeSheetSeasonVersion.findOne({
-    include: [{ model: TeeSheetSeason, as: 'season', where: { tee_sheet_id: teeSheetId, status: 'published' } }],
-    where: {
-      start_date: { lte: dateLocal.toISODate() },
-      end_date_exclusive: { gt: dateLocal.toISODate() },
-    },
-  });
-
-  if (seasonVersion) {
-    const windows = await TeeSheetSeasonWeekdayWindow.findAll({
-      where: { season_version_id: seasonVersion.id, weekday },
-      order: [['position', 'ASC']],
-    });
-    return { source: 'season', windows };
+  // 2) Published season: use its published_version_id only and verify date coverage
+  const season = await TeeSheetSeason.findOne({ where: { tee_sheet_id: teeSheetId, status: 'published' } });
+  if (season && season.published_version_id) {
+    const seasonVersion = await TeeSheetSeasonVersion.findByPk(season.published_version_id);
+    if (seasonVersion && seasonVersion.start_date <= dateLocal.toISODate() && seasonVersion.end_date_exclusive > dateLocal.toISODate()) {
+      const windows = await TeeSheetSeasonWeekdayWindow.findAll({
+        where: { season_version_id: seasonVersion.id, weekday },
+        order: [['position', 'ASC']],
+      });
+      return { source: 'season', windows };
+    }
   }
 
   return { source: null, windows: [] };

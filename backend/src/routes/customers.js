@@ -41,9 +41,9 @@ router.get('/customers/export', requireAuth(ALL_ROLES), async (req, res) => {
     // Add search condition
     if (search) {
       where[Op.or] = [
-        { first_name: { [Op.like]: `%${search}%` } },
-        { last_name: { [Op.like]: `%${search}%` } },
-        { email: { [Op.like]: `%${search}%` } },
+        { first_name: { [Op.iLike]: `%${search}%` } },
+        { last_name: { [Op.iLike]: `%${search}%` } },
+        { email: { [Op.iLike]: `%${search}%` } },
       ];
     }
 
@@ -242,9 +242,9 @@ router.get('/customers', requireAuth(ALL_ROLES), async (req, res) => {
     // Add search condition
     if (search) {
       where[Op.or] = [
-        { first_name: { [Op.like]: `%${search}%` } },
-        { last_name: { [Op.like]: `%${search}%` } },
-        { email: { [Op.like]: `%${search}%` } },
+        { first_name: { [Op.iLike]: `%${search}%` } },
+        { last_name: { [Op.iLike]: `%${search}%` } },
+        { email: { [Op.iLike]: `%${search}%` } },
       ];
     }
 

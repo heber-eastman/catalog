@@ -11,13 +11,22 @@ function requireIdempotency(allowedMethods = ['POST']) {
       if (!key) return res.status(400).json({ error: 'Idempotency-Key header required' });
 
       const redis = getRedisClient();
-      try { await redis.connect(); } catch (_) {}
+      let redisReady = true;
+      try { await redis.connect(); } catch (_) { redisReady = false; }
+
+      // If Redis is not available, skip caching but still allow the request to proceed
+      if (!redisReady) return next();
 
       const cacheKey = `idem:${key}`;
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        return res.status(parsed.statusCode || 200).json(parsed.body);
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          return res.status(parsed.statusCode || 200).json(parsed.body);
+        }
+      } catch (_) {
+        // On any Redis error, bypass cache and proceed
+        return next();
       }
 
       // Monkey-patch res.json to capture body

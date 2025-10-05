@@ -313,11 +313,13 @@ export default {
     })
 
     // Static data
+    // Align with backend validation: Full, Junior, Senior, Social, Trial
     const membershipTypes = [
       'Trial',
-      'Basic',
-      'Premium',
-      'VIP'
+      'Full',
+      'Junior',
+      'Senior',
+      'Social'
     ]
 
     const tabItems = [
@@ -353,8 +355,9 @@ export default {
     }
 
     const getMemberSinceYear = () => {
-      if (!customer.value.created_at) return 'Unknown'
-      return new Date(customer.value.created_at).getFullYear()
+      const start = customer.value.membership_start_date
+      if (!start) return 'Unknown'
+      return new Date(start).getFullYear()
     }
 
     const formatDate = (dateString) => {
@@ -364,10 +367,11 @@ export default {
 
     const getMembershipTypeColor = (type) => {
       const colorMap = {
-        'Trial': 'grey',
-        'Basic': 'blue',
-        'Premium': 'purple',
-        'VIP': 'amber'
+        'Full': 'success',
+        'Trial': 'info',
+        'Junior': 'purple',
+        'Senior': 'orange',
+        'Social': 'blue'
       }
       return colorMap[type] || 'primary'
     }

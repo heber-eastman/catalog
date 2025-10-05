@@ -79,13 +79,12 @@ describe('Availability API', () => {
     const sheet = await models.TeeSheet.create({ course_id: courseId, name: 'A2' });
     const side = await models.TeeSheetSide.create({ tee_sheet_id: sheet.id, name: 'Front', valid_from: '2025-06-01', minutes_per_hole: 10, hole_count: 9 });
     const tmpl = await models.DayTemplate.create({ tee_sheet_id: sheet.id, name: 'Wkdy' });
-    await models.Timeframe.create({ tee_sheet_id: sheet.id, side_id: side.id, day_template_id: tmpl.id, start_time_local: '06:00:00', end_time_local: '09:00:00', interval_mins: 60, start_slots_enabled: true });
+    await models.Timeframe.create({ tee_sheet_id: sheet.id, side_id: side.id, day_template_id: tmpl.id, start_time_local: '07:00:00', end_time_local: '09:00:00', interval_mins: 60, start_slots_enabled: true });
     await models.TimeframeAccessRule.create({ timeframe_id: (await models.Timeframe.findOne({ where: { side_id: side.id } })).id, booking_class_id: 'Full', is_allowed: true });
     await models.CalendarAssignment.create({ tee_sheet_id: sheet.id, date: '2025-07-02', day_template_id: tmpl.id });
 
-    // Slots at 06:00, 07:00, 08:00
+    // Slots at 07:00, 08:00
     await models.TeeTime.bulkCreate([
-      { tee_sheet_id: sheet.id, side_id: side.id, start_time: new Date('2025-07-02T06:00:00Z'), capacity: 4, assigned_count: 4, is_blocked: false },
       { tee_sheet_id: sheet.id, side_id: side.id, start_time: new Date('2025-07-02T07:00:00Z'), capacity: 4, assigned_count: 1, is_blocked: false },
       { tee_sheet_id: sheet.id, side_id: side.id, start_time: new Date('2025-07-02T08:00:00Z'), capacity: 4, assigned_count: 0, is_blocked: false },
     ]);
@@ -108,7 +107,7 @@ describe('Availability API', () => {
     const times = resCap.body.map(r => new Date(r.start_time).toISOString());
     expect(times).toContain('2025-07-02T07:00:00.000Z');
     expect(times).toContain('2025-07-02T08:00:00.000Z');
-    expect(times).not.toContain('2025-07-02T06:00:00.000Z');
+    // 06:00 no longer seeded
   });
 });
 

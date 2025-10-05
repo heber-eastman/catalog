@@ -17,7 +17,7 @@
           <template v-slot:activator="{ props }">
             <v-list-item
               v-bind="props"
-              :to="{ name: 'SettingsTeeSheetEntry' }"
+              :to="teeSheetNavTo"
               :prepend-icon="'mdi-calendar'"
               :class="['narrow-nav-item', { 'v-list-item--active': isTeeSheet }]"
               data-cy="subnav-tee-sheet-settings"
@@ -61,11 +61,11 @@
           </div>
           
         </div>
-        <router-link :to="{ name: 'SettingsV2GeneralInfo', params:{ teeSheetId } }" data-cy="subnav-general-info">General Info</router-link>
+        <router-link :to="{ name: 'SettingsV2GeneralInfo', params:{ teeSheetId } }" data-cy="subnav-general-info"><i class="mdi mdi-information-outline nav-ico"></i><span>General Info</span></router-link>
         <router-link :to="{ name: 'SettingsTeeSheetsSides', params:{ teeSheetId } }" data-cy="subnav-sides"><i class="mdi mdi-table-large nav-ico"></i><span>Sides</span></router-link>
-        <router-link :to="{ name: 'SettingsV2Seasons', params:{ teeSheetId } }" data-cy="subnav-seasons">Seasons</router-link>
-        <router-link :to="{ name: 'SettingsV2Templates', params:{ teeSheetId } }" data-cy="subnav-templates">Templates</router-link>
-        <router-link :to="{ name: 'SettingsV2Overrides', params:{ teeSheetId } }" data-cy="subnav-overrides">Overrides</router-link>
+        <router-link :to="{ name: 'SettingsV2Seasons', params:{ teeSheetId } }" data-cy="subnav-seasons"><i class="mdi mdi-calendar-range nav-ico"></i><span>Seasons</span></router-link>
+        <router-link :to="{ name: 'SettingsV2Templates', params:{ teeSheetId } }" data-cy="subnav-templates"><i class="mdi mdi-shape-outline nav-ico"></i><span>Templates</span></router-link>
+        <router-link :to="{ name: 'SettingsV2Overrides', params:{ teeSheetId } }" data-cy="subnav-overrides"><i class="mdi mdi-tune nav-ico"></i><span>Overrides</span></router-link>
     </aside>
     <main class="content">
       <router-view />
@@ -89,6 +89,12 @@ const teeSheetRouteNames = new Set([
 const isTeeSheet = computed(() => teeSheetRouteNames.has(route.name));
 const teeSheets = ref([]);
 const teeSheetId = ref(route.params.teeSheetId || '');
+const teeSheetNavTo = computed(() => {
+  const id = teeSheetId.value;
+  return id
+    ? { name: 'SettingsTeeSheetsSides', params: { teeSheetId: id } }
+    : { name: 'SettingsTeeSheetEntry' };
+});
 
 async function loadSheets(){
   try { const { data } = await settingsAPI.listTeeSheets(); teeSheets.value = data || []; }

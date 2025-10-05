@@ -7,7 +7,7 @@ module.exports = (sequelize, DataTypes) => {
       id: { type: DataTypes.UUID, primaryKey: true, defaultValue: DataTypes.UUIDV4 },
       tee_sheet_id: { type: DataTypes.UUID, allowNull: false },
       owner_customer_id: { type: DataTypes.UUID, allowNull: true },
-      status: { type: DataTypes.STRING, allowNull: false, defaultValue: 'Active' },
+      status: { type: DataTypes.STRING, allowNull: false, defaultValue: 'Booked' },
       total_price_cents: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
       notes: { type: DataTypes.TEXT, allowNull: true },
       created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },

@@ -17,7 +17,8 @@ describe('Availability API V2 windows', () => {
     try { await require('../../migrations/20250612171421-create-staffuser').up(qi, SequelizeLib); } catch (_) {}
     try { await require('../../migrations/20250625000000-create-tee-sheet-schema').up(qi, SequelizeLib); } catch (_) {}
     try { await require('../../migrations/20250908090000-create-templates-seasons-overrides').up(qi, SequelizeLib); } catch (_) {}
-    const course = await models.GolfCourseInstance.create({ name: 'Avail V2', subdomain: `a-${Date.now()}`, status: 'Active', timezone: 'UTC' });
+    try { await require('../../migrations/20250918150000-add-allowed-hole-totals').up(qi, SequelizeLib); } catch (_) {}
+    const course = await models.GolfCourseInstance.create({ name: 'Avail V2', subdomain: `a-${Date.now()}`, status: 'Active' });
     courseId = course.id;
     const staff = await models.StaffUser.create({ course_id: courseId, email: 's@ex.com', password: 'p', role: 'Staff', is_active: true });
     token = jwt.sign({ user_id: staff.id, course_id: courseId, role: 'Staff', email: staff.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
@@ -29,6 +30,7 @@ describe('Availability API V2 windows', () => {
 
     const tmpl = await models.TeeSheetTemplate.create({ tee_sheet_id: sheet.id, status: 'draft', interval_mins: 60 });
     const tv = await models.TeeSheetTemplateVersion.create({ template_id: tmpl.id, version_number: 1 });
+    await models.TeeSheetTemplateSide.create({ version_id: tv.id, side_id: side.id, start_slots_enabled: true });
 
     // Public access and price
     await models.TeeSheetTemplateSideAccess.create({ version_id: tv.id, side_id: side.id, booking_class_id: 'public', is_allowed: true });

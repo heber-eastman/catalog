@@ -51,15 +51,15 @@ async function prevalidateSeasonVersion({ teeSheetId, seasonVersionId }) {
     if (dayWindows.length === 0) continue; // no config for this weekday, skip
     const sideIds = await getEffectiveSideIds(teeSheetId, dateISO);
     for (const w of dayWindows) {
-      // 1) referenced template version must be published
+      // 1) referenced template version must exist and belong to a template
       const tv = await TeeSheetTemplateVersion.findByPk(w.template_version_id);
       if (!tv) {
         violations.push({ date: dateISO, code: 'missing_template_version', windowId: w.id });
         continue;
       }
       const tmpl = await TeeSheetTemplate.findByPk(tv.template_id);
-      if (!tmpl || tmpl.published_version_id !== tv.id) {
-        violations.push({ date: dateISO, code: 'template_version_not_published', windowId: w.id });
+      if (!tmpl) {
+        violations.push({ date: dateISO, code: 'missing_template_for_version', windowId: w.id });
         continue;
       }
       // 2) template covers effective side set

@@ -24,6 +24,7 @@ describe('Calendar assignment and closures', () => {
     await staffMigration.up(qi, SequelizeLib);
     await customerMigration.up(qi, SequelizeLib);
     await teeSchemaMigration.up(qi, SequelizeLib);
+    try { await require('../../migrations/20251003090000-add-customer-to-assignment').up(qi, SequelizeLib); } catch (e) {}
 
     const course = await models.GolfCourseInstance.create({
       name: 'CalClose Course',

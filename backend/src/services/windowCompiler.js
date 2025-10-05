@@ -3,7 +3,7 @@
 const { DateTime } = require('luxon');
 const { getSunTimes } = require('./solar');
 const { courseTz } = require('../lib/time');
-const { GolfCourseInstance, TeeSheet, TeeSheetTemplateVersion } = require('../models');
+const { GolfCourseInstance, TeeSheet, TeeSheetTemplateVersion, TeeSheetTemplateSide } = require('../models');
 
 function clampToDay({ start, end }) {
   const startClamped = start < start.startOf('day') ? start.startOf('day') : start;
@@ -51,22 +51,36 @@ async function compileWindowsForDate({ teeSheetId, dateISO, sourceType, sourceId
       continue;
     }
 
-    // Snap first slot forward to template interval
+    // Use the exact window start time (minute precision) as the first slot start
     const tvId = w.template_version_id;
     const tv = await TeeSheetTemplateVersion.findByPk(tvId);
     const template = tv ? await tv.getTemplate?.() : null;
     const interval = template?.interval_mins || 10;
-    const snappedStart = start.plus({ minutes: (interval - (start.minute % interval)) % interval }).startOf('minute');
+    const snappedStart = start.startOf('minute');
 
-    compiled.push({
-      side_id: w.side_id,
-      template_version_id: tvId,
-      start: snappedStart,
-      end,
-      interval_mins: interval,
-      sourceType,
-      sourceId,
-    });
+    // Expand season windows to all sides in the template version. Override windows may already carry side_id.
+    let sides = [];
+    if (w.side_id) {
+      sides = [{ side_id: w.side_id, start_slots_enabled: true }];
+    } else {
+      sides = await TeeSheetTemplateSide.findAll({ where: { version_id: tvId } });
+    }
+
+    for (const s of sides) {
+      const sideId = s.side_id || s?.dataValues?.side_id;
+      if (!sideId) continue;
+      const startsEnabled = (typeof s.start_slots_enabled === 'boolean') ? s.start_slots_enabled : true;
+      compiled.push({
+        side_id: sideId,
+        template_version_id: tvId,
+        start: snappedStart,
+        end,
+        interval_mins: interval,
+        start_slots_enabled: startsEnabled,
+        sourceType,
+        sourceId,
+      });
+    }
   }
 
   // Order by side, start

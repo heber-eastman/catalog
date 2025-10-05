@@ -16,6 +16,10 @@ const {
   TimeframeRoundOption,
   TimeframeRoundLegOption,
   GolfCourseInstance,
+  TeeTimeAssignment,
+  BookingRoundLeg,
+  Booking,
+  Customer,
 } = require('../models');
 const { computeReroundStart, isClassAllowed, calcFeesForLeg } = require('../lib/teeRules');
 
@@ -27,6 +31,7 @@ const {
   TeeSheetTemplateSide,
 } = require('../models');
 const { DateTime } = require('luxon');
+const { compileWindowsForDate } = require('../services/windowCompiler');
 
 const querySchema = Joi.object({
   date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
@@ -93,7 +98,30 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
     windowEnd = new Date(`${date}T${value.timeEnd}:00Z`);
   }
 
-  // Fetch slots on date for selected sheets within optional window
+  // If V2 windows exist, tighten the search window to earliest start and latest end
+  try {
+    let globalEarliest = null;
+    let globalLatest = null;
+    for (const sheetId of teeSheets) {
+      const { windows, source } = await resolveEffectiveWindows({ teeSheetId: sheetId, dateISO: date });
+      if (windows && windows.length && source) {
+        const compiled = await compileWindowsForDate({ teeSheetId: sheetId, dateISO: date, sourceType: source, sourceId: null, windows });
+        for (const w of compiled) {
+          const sUtc = w.start.toUTC().toJSDate();
+          const eUtc = w.end.toUTC().toJSDate();
+          if (!globalEarliest || sUtc < globalEarliest) globalEarliest = sUtc;
+          if (!globalLatest || eUtc > globalLatest) globalLatest = eUtc;
+        }
+      }
+    }
+    if (globalEarliest && globalLatest) {
+      // Respect explicit query overrides if provided
+      if (!value.timeStart) windowStart = globalEarliest;
+      if (!value.timeEnd) windowEnd = globalLatest;
+    }
+  } catch (_) { /* non-fatal; fall back to full day */ }
+
+  // Fetch slots on date for selected sheets within computed window
   const slots = await TeeTime.findAll({
     where: {
       tee_sheet_id: { [Op.in]: teeSheets },
@@ -116,55 +144,123 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
   const courseById = Object.fromEntries((await GolfCourseInstance.findAll({ where: { id: { [Op.in]: courseIds } } })).map(c => [c.id, c]));
   const v2InfoBySheet = {};
   for (const sheetId of teeSheets) {
-    const { windows, source } = await resolveEffectiveWindows({ teeSheetId: sheetId, dateISO: date });
-    if (windows && windows.length && source) {
-      // Collect side-level access/prices and side config per template version used by windows
-      const versionIds = Array.from(new Set(windows.map(w => w.template_version_id).filter(Boolean)));
-      const [accessList, priceList, sideCfgList] = await Promise.all([
-        TeeSheetTemplateSideAccess.findAll({ where: { version_id: { [Op.in]: versionIds } } }),
-        TeeSheetTemplateSidePrices.findAll({ where: { version_id: { [Op.in]: versionIds } } }),
-        TeeSheetTemplateSide.findAll({ where: { version_id: { [Op.in]: versionIds } } }),
-      ]);
-      const accessByVS = {};
-      for (const a of accessList) {
-        const key = `${a.version_id}:${a.side_id}`;
-        const map = accessByVS[key] || (accessByVS[key] = {});
-        map[(a.booking_class_id || '').toLowerCase()] = !!a.is_allowed;
+    try {
+      const { windows, source } = await resolveEffectiveWindows({ teeSheetId: sheetId, dateISO: date });
+      if (windows && windows.length && source) {
+        // Expand season windows to concrete side windows using the compiler (snap/clamp and side fanout)
+        const compiled = await compileWindowsForDate({ teeSheetId: sheetId, dateISO: date, sourceType: source, sourceId: null, windows });
+        const versionIds = Array.from(new Set(compiled.map(w => w.template_version_id).filter(Boolean)));
+        const [accessList, priceList, sideCfgList] = await Promise.all([
+          TeeSheetTemplateSideAccess.findAll({ where: { version_id: { [Op.in]: versionIds } } }),
+          TeeSheetTemplateSidePrices.findAll({ where: { version_id: { [Op.in]: versionIds } } }),
+          TeeSheetTemplateSide.findAll({ where: { version_id: { [Op.in]: versionIds } } }),
+        ]);
+        const accessByVS = {};
+        for (const a of accessList) {
+          const key = `${a.version_id}:${a.side_id}`;
+          const map = accessByVS[key] || (accessByVS[key] = {});
+          map[(a.booking_class_id || '').toLowerCase()] = !!a.is_allowed;
+        }
+        const pricesByVS = {};
+        for (const p of priceList) {
+          const key = `${p.version_id}:${p.side_id}`;
+          const map = pricesByVS[key] || (pricesByVS[key] = {});
+          map[(p.booking_class_id || '').toLowerCase()] = { greens: p.greens_fee_cents || 0, cart: p.cart_fee_cents || 0 };
+        }
+        const sideCfgByVS = {};
+        for (const s of sideCfgList) {
+          const key = `${s.version_id}:${s.side_id}`;
+          sideCfgByVS[key] = s;
+        }
+        const windowsBySide = {};
+        for (const w of compiled) {
+          const arr = windowsBySide[w.side_id] || (windowsBySide[w.side_id] = []);
+          arr.push(w);
+        }
+        v2InfoBySheet[sheetId] = { accessByVS, pricesByVS, sideCfgByVS, windowsBySide };
       }
-      const pricesByVS = {};
-      for (const p of priceList) {
-        const key = `${p.version_id}:${p.side_id}`;
-        const map = pricesByVS[key] || (pricesByVS[key] = {});
-        map[(p.booking_class_id || '').toLowerCase()] = { greens: p.greens_fee_cents || 0, cart: p.cart_fee_cents || 0 };
-      }
-      const sideCfgByVS = {};
-      for (const s of sideCfgList) {
-        const key = `${s.version_id}:${s.side_id}`;
-        sideCfgByVS[key] = s;
-      }
-      const windowsBySide = {};
-      for (const w of windows) {
-        const arr = windowsBySide[w.side_id] || (windowsBySide[w.side_id] = []);
-        arr.push(w);
-      }
-      v2InfoBySheet[sheetId] = { accessByVS, pricesByVS, sideCfgByVS, windowsBySide };
+    } catch (_) {
+      // Degrade gracefully when V2 tables are not present in test setups
+      continue;
     }
   }
 
   const results = [];
 
-  // Load active holds and subtract from remaining
-  const { getRedisClient } = require('../services/redisClient');
-  const redis = getRedisClient();
-  try { await redis.connect(); } catch (_) {}
-  const keys = await redis.keys('hold:user:*');
-  const holds = [];
-  for (const k of keys) {
+  // Preload assignments with owner names for displayed labels
+  const ttIds = slots.map(s => s.id);
+  let assignmentsByTt = {};
+  if (ttIds.length) {
     try {
-      const val = await redis.get(k);
-      if (val) holds.push(JSON.parse(val));
-    } catch (_) {}
+      const assigns = await TeeTimeAssignment.findAll({
+        where: { tee_time_id: { [Op.in]: ttIds } },
+        include: [
+          {
+            model: BookingRoundLeg,
+            as: 'round_leg',
+            include: [
+              {
+                model: Booking,
+                as: 'booking',
+                include: [{ model: Customer, as: 'owner' }],
+              },
+            ],
+          },
+          { model: Customer, as: 'customer' },
+        ],
+        order: [['created_at', 'ASC']],
+      });
+      // Compute max leg_index per booking across all assignments in window
+      const bookingMaxLegIndex = {};
+      for (const a of assigns) {
+        const bid = a.round_leg && a.round_leg.booking ? a.round_leg.booking.id : null;
+        const idx = (a.round_leg && typeof a.round_leg.leg_index === 'number') ? a.round_leg.leg_index : 0;
+        if (bid) bookingMaxLegIndex[bid] = Math.max(bookingMaxLegIndex[bid] || 0, idx);
+      }
+      for (const a of assigns) {
+        const arr = assignmentsByTt[a.tee_time_id] || (assignmentsByTt[a.tee_time_id] = []);
+        const bookingId = a.round_leg && a.round_leg.booking ? a.round_leg.booking.id : null;
+        const owner = a.round_leg && a.round_leg.booking && a.round_leg.booking.owner;
+        const customer = a.customer;
+        const ownerFull = owner ? `${owner.first_name || ''} ${owner.last_name || ''}`.trim() : '';
+        const customerFull = customer ? `${customer.first_name || ''} ${customer.last_name || ''}`.trim() : '';
+        const legIndex = (a.round_leg && typeof a.round_leg.leg_index === 'number') ? a.round_leg.leg_index : 0;
+        // Surface riding/walking from the booking leg
+        const walkRide = (a.round_leg && a.round_leg.walk_ride)
+          ? String(a.round_leg.walk_ride).toLowerCase()
+          : null;
+        // Booking status for color-coding on UI
+        const bookingStatus = a.round_leg && a.round_leg.booking && a.round_leg.booking.status
+          ? String(a.round_leg.booking.status)
+          : null;
+        const maxIdx = bookingId ? (bookingMaxLegIndex[bookingId] || legIndex) : legIndex;
+        arr.push({ booking_id: bookingId, owner_name: ownerFull, customer_name: customerFull, leg_index: legIndex, booking_leg_max_index: maxIdx, walk_ride: walkRide, status: bookingStatus });
+      }
+    } catch (_) {
+      assignmentsByTt = {};
+    }
   }
+
+  // Load active holds and subtract from remaining (gracefully skip if Redis unavailable)
+  let holds = [];
+  try {
+    const { getRedisClient } = require('../services/redisClient');
+    const redis = getRedisClient();
+    let connected = false;
+    try { await redis.connect(); connected = true; } catch (_) { /* skip holds on failure */ }
+    if (connected) {
+      try {
+        const keys = await redis.keys('hold:user:*');
+        for (const k of keys) {
+          try {
+            const val = await redis.get(k);
+            if (val) holds.push(JSON.parse(val));
+          } catch (_) { /* ignore malformed */ }
+        }
+      } catch (_) { /* ignore redis errors */ }
+      try { await redis.quit?.(); } catch (_) {}
+    }
+  } catch (_) { /* redis client not configured; proceed without holds */ }
 
   for (const slot of slots) {
     // Staff includes blocked flag; customers hide blocked
@@ -176,30 +272,22 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
     let usingV2 = false;
     let totalPriceCents = 0;
     let priceBreakdown = null;
+    // Compute course timezone and local time once per slot for consistent use below
+    const sheet = sheetById[slot.tee_sheet_id];
+    const course = sheet ? courseById[sheet.course_id] : null;
+    const zone = (course && course.timezone) ? course.timezone : 'UTC';
+    const local = DateTime.fromJSDate(slot.start_time, { zone });
 
     if (v2) {
       // Check if slot falls within any V2 window for its side
-      const sheet = sheetById[slot.tee_sheet_id];
-      const course = courseById[sheet.course_id];
-      const zone = (course && course.timezone) ? course.timezone : 'UTC';
-      const local = DateTime.fromJSDate(slot.start_time, { zone });
-      const localHHMMSS = local.toFormat('HH:mm:ss');
       const windows = v2.windowsBySide[slot.side_id] || [];
       const classNorm = String(classId || '').toLowerCase();
       const classLookup = classNorm === 'full' ? 'public' : classNorm;
       let inWindow = false;
       let matchedVersionId = null;
       for (const w of windows) {
-        if (w.start_mode === 'fixed' && w.end_mode === 'fixed') {
-          const start = (w.start_time_local || '00:00:00').padEnd(8, '0');
-          const end = (w.end_time_local || '23:59:59').padEnd(8, '9');
-          if (start <= localHHMMSS && localHHMMSS < end) { inWindow = true; matchedVersionId = w.template_version_id; break; }
-        } else {
-          // Approximate offsets as 07:00-18:00 with offsets like generator
-          const baseStart = DateTime.fromFormat('07:00:00', 'HH:mm:ss', { zone }).plus({ minutes: w.start_offset_mins || 0 }).toFormat('HH:mm:ss');
-          const baseEnd = DateTime.fromFormat('18:00:00', 'HH:mm:ss', { zone }).plus({ minutes: w.end_offset_mins || 0 }).toFormat('HH:mm:ss');
-          if (baseStart <= localHHMMSS && localHHMMSS < baseEnd) { inWindow = true; matchedVersionId = w.template_version_id; break; }
-        }
+        // windows are compiled; start/end are DateTime in course zone
+        if (local >= w.start && local < w.end) { inWindow = true; matchedVersionId = w.template_version_id; break; }
       }
       if (!inWindow) continue;
       const vsKey = `${matchedVersionId}:${slot.side_id}`;
@@ -268,8 +356,8 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
       priceBreakdown = { greens_fee_cents: legPrice, cart_fee_cents: 0 };
     }
 
-    // First-leg capacity check
-    if ((slot.capacity - slot.assigned_count) < groupSize) {
+    // First-leg capacity check (only hide for customer view)
+    if (isCustomerView && (slot.capacity - slot.assigned_count) < groupSize) {
       reroundOk = false;
     }
 
@@ -284,7 +372,7 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
         const reroundSlot = await TeeTime.findOne({ where: { tee_sheet_id: slot.tee_sheet_id, side_id: reroundSideId, start_time: reroundStart } });
         if (!reroundSlot) reroundOk = false;
         else if (isCustomerView && reroundSlot.is_blocked) reroundOk = false;
-        else if ((reroundSlot.capacity - reroundSlot.assigned_count) < groupSize) reroundOk = false;
+        else if (isCustomerView && (reroundSlot.capacity - reroundSlot.assigned_count) < groupSize) reroundOk = false;
 
         if (reroundOk && !usingV2 && templateMeta) {
           const tf2 = await findTimeframeForSlot(slot.tee_sheet_id, reroundSideId, templateMeta.day_template_id, reroundSlot.start_time);
@@ -307,17 +395,44 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
       .reduce((sum, it) => sum + (Number(it.party_size) || 0), 0);
     const remainingAdjusted = Math.max(0, (slot.capacity - slot.assigned_count) - held);
 
+    // Build assignment names so the booking owner's name appears once, others as "Guest"
+  const rawAssigns = assignmentsByTt[slot.id] || [];
+  // Track if we've already shown a name (explicit or owner) for a booking id on this tee time
+  const shownNameForBooking = new Set();
+    const assignmentNames = [];
+    for (const it of rawAssigns) {
+      // Prefer explicit customer name for this seat when present
+      const explicit = (it.customer_name || '').trim();
+    if (explicit) { assignmentNames.push(explicit); shownNameForBooking.add(it.booking_id); continue; }
+    // Otherwise: if we've already shown a name for this booking, label as Guest; else show owner once
+    if (it.booking_id && it.owner_name) {
+      if (shownNameForBooking.has(it.booking_id)) {
+        assignmentNames.push('Guest');
+      } else {
+        assignmentNames.push(it.owner_name);
+        shownNameForBooking.add(it.booking_id);
+      }
+    } else {
+      assignmentNames.push('Guest');
+    }
+    }
+
     results.push({
       id: slot.id,
       tee_sheet_id: slot.tee_sheet_id,
       side_id: slot.side_id,
       start_time: slot.start_time,
+      // convenience for clients to render in course time
+      start_time_local: DateTime.fromJSDate(slot.start_time, { zone }).toISO(),
+      timezone: zone,
       capacity: slot.capacity,
       remaining: remainingAdjusted,
       is_blocked: isCustomerView ? undefined : slot.is_blocked,
       is_start_disabled: isCustomerView ? undefined : slot.is_start_disabled,
       price_total_cents: totalPriceCents,
       price_breakdown: priceBreakdown,
+      assignments: rawAssigns,
+      assignment_names: assignmentNames,
     });
   }
 

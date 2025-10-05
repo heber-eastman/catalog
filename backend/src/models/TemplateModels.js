@@ -34,6 +34,8 @@ module.exports = (sequelize, DataTypes) => {
     max_legs_starting: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
     min_players: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
     walk_ride_mode: { type: DataTypes.ENUM('walk', 'ride', 'either'), allowNull: false, defaultValue: 'either' },
+    // Align with DB column created in test/setup as INTEGER[]; use ARRAY(INTEGER)
+    allowed_hole_totals: { type: DataTypes.ARRAY(DataTypes.INTEGER), allowNull: true },
     created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },
     updated_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },
   }, { tableName: 'TeeSheetTemplateSides', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });
@@ -71,6 +73,7 @@ module.exports = (sequelize, DataTypes) => {
   const TeeSheetSeason = sequelize.define('TeeSheetSeason', {
     id: { type: DataTypes.UUID, primaryKey: true, defaultValue: DataTypes.UUIDV4 },
     tee_sheet_id: { type: DataTypes.UUID, allowNull: false },
+    name: { type: DataTypes.STRING(120), allowNull: false, defaultValue: 'Untitled Season' },
     status: { type: DataTypes.ENUM('draft', 'published'), allowNull: false, defaultValue: 'draft' },
     published_version_id: { type: DataTypes.UUID },
     archived: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },

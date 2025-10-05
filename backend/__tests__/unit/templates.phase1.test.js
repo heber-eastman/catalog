@@ -24,6 +24,9 @@ describe('Phase1 integrity - templates/seasons/overrides', () => {
     try { await require('../../migrations/20250612171419-create-golfcourseinstance').up(qi, SequelizeLib); } catch (e) {}
     try { await require('../../migrations/20250625000000-create-tee-sheet-schema').up(qi, SequelizeLib); } catch (e) {}
     try { await require('../../migrations/20250908090000-create-templates-seasons-overrides').up(qi, SequelizeLib); } catch (e) {}
+    // Ensure columns used by models exist in this test DB
+    try { await require('../../migrations/20250918150000-add-allowed-hole-totals').up(qi, SequelizeLib); } catch (e) {}
+    try { await qi.sequelize.query('ALTER TABLE "TeeSheetSeasons" ADD COLUMN IF NOT EXISTS name VARCHAR(120) NOT NULL DEFAULT \'Untitled Season\';'); } catch (e) {}
   });
 
   it('creates versioned template tables and prevents delete when versions exist', async () => {
@@ -66,7 +69,7 @@ describe('Phase1 integrity - templates/seasons/overrides', () => {
     const sheet = await createSheet(course, 'Sheet D');
     const tmpl = await TeeSheetTemplate.create({ tee_sheet_id: sheet.id, status: 'draft', interval_mins: 10 });
     const tmplV = await TeeSheetTemplateVersion.create({ template_id: tmpl.id, version_number: 1 });
-    const season = await TeeSheetSeason.create({ tee_sheet_id: sheet.id, status: 'draft' });
+    const season = await TeeSheetSeason.create({ tee_sheet_id: sheet.id, name: 'Test Season', status: 'draft' });
     const seasonV = await TeeSheetSeasonVersion.create({ season_id: season.id, start_date: '2025-01-01', end_date_exclusive: '2025-12-31' });
     await TeeSheetSeasonWeekdayWindow.create({ season_version_id: seasonV.id, weekday: 1, position: 0, start_mode: 'fixed', end_mode: 'fixed', start_time_local: '07:00:00', end_time_local: '18:00:00', template_version_id: tmplV.id });
     await expect(

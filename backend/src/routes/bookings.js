@@ -11,6 +11,7 @@ const {
   TeeTime,
   TeeSheet,
   TeeSheetSide,
+  TeeSheetTemplateSide,
   CalendarAssignment,
   Timeframe,
   TimeframeAccessRule,
@@ -20,7 +21,12 @@ const {
   Booking,
   BookingRoundLeg,
   TeeTimeAssignment,
+  GolfCourseInstance,
+  Customer,
 } = require('../models');
+const { resolveEffectiveWindows } = require('../services/templateResolver');
+const { compileWindowsForDate } = require('../services/windowCompiler');
+const { DateTime } = require('luxon');
 const { computeReroundStart, isClassAllowed, calcFeesForLeg, enforceMinPlayers } = require('../lib/teeRules');
 const { sendEmail } = require('../services/emailService');
 const { recordEvent } = require('../services/eventBus');
@@ -31,9 +37,14 @@ const router = express.Router();
 const bookingSchema = Joi.object({
   tee_sheet_id: Joi.string().uuid().required(),
   classId: Joi.string().required(),
+  holes: Joi.number().valid(9, 18).default(9),
+  owner_customer_id: Joi.string().uuid().optional(),
+  lead_name: Joi.string().min(1).max(200).allow(null, ''),
+  lead_email: Joi.string().email().allow(null, ''),
   players: Joi.array()
     .items(
       Joi.object({
+        customer_id: Joi.string().uuid().allow(null),
         email: Joi.string().email().allow(null, ''),
         walkRide: Joi.string().valid('walk', 'ride').allow(null),
       })
@@ -85,51 +96,163 @@ router.post(
     const players = value.players.map(p => ({ ...p, walkRide: p.walkRide || 'ride' }));
     const legCount = value.legs.length;
 
-    // Load tee times
-    const teeTimeIds = value.legs.map(l => l.tee_time_id);
-    const teeTimes = await TeeTime.findAll({ where: { id: { [Op.in]: teeTimeIds } }, order: [['start_time', 'ASC']] });
+  // Load tee times
+  const teeTimeIds = value.legs.map(l => l.tee_time_id);
+  let teeTimes = await TeeTime.findAll({ where: { id: { [Op.in]: teeTimeIds } }, order: [['start_time', 'ASC']] });
     if (teeTimes.length !== teeTimeIds.length) return res.status(404).json({ error: 'One or more tee times not found' });
     if (!teeTimes.every(t => t.tee_sheet_id === teeSheetId)) return res.status(400).json({ error: 'Tee times must belong to the same tee sheet' });
 
-    // Determine date and template
-    const date = teeTimes[0].start_time.toISOString().substring(0, 10);
-    const template = await findTemplateForDate(teeSheetId, date);
-    if (!template) return res.status(400).json({ error: 'No calendar assignment for date' });
+  // Auto-compute reround for 18 holes when only first leg provided
+  if (value.holes === 18 && teeTimes.length === 1) {
+    try {
+      const first = teeTimes[0];
+      const sides = await TeeSheetSide.findAll({ where: { tee_sheet_id: teeSheetId } });
+      const startSide = sides.find(s => s.id === first.side_id) || (await TeeSheetSide.findByPk(first.side_id));
 
-    // Per-leg timeframe validation; access/min/mode and capacity pre-check (non-locking)
+      // Determine reround target side from active template settings (v2)
+      const sheetRow = await TeeSheet.findByPk(teeSheetId);
+      const course = sheetRow ? await GolfCourseInstance.findByPk(sheetRow.course_id) : null;
+      const zone = (course && course.timezone) ? course.timezone : 'UTC';
+      const dateISO = first.start_time.toISOString().substring(0,10);
+      const { windows, source } = await resolveEffectiveWindows({ teeSheetId, dateISO });
+      let configuredReroundSideId = null;
+      if (windows && windows.length && source) {
+        const compiled = await compileWindowsForDate({ teeSheetId, dateISO, sourceType: source, sourceId: null, windows });
+        const local = DateTime.fromJSDate(first.start_time, { zone });
+        const match = compiled.find(w => w.side_id === first.side_id && local >= w.start && local < w.end);
+        if (match && match.template_version_id) {
+          const sideCfg = await TeeSheetTemplateSide.findOne({ where: { version_id: match.template_version_id, side_id: first.side_id } });
+          if (sideCfg && sideCfg.rerounds_to_side_id) configuredReroundSideId = sideCfg.rerounds_to_side_id;
+        }
+      }
+
+      // Compute reround start after first leg holes (usually 9)
+      const reroundStart = computeReroundStart({ minutes_per_hole: startSide.minutes_per_hole, hole_count: startSide.hole_count }, first.start_time);
+
+      // Primary target: configured reround side; fallback to any other side; lastly same side
+      const otherSide = sides.find(s => s.id !== first.side_id) || startSide;
+      const targets = [configuredReroundSideId, otherSide.id, startSide.id].filter(Boolean);
+      let reround = null;
+      for (const sid of targets) {
+        // Snap to the next available slot at or after the computed reround start
+        reround = await TeeTime.findOne({
+          where: { tee_sheet_id: teeSheetId, side_id: sid, start_time: { [Op.gte]: reroundStart } },
+          order: [['start_time', 'ASC']],
+        });
+        if (reround) break;
+      }
+      if (!reround) {
+        return res.status(400).json({ error: 'Reround tee time not found' });
+      }
+      teeTimes = [first, reround];
+    } catch (e) {
+      return res.status(400).json({ error: 'Failed to compute reround tee time' });
+    }
+  }
+
+    // Determine date and prefer V2 seasons/overrides windows; fall back to legacy templates
+    const date = teeTimes[0].start_time.toISOString().substring(0, 10);
     let totalPriceCents = 0;
     const legsComputed = [];
 
-    for (const tt of teeTimes) {
-      const timeframe = await findTimeframeForSlot(teeSheetId, tt.side_id, template.day_template_id, tt.start_time);
-      if (!timeframe) return res.status(400).json({ error: 'Window not open' });
-
-      // Access rules
-      const access = await TimeframeAccessRule.findAll({ where: { timeframe_id: timeframe.id } });
-      if (!isClassAllowed({ access_rules: access }, classId)) return res.status(403).json({ error: 'Access denied' });
-
-      // Min players
-      const min = await TimeframeMinPlayers.findOne({ where: { timeframe_id: timeframe.id } });
-      const tfWithMin = { min_players: min ? { min_players: min.min_players } : undefined };
-      if (!enforceMinPlayers(tfWithMin, players.length)) return res.status(400).json({ error: 'Minimum players not met' });
-
-      // Mode
-      const modeRow = await TimeframeMode.findOne({ where: { timeframe_id: timeframe.id } });
-      const mode = (modeRow && modeRow.mode) || 'Both';
-      if (mode === 'WalkOnly' && players.some(p => (p.walkRide || 'ride') === 'ride')) {
-        return res.status(400).json({ error: 'Ride not allowed in this timeframe' });
+    // Try V2 first
+    const sheet = await TeeSheet.findByPk(teeSheetId);
+    if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+    const course = await GolfCourseInstance.findByPk(sheet.course_id);
+    const zone = (course && course.timezone) ? course.timezone : 'UTC';
+    let usedV2 = false;
+    try {
+      const { windows, source } = await resolveEffectiveWindows({ teeSheetId, dateISO: date });
+      if (source && windows && windows.length) {
+        const compiled = await compileWindowsForDate({ teeSheetId, dateISO: date, sourceType: source, sourceId: null, windows });
+        const bySide = {};
+        for (const w of compiled) { (bySide[w.side_id] || (bySide[w.side_id] = [])).push(w); }
+        // Ensure all requested tee times fall within compiled windows
+        let allMatch = true;
+        for (const tt of teeTimes) {
+          const local = DateTime.fromJSDate(tt.start_time, { zone });
+          const wins = bySide[tt.side_id] || [];
+          const matches = wins.some(w => local >= w.start && local < w.end);
+          if (!matches) { allMatch = false; break; }
+        }
+        if (allMatch) {
+          for (const tt of teeTimes) {
+            // Pricing TBD for V2; keep zero for now
+            const legPrice = 0;
+            totalPriceCents += legPrice;
+            legsComputed.push({ tt, timeframe: null, legPrice });
+          }
+          usedV2 = true;
+        }
       }
-      if (mode === 'RideOnly' && players.some(p => (p.walkRide || 'ride') === 'walk')) {
-        return res.status(400).json({ error: 'Walk not allowed in this timeframe' });
+    } catch (_) {
+      // ignore and fall back to legacy below
+    }
+
+    if (!usedV2) {
+      // Legacy DayTemplate/Timeframe path
+      const template = await findTemplateForDate(teeSheetId, date);
+      if (!template) return res.status(400).json({ error: 'Window not open' });
+      for (const tt of teeTimes) {
+        const timeframe = await findTimeframeForSlot(teeSheetId, tt.side_id, template.day_template_id, tt.start_time);
+        if (!timeframe) return res.status(400).json({ error: 'Window not open' });
+
+        // Access rules
+        const access = await TimeframeAccessRule.findAll({ where: { timeframe_id: timeframe.id } });
+        if (!isClassAllowed({ access_rules: access }, classId)) return res.status(403).json({ error: 'Access denied' });
+
+        // Min players
+        const min = await TimeframeMinPlayers.findOne({ where: { timeframe_id: timeframe.id } });
+        const tfWithMin = { min_players: min ? { min_players: min.min_players } : undefined };
+        if (!enforceMinPlayers(tfWithMin, players.length)) return res.status(400).json({ error: 'Minimum players not met' });
+
+        // Mode
+        const modeRow = await TimeframeMode.findOne({ where: { timeframe_id: timeframe.id } });
+        const mode = (modeRow && modeRow.mode) || 'Both';
+        if (mode === 'WalkOnly' && players.some(p => (p.walkRide || 'ride') === 'ride')) {
+          return res.status(400).json({ error: 'Ride not allowed in this timeframe' });
+        }
+        if (mode === 'RideOnly' && players.some(p => (p.walkRide || 'ride') === 'walk')) {
+          return res.status(400).json({ error: 'Walk not allowed in this timeframe' });
+        }
+
+        // Pricing
+        const pricing = await TimeframePricingRule.findAll({ where: { timeframe_id: timeframe.id } });
+        const perPlayer = players.map(p => calcFeesForLeg(pricing, classId, p.walkRide, undefined));
+        const legPrice = perPlayer.reduce((a, b) => a + b, 0);
+        totalPriceCents += legPrice;
+
+        legsComputed.push({ tt, timeframe, legPrice });
       }
+    }
 
-      // Pricing
-      const pricing = await TimeframePricingRule.findAll({ where: { timeframe_id: timeframe.id } });
-      const perPlayer = players.map(p => calcFeesForLeg(pricing, classId, p.walkRide, undefined));
-      const legPrice = perPlayer.reduce((a, b) => a + b, 0);
-      totalPriceCents += legPrice;
-
-      legsComputed.push({ tt, timeframe, legPrice });
+    // Determine booking owner (customer)
+    let ownerCustomerId = null;
+    if (value.owner_customer_id) {
+      ownerCustomerId = value.owner_customer_id;
+    } else if (['Customer'].includes(req.userRole || '')) {
+      ownerCustomerId = req.userId;
+    } else if (!ownerCustomerId && (value.lead_name || value.lead_email)) {
+      try {
+        const sheetRow = await TeeSheet.findByPk(teeSheetId);
+        const courseId = sheetRow ? sheetRow.course_id : null;
+        if (courseId) {
+          const name = String(value.lead_name || '').trim();
+          const parts = name.split(/\s+/).filter(Boolean);
+          const firstName = parts.length > 1 ? parts.slice(0, parts.length - 1).join(' ') : (parts[0] || 'Guest');
+          const lastName = parts.length > 1 ? parts[parts.length - 1] : '';
+          const email = (value.lead_email && String(value.lead_email).includes('@'))
+            ? value.lead_email
+            : `guest+${Date.now()}@auto.local`;
+          const cust = await Customer.create({
+            course_id: courseId,
+            first_name: firstName,
+            last_name: lastName || 'Guest',
+            email,
+          });
+          ownerCustomerId = cust.id;
+        }
+      } catch (_) { /* best-effort; keep owner null on failure */ }
     }
 
     // Transactional capacity check and insertions
@@ -156,8 +279,8 @@ router.post(
         const booking = await Booking.create(
           {
             tee_sheet_id: teeSheetId,
-            owner_customer_id: ['Customer'].includes(req.userRole || '') ? req.userId : null,
-            status: 'Active',
+            owner_customer_id: ownerCustomerId || null,
+            status: 'Booked',
             total_price_cents: totalPriceCents,
             notes: null,
           },
@@ -165,6 +288,10 @@ router.post(
         );
 
         // Create legs and assignments
+        // Determine leg walk/ride from players array (simple aggregate: any ride -> ride, else walk)
+        const anyRideSelected = players.some(p => (p.walkRide || 'ride') === 'ride');
+        const legWalkRide = anyRideSelected ? 'ride' : 'walk';
+
         for (let i = 0; i < legsComputed.length; i++) {
           const { tt, legPrice } = legsComputed[i];
           const leg = await BookingRoundLeg.create(
@@ -172,14 +299,18 @@ router.post(
               booking_id: booking.id,
               round_option_id: null,
               leg_index: i,
-              walk_ride: null,
+              walk_ride: legWalkRide,
               price_cents: legPrice,
             },
             { transaction: t }
           );
 
           // Assign each player to the tee time (one assignment per player)
-          const assignments = players.map(() => ({ booking_round_leg_id: leg.id, tee_time_id: tt.id }));
+          const assignments = players.map((p, idx) => ({
+            booking_round_leg_id: leg.id,
+            tee_time_id: tt.id,
+            customer_id: p.customer_id || (idx === 0 ? (ownerCustomerId || null) : null),
+          }));
           await TeeTimeAssignment.bulkCreate(assignments, { transaction: t });
 
           // Update counts
@@ -220,6 +351,8 @@ router.post(
       });
       return res.status(201).json({ success: true, total_price_cents: totalPriceCents });
     } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('Booking create error:', e);
       if (e && e.status) return res.status(e.status).json({ error: e.message || 'Booking failed' });
       return res.status(500).json({ error: 'Booking failed' });
     }

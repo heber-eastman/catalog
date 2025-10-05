@@ -108,6 +108,54 @@ module.exports = async () => {
       await verifyClient.query(`ALTER TABLE "TeeSheetTemplates" ADD COLUMN IF NOT EXISTS "interval_type" "enum_TeeSheetTemplates_interval_type" NOT NULL DEFAULT 'standard';`);
       await verifyClient.query(`ALTER TABLE "TeeSheetTemplates" ADD COLUMN IF NOT EXISTS "max_players_staff" INTEGER NOT NULL DEFAULT 4;`);
       await verifyClient.query(`ALTER TABLE "TeeSheetTemplates" ADD COLUMN IF NOT EXISTS "max_players_online" INTEGER NOT NULL DEFAULT 4;`);
+      // Coerce allowed_hole_totals to INTEGER[] with default if it exists with wrong type
+      try {
+        await verifyClient.query(`ALTER TABLE "TeeSheetTemplateSides"
+          ALTER COLUMN allowed_hole_totals TYPE INTEGER[] USING (
+            CASE
+              WHEN allowed_hole_totals IS NULL THEN ARRAY[9,18]::int[]
+              WHEN jsonb_typeof(allowed_hole_totals) = 'array' THEN (
+                SELECT COALESCE(ARRAY_AGG((elem)::int), ARRAY[9,18]::int[])
+                FROM jsonb_array_elements_text(allowed_hole_totals) AS t(elem)
+              )
+              ELSE ARRAY[9,18]::int[]
+            END
+          );`);
+        await verifyClient.query(`ALTER TABLE "TeeSheetTemplateSides" ALTER COLUMN allowed_hole_totals SET DEFAULT '{9,18}'::int[];`);
+      } catch (_) {}
+      // Seasons: ensure name exists
+      await verifyClient.query(`ALTER TABLE "TeeSheetSeasons" ADD COLUMN IF NOT EXISTS name VARCHAR(120) NOT NULL DEFAULT 'Untitled Season';`);
+      // TemplateSides: ensure allowed_hole_totals exists
+      await verifyClient.query(`ALTER TABLE "TeeSheetTemplateSides" ADD COLUMN IF NOT EXISTS allowed_hole_totals INTEGER[] NOT NULL DEFAULT '{9,18}';`);
+      // TemplateSidePrices: ensure enum and price_type exists
+      await verifyClient.query(`DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_TeeSheetTemplateSidePrices_price_type') THEN
+          CREATE TYPE "enum_TeeSheetTemplateSidePrices_price_type" AS ENUM ('per_player', 'per_slot');
+        END IF;
+      END $$;`);
+      await verifyClient.query(`ALTER TABLE "TeeSheetTemplateSidePrices" ADD COLUMN IF NOT EXISTS price_type "enum_TeeSheetTemplateSidePrices_price_type" NOT NULL DEFAULT 'per_player';`);
+      // TemplateSideAccesses: ensure enum and access_type exists
+      await verifyClient.query(`DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_TeeSheetTemplateSideAccesses_access_type') THEN
+          CREATE TYPE "enum_TeeSheetTemplateSideAccesses_access_type" AS ENUM ('public', 'member_only', 'private');
+        END IF;
+      END $$;`);
+      await verifyClient.query(`ALTER TABLE "TeeSheetTemplateSideAccesses" ADD COLUMN IF NOT EXISTS access_type "enum_TeeSheetTemplateSideAccesses_access_type" NOT NULL DEFAULT 'public';`);
+      // TeeTimeAssignments: ensure customer_id exists (nullable)
+      await verifyClient.query(`ALTER TABLE "TeeTimeAssignments" ADD COLUMN IF NOT EXISTS customer_id UUID NULL;`);
+      // Events table for eventBus (use uuid_generate_v4())
+      await verifyClient.query(`CREATE TABLE IF NOT EXISTS "Events" (
+        "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        "course_id" UUID,
+        "entity_type" VARCHAR(255) NOT NULL,
+        "entity_id" UUID,
+        "action" VARCHAR(255) NOT NULL,
+        "actor_type" VARCHAR(255),
+        "actor_id" UUID,
+        "metadata" JSONB,
+        "created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
+        "updated_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );`);
     } catch (e) {
       console.warn('Template column/type hardening skipped:', e.message);
     }
