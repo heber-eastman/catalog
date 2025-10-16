@@ -3,6 +3,7 @@
 const { DateTime } = require('luxon');
 const { Op } = require('sequelize');
 const {
+  sequelize,
   TeeSheet,
   TeeSheetOverride,
   TeeSheetOverrideVersion,
@@ -35,9 +36,10 @@ async function resolveEffectiveWindows({ teeSheetId, dateISO }) {
     where: { tee_sheet_id: teeSheetId, status: 'published', date: dateLocal.toISODate() },
   });
   if (override && override.published_version_id) {
+    // Side-agnostic: list all windows ordered by start_time
     const windows = await TeeSheetOverrideWindow.findAll({
       where: { override_version_id: override.published_version_id },
-      order: [['side_id', 'ASC'], ['start_time_local', 'ASC']],
+      order: [['start_time_local', 'ASC'], ['created_at', 'ASC']],
     });
     return { source: 'override', windows };
   }

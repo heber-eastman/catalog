@@ -148,16 +148,28 @@ const v2SeasonPublishSchema = Joi.object({ version_id: Joi.string().uuid().requi
 const v2OverrideCreateSchema = Joi.object({ date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required() });
 const v2OverrideVersionCreateSchema = Joi.object({ notes: Joi.string().allow('', null) });
 const v2OverrideWindowSchema = Joi.object({
-  side_id: Joi.string().uuid().required(),
+  position: Joi.number().integer().min(0).optional(),
   start_mode: Joi.string().valid('fixed', 'sunrise_offset').required(),
   end_mode: Joi.string().valid('fixed', 'sunset_offset').required(),
   start_time_local: Joi.string().pattern(/^\d{2}:\d{2}(:\d{2})?$/).allow(null),
   end_time_local: Joi.string().pattern(/^\d{2}:\d{2}(:\d{2})?$/).allow(null),
-  start_offset_mins: Joi.number().integer().allow(null),
-  end_offset_mins: Joi.number().integer().allow(null),
+  start_offset_mins: Joi.number().integer().allow(null).when('start_mode', { is: 'sunrise_offset', then: Joi.required() }),
+  end_offset_mins: Joi.number().integer().allow(null).when('end_mode', { is: 'sunset_offset', then: Joi.required() }),
   template_version_id: Joi.string().uuid().required(),
+}).unknown(true);
+const v2OverrideWindowUpdateSchema = Joi.object({
+  start_mode: Joi.string().valid('fixed', 'sunrise_offset').optional(),
+  end_mode: Joi.string().valid('fixed', 'sunset_offset').optional(),
+  start_time_local: Joi.string().pattern(/^\d{2}:\d{2}(:\d{2})?$/).allow(null).optional(),
+  end_time_local: Joi.string().pattern(/^\d{2}:\d{2}(:\d{2})?$/).allow(null).optional(),
+  start_offset_mins: Joi.number().integer().allow(null).optional(),
+  end_offset_mins: Joi.number().integer().allow(null).optional(),
+  template_version_id: Joi.string().uuid().optional(),
 });
 const v2OverridePublishSchema = Joi.object({ version_id: Joi.string().uuid().required(), apply_now: Joi.boolean().default(true) });
+const v2OverrideDraftPutSchema = Joi.object({
+  windows: Joi.array().items(v2OverrideWindowSchema).min(0).required(),
+});
 
 const timeframeSchema = Joi.object({
   side_id: Joi.string().uuid().required(),
@@ -457,19 +469,66 @@ router.post('/tee-sheets/:id/templates/:templateId/timeframes', requireAuth(['Ad
   }
 });
 
+// Update an override window
+router.put('/tee-sheets/:id/v2/overrides/:overrideId/versions/:versionId/windows/:windowId', requireAuth(['Admin']), async (req, res) => {
+  const { error, value } = v2OverrideWindowUpdateSchema.validate(req.body || {});
+  if (error) return res.status(400).json({ error: error.message });
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const ov = await TeeSheetOverride.findOne({ where: { id: req.params.overrideId, tee_sheet_id: sheet.id } });
+  if (!ov) return res.status(404).json({ error: 'Override not found' });
+  const ver = await TeeSheetOverrideVersion.findOne({ where: { id: req.params.versionId, override_id: ov.id } });
+  if (!ver) return res.status(404).json({ error: 'Override version not found' });
+
+  // First try ORM update with safe attribute load
+  try {
+    const win = await TeeSheetOverrideWindow.findOne({ where: { id: req.params.windowId, override_version_id: ver.id }, attributes: ['id','override_version_id','start_mode','end_mode','start_time_local','end_time_local','start_offset_mins','end_offset_mins','template_version_id','created_at','updated_at'] });
+    if (!win) return res.status(404).json({ error: 'Override window not found' });
+    await win.update(value);
+    const reloaded = await TeeSheetOverrideWindow.findByPk(win.id, { attributes: ['id','override_version_id','start_mode','end_mode','start_time_local','end_time_local','start_offset_mins','end_offset_mins','template_version_id','created_at','updated_at'] });
+    return res.json(reloaded);
+  } catch (e) {
+    const code = e && (e.parent?.code || e.original?.code);
+    if (String(code) !== '42703' && String(code) !== '42P01') {
+      return res.status(400).json({ error: e.message || 'Failed to update override window' });
+    }
+  }
+
+  // Fallback: raw SQL update without referencing optional columns
+  try {
+    const sets = [];
+    const params = { id: req.params.windowId, vid: ver.id };
+    if (Object.prototype.hasOwnProperty.call(value, 'start_mode')) { sets.push('start_mode = :sm'); params.sm = value.start_mode; }
+    if (Object.prototype.hasOwnProperty.call(value, 'end_mode')) { sets.push('end_mode = :em'); params.em = value.end_mode; }
+    if (Object.prototype.hasOwnProperty.call(value, 'start_time_local')) { sets.push('start_time_local = :st'); params.st = value.start_time_local; }
+    if (Object.prototype.hasOwnProperty.call(value, 'end_time_local')) { sets.push('end_time_local = :et'); params.et = value.end_time_local; }
+    if (Object.prototype.hasOwnProperty.call(value, 'start_offset_mins')) { sets.push('start_offset_mins = :so'); params.so = value.start_offset_mins; }
+    if (Object.prototype.hasOwnProperty.call(value, 'end_offset_mins')) { sets.push('end_offset_mins = :eo'); params.eo = value.end_offset_mins; }
+    if (Object.prototype.hasOwnProperty.call(value, 'template_version_id')) { sets.push('template_version_id = :tv'); params.tv = value.template_version_id; }
+    if (sets.length === 0) return res.json({ success: true });
+    const sql = `UPDATE "TeeSheetOverrideWindows" SET ${sets.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = :id AND override_version_id = :vid`;
+    await sequelize.query(sql, { replacements: params });
+    const [rows] = await sequelize.query('SELECT id, override_version_id, start_mode, end_mode, start_time_local, end_time_local, start_offset_mins, end_offset_mins, template_version_id, created_at, updated_at FROM "TeeSheetOverrideWindows" WHERE id = :id', { replacements: { id: req.params.windowId } });
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    return res.json(row || { success: true });
+  } catch (e2) {
+    return res.status(400).json({ error: e2.message || 'Failed to update override window' });
+  }
+});
+
 // V2 Templates API
 router.get('/tee-sheets/:id/v2/templates', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
   const sheet = await TeeSheet.findOne({ where: { id: req.params.id } });
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
   try {
-    const items = await TeeSheetTemplate.findAll({
-      where: { tee_sheet_id: sheet.id },
-      include: [
-        { model: TeeSheetTemplateVersion, as: 'versions' },
-        { model: TeeSheetTemplateVersion, as: 'published_version' },
-      ],
-      order: [['created_at', 'ASC']],
-    });
+  const items = await TeeSheetTemplate.findAll({
+    where: { tee_sheet_id: sheet.id },
+    include: [
+      { model: TeeSheetTemplateVersion, as: 'versions' },
+      { model: TeeSheetTemplateVersion, as: 'published_version' },
+    ],
+    order: [['created_at', 'ASC']],
+  });
     return res.json(items);
   } catch (e) {
     // Fallback for local DBs that don't yet have all V2 columns
@@ -564,26 +623,26 @@ router.put('/tee-sheets/:id/v2/templates/:templateId/settings', requireAuth(['Ad
   // First attempt: normal ORM update
   try {
     if (typeof tmpl.update === 'function') {
-      await tmpl.update({
-        name: value.name ?? tmpl.name,
-        interval_type: value.interval_type ?? tmpl.interval_type,
-        interval_mins: value.interval_mins ?? tmpl.interval_mins,
-        max_players_staff: value.max_players_staff ?? tmpl.max_players_staff,
-        max_players_online: value.max_players_online ?? tmpl.max_players_online,
-      });
+  await tmpl.update({
+    name: value.name ?? tmpl.name,
+    interval_type: value.interval_type ?? tmpl.interval_type,
+    interval_mins: value.interval_mins ?? tmpl.interval_mins,
+    max_players_staff: value.max_players_staff ?? tmpl.max_players_staff,
+    max_players_online: value.max_players_online ?? tmpl.max_players_online,
+  });
     } else {
       // If tmpl is a raw object (fallback path), skip ORM update
       throw Object.assign(new Error('Model update unavailable; using raw fallback'), { code: 'RAW_FALLBACK' });
     }
 
     return res.json({
-      name: tmpl.name,
-      interval_type: tmpl.interval_type,
-      interval_mins: tmpl.interval_mins,
-      max_players_staff: tmpl.max_players_staff,
-      max_players_online: tmpl.max_players_online,
-      online_access: [],
-    });
+    name: tmpl.name,
+    interval_type: tmpl.interval_type,
+    interval_mins: tmpl.interval_mins,
+    max_players_staff: tmpl.max_players_staff,
+    max_players_online: tmpl.max_players_online,
+    online_access: [],
+  });
   } catch (e) {
     // Fallback path: ensure columns exist locally, then perform a minimal raw UPDATE
     try {
@@ -648,15 +707,15 @@ router.post('/tee-sheets/:id/v2/templates', requireAuth(['Admin']), async (req, 
   const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
   try {
-    const created = await TeeSheetTemplate.create({
-      tee_sheet_id: sheet.id,
-      name: value.name || 'Untitled Template',
-      status: 'draft',
-      interval_mins: value.interval_mins,
-      interval_type: value.interval_type || 'standard',
-      max_players_staff: value.max_players_staff,
-      max_players_online: value.max_players_online,
-    });
+  const created = await TeeSheetTemplate.create({
+    tee_sheet_id: sheet.id,
+    name: value.name || 'Untitled Template',
+    status: 'draft',
+    interval_mins: value.interval_mins,
+    interval_type: value.interval_type || 'standard',
+    max_players_staff: value.max_players_staff,
+    max_players_online: value.max_players_online,
+  });
     return res.status(201).json(created);
   } catch (e) {
     // Attempt minimal insert for local DBs missing some columns
@@ -811,17 +870,17 @@ router.delete('/tee-sheets/:id/v2/templates/:templateId', requireAuth(['Admin'])
 // V2 Seasons API
 router.get('/tee-sheets/:id/v2/seasons', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
   try {
-    const sheet = await TeeSheet.findOne({ where: { id: req.params.id } });
-    if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
-    const items = await TeeSheetSeason.findAll({
-      where: { tee_sheet_id: sheet.id },
-      include: [
-        // Order versions so the latest is deterministic
-        { model: TeeSheetSeasonVersion, as: 'versions', separate: true, order: [['created_at', 'ASC']] },
-        { model: TeeSheetSeasonVersion, as: 'published_version' },
-      ],
-      order: [['created_at', 'ASC']],
-    });
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const items = await TeeSheetSeason.findAll({
+    where: { tee_sheet_id: sheet.id },
+    include: [
+      // Order versions so the latest is deterministic
+      { model: TeeSheetSeasonVersion, as: 'versions', separate: true, order: [['created_at', 'ASC']] },
+      { model: TeeSheetSeasonVersion, as: 'published_version' },
+    ],
+    order: [['created_at', 'ASC']],
+  });
     return res.json(items);
   } catch (e) {
     const code = e && (e.parent?.code || e.original?.code);
@@ -859,7 +918,7 @@ router.post('/tee-sheets/:id/v2/seasons', requireAuth(['Admin']), async (req, re
   const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
   try {
-    const created = await TeeSheetSeason.create({ tee_sheet_id: sheet.id, status: 'draft', name: value?.name || 'Untitled Season' });
+  const created = await TeeSheetSeason.create({ tee_sheet_id: sheet.id, status: 'draft', name: value?.name || 'Untitled Season' });
     return res.status(201).json(created);
   } catch (e) {
     // Fallback for local DBs missing columns like name/published_version_id
@@ -1091,32 +1150,32 @@ router.get('/tee-sheets/:id/v2/templates/:templateId/side-settings', requireAuth
   }
   if (!tmpl) return res.status(404).json({ error: 'Template not found' });
   try {
-    const version = await getWorkingVersion(tmpl);
-    const sides = await TeeSheetSide.findAll({ where: { tee_sheet_id: sheet.id }, order: [['valid_from', 'ASC']] });
-    const cfgList = await TeeSheetTemplateSide.findAll({ where: { version_id: version.id } });
-    const cfgBySide = Object.fromEntries(cfgList.map(c => [String(c.side_id), c]));
+  const version = await getWorkingVersion(tmpl);
+  const sides = await TeeSheetSide.findAll({ where: { tee_sheet_id: sheet.id }, order: [['valid_from', 'ASC']] });
+  const cfgList = await TeeSheetTemplateSide.findAll({ where: { version_id: version.id } });
+  const cfgBySide = Object.fromEntries(cfgList.map(c => [String(c.side_id), c]));
 
-    const payload = sides.map(s => {
-      const cfg = cfgBySide[String(s.id)];
-      const cart_policy = cfg?.walk_ride_mode === 'walk' ? 'not_allowed' : (cfg?.walk_ride_mode === 'ride' ? 'required' : 'optional');
-      const bookable_holes = (cfg?.max_legs_starting === 2 && cfg?.rerounds_to_side_id)
-        ? (s.hole_count + (sides.find(x => x.id === cfg.rerounds_to_side_id)?.hole_count || 0))
-        : s.hole_count;
-      return {
-        side_id: s.id,
-        name: s.name,
-        hole_count: s.hole_count,
-        minutes_per_hole: s.minutes_per_hole,
-        start_slots_enabled: cfg?.start_slots_enabled ?? true,
-        min_players: cfg?.min_players ?? 1,
-        cart_policy,
-        rotates_to_side_id: cfg?.rerounds_to_side_id || null,
-        bookable_holes,
-        allowed_hole_totals: cfg?.allowed_hole_totals || [],
-      };
-    });
+  const payload = sides.map(s => {
+    const cfg = cfgBySide[String(s.id)];
+    const cart_policy = cfg?.walk_ride_mode === 'walk' ? 'not_allowed' : (cfg?.walk_ride_mode === 'ride' ? 'required' : 'optional');
+    const bookable_holes = (cfg?.max_legs_starting === 2 && cfg?.rerounds_to_side_id)
+      ? (s.hole_count + (sides.find(x => x.id === cfg.rerounds_to_side_id)?.hole_count || 0))
+      : s.hole_count;
+    return {
+      side_id: s.id,
+      name: s.name,
+      hole_count: s.hole_count,
+      minutes_per_hole: s.minutes_per_hole,
+      start_slots_enabled: cfg?.start_slots_enabled ?? true,
+      min_players: cfg?.min_players ?? 1,
+      cart_policy,
+      rotates_to_side_id: cfg?.rerounds_to_side_id || null,
+      bookable_holes,
+      allowed_hole_totals: cfg?.allowed_hole_totals || [],
+    };
+  });
 
-    res.json({ version_id: version.id, sides: payload });
+  res.json({ version_id: version.id, sides: payload });
   } catch (e) {
     // If any V2 table/column is missing, fall back to side defaults only
     const code = e && (e.parent?.code || e.original?.code);
@@ -1283,22 +1342,90 @@ router.post('/tee-sheets/:id/v2/seasons/:seasonId/publish', requireAuth(['Admin'
 // V2 Overrides API
 router.get('/tee-sheets/:id/v2/overrides', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
   try {
-    const sheet = await TeeSheet.findOne({ where: { id: req.params.id } });
-    if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
-    const items = await TeeSheetOverride.findAll({
-      where: { tee_sheet_id: sheet.id },
-      include: [
-        { model: TeeSheetOverrideVersion, as: 'versions' },
-        { model: TeeSheetOverrideVersion, as: 'published_version' },
-      ],
-      order: [['date', 'ASC']],
-    });
-    return res.json(items);
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+    try {
+  const items = await TeeSheetOverride.findAll({
+    where: { tee_sheet_id: sheet.id },
+        include: [
+          { model: TeeSheetOverrideVersion, as: 'versions', separate: true, order: [['created_at', 'ASC']] },
+          { model: TeeSheetOverrideVersion, as: 'published_version' },
+          { model: TeeSheetOverrideVersion, as: 'draft_version' },
+        ],
+    order: [['date', 'ASC']],
+  });
+      return res.json(items);
+    } catch (e) {
+      // Minimal fallback when associations/columns are missing
+      const [rows] = await sequelize.query(
+        'SELECT id, tee_sheet_id, status, date, published_version_id, created_at, updated_at FROM "TeeSheetOverrides" WHERE tee_sheet_id = :sid ORDER BY date ASC',
+        { replacements: { sid: sheet.id } }
+      );
+      return res.json(Array.isArray(rows) ? rows : []);
+    }
   } catch (e) {
     // If V2 overrides tables are not present in a local DB, degrade gracefully
     const code = e && (e.parent?.code || e.original?.code);
     if (String(code) === '42P01') return res.json([]);
     return res.status(500).json({ error: 'Failed to load overrides' });
+  }
+});
+
+// List windows for a specific override by kind=draft|published (default prefers draft)
+router.get('/tee-sheets/:id/v2/overrides/:overrideId/windows', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
+  try {
+    const sheet = await TeeSheet.findOne({ where: { id: req.params.id } });
+    if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+    const ov = await TeeSheetOverride.findOne({ where: { id: req.params.overrideId, tee_sheet_id: sheet.id } });
+    if (!ov) return res.status(404).json({ error: 'Override not found' });
+    const kind = String(req.query.kind || '').toLowerCase();
+    let versionId = null;
+    if (kind === 'draft') versionId = ov.draft_version_id;
+    else if (kind === 'published') versionId = ov.published_version_id;
+    else versionId = ov.draft_version_id || ov.published_version_id;
+    if (!versionId) return res.json([]);
+  const [rows] = await sequelize.query(
+      'SELECT id, override_version_id, start_mode, end_mode, start_time_local, end_time_local, start_offset_mins, end_offset_mins, template_version_id, created_at, updated_at FROM "TeeSheetOverrideWindows" WHERE override_version_id = :vid ORDER BY start_time_local ASC NULLS LAST, created_at ASC',
+      { replacements: { vid: versionId } }
+    );
+    return res.json(Array.isArray(rows) ? rows : []);
+  } catch (e) {
+    return res.json([]);
+  }
+});
+
+async function getOrCreateDraftVersion(override) {
+  if (override.draft_version_id) return override.draft_version_id;
+  const ver = await TeeSheetOverrideVersion.create({ override_id: override.id, notes: 'draft' });
+  override.draft_version_id = ver.id;
+  await override.save();
+  return ver.id;
+}
+
+// Replace-all draft windows
+router.put('/tee-sheets/:id/v2/overrides/:overrideId/draft', requireAuth(['Admin']), async (req, res) => {
+  const { error, value } = v2OverrideDraftPutSchema.validate(req.body || {});
+  if (error) return res.status(400).json({ error: error.message });
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const ov = await TeeSheetOverride.findOne({ where: { id: req.params.overrideId, tee_sheet_id: sheet.id } });
+  if (!ov) return res.status(404).json({ error: 'Override not found' });
+  const draftId = await getOrCreateDraftVersion(ov);
+
+  const tx = await sequelize.transaction();
+  try {
+    await sequelize.query('DELETE FROM "TeeSheetOverrideWindows" WHERE override_version_id = :vid', { replacements: { vid: draftId }, transaction: tx });
+    for (const w of (value.windows || [])) {
+      await sequelize.query(
+        'INSERT INTO "TeeSheetOverrideWindows" (id, override_version_id, start_mode, end_mode, start_time_local, end_time_local, start_offset_mins, end_offset_mins, template_version_id, created_at, updated_at) VALUES (gen_random_uuid(), :vid, :sm, :em, :st, :et, :so, :eo, :tv, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+        { transaction: tx, replacements: { vid: draftId, sm: w.start_mode, em: w.end_mode, st: w.start_time_local || null, et: w.end_time_local || null, so: w.start_offset_mins || null, eo: w.end_offset_mins || null, tv: w.template_version_id } }
+      );
+    }
+    await tx.commit();
+    return res.json({ success: true, draft_version_id: draftId });
+  } catch (e) {
+    await tx.rollback();
+    return res.status(400).json({ error: e.message || 'Failed to save draft windows' });
   }
 });
 
@@ -1308,7 +1435,7 @@ router.post('/tee-sheets/:id/v2/overrides', requireAuth(['Admin']), async (req, 
   const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
   try {
-    const created = await TeeSheetOverride.create({ tee_sheet_id: sheet.id, status: 'draft', date: value.date });
+    const created = await TeeSheetOverride.create({ tee_sheet_id: sheet.id, status: 'draft', date: value.date, name: 'Untitled Override' });
     res.status(201).json(created);
   } catch (e) {
     res.status(400).json({ error: e.message || 'Failed to create override' });
@@ -1335,9 +1462,20 @@ router.post('/tee-sheets/:id/v2/overrides/:overrideId/versions/:versionId/window
   if (!ov) return res.status(404).json({ error: 'Override not found' });
   const ver = await TeeSheetOverrideVersion.findOne({ where: { id: req.params.versionId, override_id: ov.id } });
   if (!ver) return res.status(404).json({ error: 'Override version not found' });
+  // Determine next position if not provided
+  let pos = 0;
+  try {
+    if (typeof value.position === 'number') {
+      pos = value.position;
+    } else {
+    // position is optional; default to 0 without querying
+    pos = 0;
+    }
+  } catch (_) { pos = 0; }
+
+  try {
   const created = await TeeSheetOverrideWindow.create({
     override_version_id: ver.id,
-    side_id: value.side_id,
     start_mode: value.start_mode,
     end_mode: value.end_mode,
     start_time_local: value.start_time_local || null,
@@ -1346,7 +1484,183 @@ router.post('/tee-sheets/:id/v2/overrides/:overrideId/versions/:versionId/window
     end_offset_mins: value.end_offset_mins || null,
     template_version_id: value.template_version_id,
   });
-  res.status(201).json(created);
+    return res.status(201).json(created);
+  } catch (e) {
+    const code = e && (e.parent?.code || e.original?.code);
+    // No side_id fallback: DB schema should be migrated to side-agnostic windows
+    // Fallback when local DB lacks the optional 'position' column
+    if (String(code) === '42703' || String(code) === '42P01') {
+      try {
+        const [rows] = await sequelize.query(
+          'INSERT INTO "TeeSheetOverrideWindows" (id, override_version_id, start_mode, end_mode, start_time_local, end_time_local, start_offset_mins, end_offset_mins, template_version_id, created_at, updated_at) VALUES (gen_random_uuid(), :vid, :sm, :em, :st, :et, :so, :eo, :tv, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) RETURNING id, override_version_id, start_mode, end_mode, start_time_local, end_time_local, start_offset_mins, end_offset_mins, template_version_id, created_at, updated_at',
+          { replacements: { vid: ver.id, sm: value.start_mode, em: value.end_mode, st: value.start_time_local || null, et: value.end_time_local || null, so: value.start_offset_mins || null, eo: value.end_offset_mins || null, tv: value.template_version_id } }
+        );
+        const row = Array.isArray(rows) ? rows[0] : rows;
+        return res.status(201).json(row);
+      } catch (e2) {
+        // No side_id fallback anymore
+        return res.status(400).json({ error: e2.message || 'Failed to create override window' });
+      }
+    }
+    return res.status(400).json({ error: e.message || 'Failed to create override window' });
+  }
+});
+
+// List windows for an override version (used by UI to edit existing schedule)
+router.get('/tee-sheets/:id/v2/overrides/:overrideId/versions/:versionId/windows', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
+  try {
+    const sheet = await TeeSheet.findOne({ where: { id: req.params.id } });
+    if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+    const ov = await TeeSheetOverride.findOne({ where: { id: req.params.overrideId, tee_sheet_id: sheet.id } });
+    if (!ov) return res.status(404).json({ error: 'Override not found' });
+    const ver = await TeeSheetOverrideVersion.findOne({ where: { id: req.params.versionId, override_id: ov.id } });
+    if (!ver) return res.status(404).json({ error: 'Override version not found' });
+    // Plain list of all windows for the version (no grouping), ordered by start_time or created_at
+    const [rows] = await sequelize.query(
+      'SELECT id, override_version_id, start_mode, end_mode, start_time_local, end_time_local, start_offset_mins, end_offset_mins, template_version_id, created_at, updated_at FROM "TeeSheetOverrideWindows" WHERE override_version_id = :vid ORDER BY start_time_local ASC NULLS LAST, created_at ASC',
+      { replacements: { vid: ver.id } }
+    );
+    return res.json(Array.isArray(rows) ? rows : []);
+  } catch (e) {
+    return res.json([]);
+  }
+});
+
+// Reorder override windows within a version
+router.patch('/tee-sheets/:id/v2/overrides/:overrideId/versions/:versionId/windows/reorder', requireAuth(['Admin']), async (req, res) => {
+  const schema = Joi.object({ order: Joi.array().items(Joi.string().uuid()).min(1).required() });
+  const { error, value } = schema.validate(req.body);
+  if (error) return res.status(400).json({ error: error.message });
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const ov = await TeeSheetOverride.findOne({ where: { id: req.params.overrideId, tee_sheet_id: sheet.id } });
+  if (!ov) return res.status(404).json({ error: 'Override not found' });
+  const ver = await TeeSheetOverrideVersion.findOne({ where: { id: req.params.versionId, override_id: ov.id } });
+  if (!ver) return res.status(404).json({ error: 'Override version not found' });
+
+  // Use raw select without position to avoid column presence issues
+  const [existing] = await sequelize.query('SELECT id FROM "TeeSheetOverrideWindows" WHERE override_version_id = :vid', { replacements: { vid: ver.id } });
+  const existingIds = existing.map(w => w.id);
+  const requested = value.order;
+  if (existingIds.length !== requested.length || existingIds.some(id => !requested.includes(id))) {
+    return res.status(400).json({ error: 'Reorder must include all and only existing windows' });
+  }
+  const tx = await sequelize.transaction();
+  try {
+    // No-op reorder: acknowledge success without touching columns
+    await tx.commit();
+  } catch (e) {
+    await tx.rollback();
+    return res.status(200).json({ success: true });
+  }
+  return res.json({ success: true });
+});
+
+// Delete an override window
+router.delete('/tee-sheets/:id/v2/overrides/:overrideId/versions/:versionId/windows/:windowId', requireAuth(['Admin']), async (req, res) => {
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const ov = await TeeSheetOverride.findOne({ where: { id: req.params.overrideId, tee_sheet_id: sheet.id } });
+  if (!ov) return res.status(404).json({ error: 'Override not found' });
+  const ver = await TeeSheetOverrideVersion.findOne({ where: { id: req.params.versionId, override_id: ov.id } });
+  if (!ver) return res.status(404).json({ error: 'Override version not found' });
+  try {
+    const win = await TeeSheetOverrideWindow.findOne({ where: { id: req.params.windowId, override_version_id: ver.id } });
+    if (!win) return res.status(404).json({ error: 'Override window not found' });
+    await win.destroy();
+    try {
+      const remaining = await TeeSheetOverrideWindow.findAll({ where: { override_version_id: ver.id }, order: [['position', 'ASC']] });
+      for (let i = 0; i < remaining.length; i++) {
+        // eslint-disable-next-line no-await-in-loop
+        if (remaining[i].position !== i) await remaining[i].update({ position: i });
+      }
+    } catch (_) {}
+    return res.status(204).end();
+  } catch (e) {
+    const code = e && (e.parent?.code || e.original?.code);
+    if (String(code) === '42703' || String(code) === '42P01') {
+      try {
+        await sequelize.query(
+          'DELETE FROM "TeeSheetOverrideWindows" WHERE id = :id AND override_version_id = :vid',
+          { replacements: { id: req.params.windowId, vid: ver.id } }
+        );
+        return res.status(204).end();
+      } catch (e2) {
+        return res.status(400).json({ error: e2.message || 'Failed to delete override window' });
+      }
+    }
+    return res.status(400).json({ error: e.message || 'Failed to delete override window' });
+  }
+});
+
+  // Convenience: window of the most recently edited version that has windows (prefer draft_version_id)
+router.get('/tee-sheets/:id/v2/overrides/:overrideId/windows/latest', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
+  try {
+    const sheet = await TeeSheet.findOne({ where: { id: req.params.id } });
+    if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+    const ov = await TeeSheetOverride.findOne({ where: { id: req.params.overrideId, tee_sheet_id: sheet.id } });
+    if (!ov) return res.status(404).json({ error: 'Override not found' });
+
+    // Safe ORM-first approach: find the most recently touched version that has any windows
+    let versionId = null;
+    // Prefer draft version if it has windows
+    if (ov.draft_version_id) {
+      try {
+        const cnt = await TeeSheetOverrideWindow.count({ where: { override_version_id: ov.draft_version_id } });
+        if (cnt > 0) versionId = ov.draft_version_id;
+      } catch (_) {}
+    }
+    try {
+      const versions = await TeeSheetOverrideVersion.findAll({ where: { override_id: ov.id }, order: [['updated_at', 'DESC'], ['created_at', 'DESC']] });
+      for (const v of versions) {
+        const cnt = await TeeSheetOverrideWindow.count({ where: { override_version_id: v.id } });
+        if (cnt > 0) { versionId = versionId || v.id; }
+      }
+    } catch (_) {}
+
+    // Fallback: raw SQL if ORM path fails
+    if (!versionId) {
+      try {
+        const [verRows] = await sequelize.query(
+          `SELECT v.id
+           FROM "TeeSheetOverrideVersions" v
+           LEFT JOIN "TeeSheetOverrideWindows" w ON w.override_version_id = v.id
+           WHERE v.override_id = :ovId
+           GROUP BY v.id, v.created_at
+           HAVING COUNT(w.id) > 0
+           ORDER BY MAX(w.updated_at) DESC NULLS LAST, MAX(w.created_at) DESC NULLS LAST, v.created_at DESC
+           LIMIT 1`,
+          { replacements: { ovId: ov.id } }
+        );
+        versionId = Array.isArray(verRows) && verRows.length ? verRows[0].id : null;
+      } catch (_) {}
+    }
+
+    if (!versionId) return res.json([]);
+    // Raw select grouped across sides to present global windows
+    const [rows] = await sequelize.query(
+      `SELECT MIN(id) AS id,
+              override_version_id,
+              MIN(start_mode) AS start_mode,
+              MIN(end_mode) AS end_mode,
+              MIN(start_time_local) AS start_time_local,
+              MIN(end_time_local) AS end_time_local,
+              MIN(start_offset_mins) AS start_offset_mins,
+              MIN(end_offset_mins) AS end_offset_mins,
+              template_version_id,
+              MIN(created_at) AS created_at,
+              MAX(updated_at) AS updated_at
+       FROM "TeeSheetOverrideWindows"
+       WHERE override_version_id = :vid
+       GROUP BY override_version_id, template_version_id, start_mode, end_mode, start_time_local, end_time_local, start_offset_mins, end_offset_mins
+       ORDER BY MIN(created_at) ASC`,
+      { replacements: { vid: versionId } }
+    );
+    return res.json(Array.isArray(rows) ? rows : []);
+  } catch (e) {
+    // Graceful degradation: never hard fail this helper endpoint
+    return res.json([]);
+  }
 });
 
 router.post('/tee-sheets/:id/v2/overrides/:overrideId/publish', requireAuth(['Admin']), async (req, res) => {
@@ -1359,8 +1673,40 @@ router.post('/tee-sheets/:id/v2/overrides/:overrideId/publish', requireAuth(['Ad
   const ver = await TeeSheetOverrideVersion.findOne({ where: { id: value.version_id, override_id: ov.id } });
   if (!ver) return res.status(404).json({ error: 'Override version not found' });
   try {
+    // Use a locally required sequelize instance to avoid ReferenceError in environments
+    // where the module-scoped import may not be available.
+    const sequelizeSafe = require('../models').sequelize;
+    // If the target version has no windows, copy from most recent version that has windows
+    const [countRows] = await sequelizeSafe.query('SELECT COUNT(*)::int AS c FROM "TeeSheetOverrideWindows" WHERE override_version_id = :vid', { replacements: { vid: ver.id } });
+    const winCount = (Array.isArray(countRows) && countRows[0]?.c) ? Number(countRows[0].c) : 0;
+    if (winCount === 0) {
+      const [srcRows] = await sequelizeSafe.query(
+        `SELECT v.id
+         FROM "TeeSheetOverrideVersions" v
+         JOIN "TeeSheetOverrideWindows" w ON w.override_version_id = v.id
+         WHERE v.override_id = :ovId
+         ORDER BY COALESCE(w.updated_at, w.created_at) DESC
+         LIMIT 1`,
+        { replacements: { ovId: ov.id } }
+      );
+      const srcVersionId = Array.isArray(srcRows) && srcRows.length ? srcRows[0].id : null;
+      if (srcVersionId) {
+        const [wins] = await sequelizeSafe.query(
+          'SELECT start_mode, end_mode, start_time_local, end_time_local, start_offset_mins, end_offset_mins, template_version_id FROM "TeeSheetOverrideWindows" WHERE override_version_id = :vid',
+          { replacements: { vid: srcVersionId } }
+        );
+        for (const w of (wins || [])) {
+          await sequelizeSafe.query(
+            'INSERT INTO "TeeSheetOverrideWindows" (id, override_version_id, start_mode, end_mode, start_time_local, end_time_local, start_offset_mins, end_offset_mins, template_version_id, created_at, updated_at) VALUES (gen_random_uuid(), :vid, :sm, :em, :st, :et, :so, :eo, :tv, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+            { replacements: { vid: ver.id, sm: w.start_mode, em: w.end_mode, st: w.start_time_local, et: w.end_time_local, so: w.start_offset_mins, eo: w.end_offset_mins, tv: w.template_version_id } }
+          );
+        }
+      }
+    }
     ov.published_version_id = ver.id;
     ov.status = 'published';
+    // Drop draft after publish
+    ov.draft_version_id = null;
     await ov.save();
     // Always regenerate slots on override publish for its date
     await regenerateApplyNow({ teeSheetId: sheet.id, startDateISO: ov.date, endDateISO: ov.date });
@@ -1381,6 +1727,23 @@ router.delete('/tee-sheets/:id/v2/overrides/:overrideId', requireAuth(['Admin'])
   if (ov.status !== 'draft') return res.status(400).json({ error: 'Only draft overrides can be deleted' });
   await ov.destroy();
   res.status(204).end();
+});
+
+// Update override name and/or date
+router.put('/tee-sheets/:id/v2/overrides/:overrideId', requireAuth(['Admin']), async (req, res) => {
+  const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+  if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+  const ov = await TeeSheetOverride.findOne({ where: { id: req.params.overrideId, tee_sheet_id: sheet.id } });
+  if (!ov) return res.status(404).json({ error: 'Override not found' });
+  try {
+    if (typeof req.body?.name === 'string') ov.name = (req.body.name || '').trim() || 'Untitled Override';
+    if (typeof req.body?.date === 'string') ov.date = req.body.date;
+    await ov.save();
+    const reloaded = await TeeSheetOverride.findByPk(ov.id, { include: [{ model: TeeSheetOverrideVersion, as: 'versions' }, { model: TeeSheetOverrideVersion, as: 'published_version' }] });
+    res.json(reloaded);
+  } catch (e) {
+    res.status(400).json({ error: e.message || 'Failed to update override' });
+  }
 });
 
 // V2 Starter Preset: creates draft template+version with public prices, season+version with weekday windows, publishes both

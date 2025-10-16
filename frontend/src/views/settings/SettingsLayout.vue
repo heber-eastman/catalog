@@ -45,16 +45,12 @@
                 class="day"
                 v-for="d in daysInMonth"
                 :key="'d'+d"
-                :class="{ selected: isSelected(d) }"
+                :class="[ isSelected(d) ? 'selected' : '', hasOverride(d) ? 'ov-day' : (hasSeason(d) ? 'sea-day' : '') ]"
                 :aria-label="ariaFor(d)"
                 @click="selectDay(d)"
                 data-cy="cal-day"
               >
                 {{ d }}
-                <span class="dots">
-                  <span v-if="hasOverride(d)" class="dot override" title="Override"></span>
-                  <span v-else-if="hasSeason(d)" class="dot season" title="Season"></span>
-                </span>
               </button>
             </div>
             
@@ -498,12 +494,12 @@ try {
 .cal-nav:hover{ background:#eaf4ff; }
 .cal-grid{ display:grid; grid-template-columns: repeat(7, 1fr); gap:2px; }
 .dow{ font-size:11px; color:#6b778c; text-align:center; padding:2px 0; }
-.day{ text-align:center; padding:6px 0; border-radius:4px; }
-.day.selected{ background:#ccf9ff; font-weight:600; }
-.day .dots{ display:block; height:4px; margin-top:2px; }
-.dot{ display:inline-block; width:6px; height:6px; border-radius:50%; margin:0 1px; vertical-align:middle; }
-.dot.override{ background:#d32f2f; }
-.dot.season{ background:#1976d2; }
+.day{ text-align:center; padding:10px 0; border-radius:8px; transition:background-color .15s ease; }
+.day.selected{ outline: 2px solid #222; outline-offset: -3px; font-weight:700; }
+/* Full-day background colors */
+.ov-day{ background:#dcfce7; color:#1b5e20; }
+.sea-day{ background:#e3f2fd; color:#0d47a1; }
+.day:hover{ filter:brightness(0.97); }
 .dialog{ position:fixed; inset:0; background:rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; }
 .dialog .dlg-body{ background:#fff; padding:12px; border-radius:8px; min-width:300px; }
 .content { padding: 16px; }

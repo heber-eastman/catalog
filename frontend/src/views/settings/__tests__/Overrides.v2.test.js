@@ -25,20 +25,21 @@ vi.mock('@/services/api', async (orig) => {
 
 describe('V2 Overrides view', () => {
   it('lists overrides and can create/version/publish', async () => {
-    window.alert = vi.fn();
     const wrapper = mount(Overrides, { global: {} });
     await new Promise(r => setTimeout(r));
     expect(wrapper.html()).toContain('Overrides (V2)');
-    const d = wrapper.find('input[type="date"]');
-    await d.setValue('2025-07-03');
-    // Create
-    const createBtn = wrapper.find('button.btn');
+    // Create new override via toolbar
+    const createBtn = wrapper.find('[data-cy="override-new-btn"]');
+    expect(createBtn.exists()).toBe(true);
     await createBtn.trigger('click');
-    // Version + Publish
-    const buttons = wrapper.findAll('button.btn.sm');
-    expect(buttons.length).toBeGreaterThanOrEqual(2);
-    await buttons[0].trigger('click');
-    await buttons[1].trigger('click');
+    await new Promise(r => setTimeout(r));
+    // Click Publish in the dialog footer
+    const publishBtn = wrapper.find('[data-cy="override-publish-btn"]');
+    expect(publishBtn.exists()).toBe(true);
+    await publishBtn.trigger('click');
+    // Ensure publish API was invoked
+    const { settingsAPI } = await import('@/services/api');
+    expect(settingsAPI.v2.publishOverride).toHaveBeenCalled();
   });
 });
 

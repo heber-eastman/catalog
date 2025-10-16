@@ -38,7 +38,7 @@ describe('Availability API V2 windows', () => {
 
     const ov = await models.TeeSheetOverride.create({ tee_sheet_id: sheet.id, status: 'draft', date: '2025-07-02' });
     const ovv = await models.TeeSheetOverrideVersion.create({ override_id: ov.id });
-    await models.TeeSheetOverrideWindow.create({ override_version_id: ovv.id, side_id: side.id, start_mode: 'fixed', end_mode: 'fixed', start_time_local: '07:00:00', end_time_local: '10:00:00', template_version_id: tv.id });
+    await models.TeeSheetOverrideWindow.create({ override_version_id: ovv.id, start_mode: 'fixed', end_mode: 'fixed', start_time_local: '07:00:00', end_time_local: '10:00:00', template_version_id: tv.id });
     ov.published_version_id = ovv.id; ov.status = 'published'; await ov.save();
 
     // Seed a slot at 07:00Z on 2025-07-02 (Wednesday)

@@ -26,6 +26,18 @@ const createConditionalRateLimit = options => {
  * Standard rate limiting for most API endpoints
  * 100 requests per 15 minutes per IP
  */
+// Skip logic for non-production and local development
+const shouldSkipRateLimit = req => {
+  const env = (process.env.NODE_ENV || '').toLowerCase();
+  if (env && env !== 'production') return true;
+  const host = (req.get('host') || '').toLowerCase();
+  const ip = (req.ip || '').toLowerCase();
+  if (host.startsWith('localhost') || host.startsWith('127.0.0.1') || ip === '127.0.0.1' || ip === '::1') return true;
+  // Allow auth status checks to pass through without rate limiting
+  if (req.method === 'GET' && req.path === '/api/v1/auth/me') return true;
+  return false;
+};
+
 const rateLimitMiddleware = createConditionalRateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per windowMs
@@ -39,6 +51,8 @@ const rateLimitMiddleware = createConditionalRateLimit({
   skipSuccessfulRequests: false,
   // Skip failed requests
   skipFailedRequests: true,
+  // Skip for local/dev and auth status check
+  skip: shouldSkipRateLimit,
 
   // Custom handler for rate limit exceeded
   handler: (req, res) => {
@@ -65,6 +79,7 @@ const strictRateLimitMiddleware = createConditionalRateLimit({
   legacyHeaders: false,
   skipSuccessfulRequests: false,
   skipFailedRequests: false,
+  skip: shouldSkipRateLimit,
 
   // Custom handler for rate limit exceeded
   handler: (req, res) => {
@@ -89,6 +104,7 @@ const veryStrictRateLimitMiddleware = createConditionalRateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: shouldSkipRateLimit,
 
   // Custom handler for rate limit exceeded
   handler: (req, res) => {

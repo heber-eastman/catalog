@@ -110,9 +110,11 @@ module.exports = (sequelize, DataTypes) => {
   const TeeSheetOverride = sequelize.define('TeeSheetOverride', {
     id: { type: DataTypes.UUID, primaryKey: true, defaultValue: DataTypes.UUIDV4 },
     tee_sheet_id: { type: DataTypes.UUID, allowNull: false },
+    name: { type: DataTypes.STRING(120), allowNull: false, defaultValue: 'Untitled Override' },
     status: { type: DataTypes.ENUM('draft', 'published'), allowNull: false, defaultValue: 'draft' },
     date: { type: DataTypes.DATEONLY, allowNull: false },
     published_version_id: { type: DataTypes.UUID },
+    draft_version_id: { type: DataTypes.UUID },
     created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },
     updated_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },
   }, { tableName: 'TeeSheetOverrides', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });
@@ -128,7 +130,8 @@ module.exports = (sequelize, DataTypes) => {
   const TeeSheetOverrideWindow = sequelize.define('TeeSheetOverrideWindow', {
     id: { type: DataTypes.UUID, primaryKey: true, defaultValue: DataTypes.UUIDV4 },
     override_version_id: { type: DataTypes.UUID, allowNull: false },
-    side_id: { type: DataTypes.UUID, allowNull: false },
+    // side_id removed; windows are side-agnostic
+    // position removed from model to allow DBs without this column
     start_mode: { type: DataTypes.ENUM('fixed', 'sunrise_offset'), allowNull: false, defaultValue: 'fixed' },
     end_mode: { type: DataTypes.ENUM('fixed', 'sunset_offset'), allowNull: false, defaultValue: 'fixed' },
     start_time_local: { type: DataTypes.STRING(8) },
@@ -214,6 +217,7 @@ module.exports = (sequelize, DataTypes) => {
   TeeSheetOverrideVersion.belongsTo(TeeSheetOverride, { foreignKey: 'override_id', as: 'override' });
   TeeSheetOverride.hasMany(TeeSheetOverrideVersion, { foreignKey: 'override_id', as: 'versions' });
   TeeSheetOverride.belongsTo(TeeSheetOverrideVersion, { foreignKey: 'published_version_id', as: 'published_version' });
+  TeeSheetOverride.belongsTo(TeeSheetOverrideVersion, { foreignKey: 'draft_version_id', as: 'draft_version' });
   TeeSheetOverride.addHook('beforeDestroy', async (instance, options) => {
     const count = await TeeSheetOverrideVersion.count({ where: { override_id: instance.id } });
     if (count > 0) {

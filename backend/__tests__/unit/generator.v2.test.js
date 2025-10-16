@@ -49,7 +49,7 @@ describe('generator v2', () => {
     tmpl.published_version_id = tv.id; tmpl.status = 'published'; await tmpl.save();
     const ov = await TeeSheetOverride.create({ tee_sheet_id: sheet.id, status: 'draft', date: '2025-08-15' });
     const ovv = await TeeSheetOverrideVersion.create({ override_id: ov.id });
-    await TeeSheetOverrideWindow.create({ override_version_id: ovv.id, side_id: side.id, start_mode: 'fixed', end_mode: 'fixed', start_time_local: '08:00:00', end_time_local: '09:00:00', template_version_id: tv.id });
+    await TeeSheetOverrideWindow.create({ override_version_id: ovv.id, start_mode: 'fixed', end_mode: 'fixed', start_time_local: '08:00:00', end_time_local: '09:00:00', template_version_id: tv.id });
     ov.published_version_id = ovv.id; ov.status = 'published'; await ov.save();
 
     const { generated } = await generateForDateV2({ teeSheetId: sheet.id, dateISO: '2025-08-15' });

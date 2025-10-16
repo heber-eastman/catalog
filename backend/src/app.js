@@ -107,6 +107,8 @@ app.use('/api/v1', waitlistRouter);
 app.use('/api/v1', bookingsRouter);
 app.use('/api/v1', teeTimesRouter);
 app.use('/', internalRouter);
+// Also expose internal routes under /api/v1 for axios baseURL compatibility
+app.use('/api/v1', internalRouter);
 
 // 404 handler
 app.use((req, res) => {

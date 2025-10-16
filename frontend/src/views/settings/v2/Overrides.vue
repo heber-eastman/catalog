@@ -1,56 +1,109 @@
 <template>
   <div class="pa-4" data-cy="overrides-v2">
-    <h2>Overrides (V2)</h2>
-    <div class="mb-4 row">
-      <button @click="backToCalendar" class="btn sm" data-cy="back-to-calendar" aria-label="Back to Calendar">Back to Calendar</button>
-      <button @click="createOverride" class="btn" data-cy="override-new-btn" :disabled="busy || !overrideDate" aria-label="Create override for selected date">New Override</button>
-      <label for="override-date">Date</label>
-      <input id="override-date" v-model="overrideDate" type="date" data-cy="override-date-input" />
-      <label class="ml-2" for="override-tmplver">Template Version</label>
-      <select id="override-tmplver" v-model="templateVersionId" data-cy="override-tmplver-select">
-        <option v-for="opt in templateVersionOptions" :key="opt.id" :value="opt.id">{{ opt.label }}</option>
-      </select>
+    <div class="toolbar">
+      <h2 class="title">Overrides (V2)</h2>
+      <div class="row">
+        <v-btn variant="text" class="create-btn" :disabled="busy" @click="createOverrideFromToolbar" data-cy="override-new-btn">Create new override</v-btn>
+      </div>
     </div>
+
     <div v-if="busy" class="muted" data-cy="overrides-loading">Loading…</div>
     <div v-else-if="!overrides.length" class="muted" data-cy="overrides-empty">No overrides yet</div>
-    <ul v-else>
-      <li v-for="o in overrides" :key="o.id" class="mb-2">
-        <div class="row">
-          <strong>{{ o.date }}</strong> — status: {{ o.status }}
-          <button @click="addVersion(o.id)" class="btn sm ml-2" :disabled="busy" :data-cy="`override-add-version-${o.id}`">Add Version</button>
-          <button @click="publish(o.id)" class="btn sm ml-2" :disabled="busy" :data-cy="`override-publish-${o.id}`">Publish</button>
-          <button @click="remove(o)" class="btn sm ml-2" :disabled="busy || o.status !== 'draft'" :data-cy="`override-delete-${o.id}`">Delete</button>
+
+    <div v-else class="cards">
+      <v-card
+        v-for="o in overrides"
+        :key="o.id"
+        variant="outlined"
+        class="override-card"
+        @click="openDetail(o)"
+        :data-cy="`override-card-${shortId(o.id)}`"
+      >
+        <div class="color-bar" />
+        <div class="override-card__body">
+          <div class="override-card__header">
+            <div class="override-card__title">{{ o.name || `Override ${shortId(o.id)}` }}</div>
+            <v-menu location="bottom end">
+              <template #activator="{ props }">
+                <v-btn v-bind="props" icon="mdi-dots-vertical" variant="text" density="comfortable" @click.stop></v-btn>
+              </template>
+              <v-list density="compact">
+                <v-list-item :data-cy="`override-menu-delete-${shortId(o.id)}`" @click.stop="remove(o)">
+                  <v-list-item-title>Delete</v-list-item-title>
+                </v-list-item>
+              </v-list>
+            </v-menu>
+          </div>
+          <div class="override-card__row">
+            <span class="pill" :class="{ archived: o.status !== 'draft' }">{{ o.status }}</span>
+            <span class="sep">•</span>
+            <span>Date: {{ o.date }}</span>
+          </div>
         </div>
-        <div class="row mt-2">
-          <label for="override-side">Side</label>
-          <select id="override-side" v-model="editor.sideId" data-cy="override-side-select">
-            <option v-for="s in sideOptions" :key="s.id" :value="s.id">{{ s.name }}</option>
-          </select>
-          <label class="ml-2" for="override-mode">Mode</label>
-          <select id="override-mode" v-model="editor.mode" data-cy="override-mode-select">
-            <option value="fixed">Fixed</option>
-            <option value="sunrise_sunset">Sunrise/Sunset</option>
-          </select>
-          <template v-if="editor.mode === 'fixed'">
-            <label for="override-start-time">Start time</label>
-            <input id="override-start-time" v-model="editor.startTime" type="time" data-cy="override-start-time" />
-            <label for="override-end-time">End time</label>
-            <input id="override-end-time" v-model="editor.endTime" type="time" data-cy="override-end-time" />
-          </template>
-          <template v-else>
-            <label for="override-start-offset">Start offset (mins)</label>
-            <input id="override-start-offset" v-model.number="editor.startOffset" type="number" data-cy="override-start-offset" />
-            <label for="override-end-offset">End offset (mins)</label>
-            <input id="override-end-offset" v-model.number="editor.endOffset" type="number" data-cy="override-end-offset" />
-          </template>
-          <label class="ml-2" for="override-editor-tmplver">Template Version</label>
-          <select id="override-editor-tmplver" v-model="templateVersionId" data-cy="override-editor-tmplver-select">
-            <option v-for="opt in templateVersionOptions" :key="opt.id" :value="opt.id">{{ opt.label }}</option>
-          </select>
-          <button class="btn sm ml-2" @click="saveWindow(o.id)" :disabled="busy || !templateVersionId || !editor.sideId || (editor.mode==='fixed' ? !editor.startTime || !editor.endTime : false)" :data-cy="`override-add-window-${o.id}`" aria-label="Add override window">Add Window</button>
+      </v-card>
+    </div>
+
+    <v-dialog v-model="detailOpen" max-width="1200">
+      <v-card>
+        <v-card-title class="text-subtitle-1">Override Settings</v-card-title>
+        <v-tabs v-model="activeTab" density="comfortable" class="mb-2">
+          <v-tab value="draft">Draft</v-tab>
+          <v-tab value="published">Published</v-tab>
+        </v-tabs>
+        <v-card-text>
+          <div class="section">
+            <div class="section__header">Override Details</div>
+            <div class="section__grid">
+              <div class="field w-420"><v-text-field v-model="overrideName" label="Name" variant="outlined" density="comfortable" hide-details /></div>
+              <div class="field w-420"><v-text-field v-model="overrideDate" type="date" label="Date" variant="outlined" density="comfortable" hide-details /></div>
+            </div>
+          </div>
+          <div class="section">
+            <div class="section__header schedule">Schedule</div>
+            <div class="weekday-col">
+              <div v-if="activeTab==='published' && !publishedWindows.length" class="muted">No published version yet.</div>
+              <!-- Windows editor rows -->
+              <div v-for="w in (activeTab==='draft' ? currentWindows : publishedWindows)" :key="w.id" class="window-grid win-row" :data-id="w.id">
+                <div class="field w-64">
+                  <v-select class="icon-select" :items="startModeItems" v-model="w.start_mode" :disabled="activeTab==='published'" item-title="title" item-value="value" variant="outlined" density="comfortable" hide-details>
+                    <template #selection="{ item }"><v-icon :icon="item?.raw?.icon" size="18" /></template>
+                    <template #item="{ props, item }"><v-list-item v-bind="props" density="compact"><template #prepend><v-icon :icon="item?.raw?.icon" size="18" /></template></v-list-item></template>
+                  </v-select>
+                </div>
+                <div class="field w-160">
+                  <v-text-field v-if="w.start_mode === 'sunrise_offset'" v-model.number="w.start_offset_mins" :disabled="activeTab==='published'" type="number" label="Offset (mins)" variant="outlined" density="comfortable" hide-details />
+                  <v-text-field v-else v-model="w.start_time_local" :disabled="activeTab==='published'" type="time" label="Start time" variant="outlined" density="comfortable" hide-details />
+                </div>
+                <div class="field w-64">
+                  <v-select class="icon-select" :items="endModeItems" v-model="w.end_mode" :disabled="activeTab==='published'" item-title="title" item-value="value" variant="outlined" density="comfortable" hide-details>
+                    <template #selection="{ item }"><v-icon :icon="item?.raw?.icon" size="18" /></template>
+                    <template #item="{ props, item }"><v-list-item v-bind="props" density="compact"><template #prepend><v-icon :icon="item?.raw?.icon" size="18" /></template></v-list-item></template>
+                  </v-select>
+                </div>
+                <div class="field w-160">
+                  <v-text-field v-if="w.end_mode === 'sunset_offset'" v-model.number="w.end_offset_mins" :disabled="activeTab==='published'" type="number" label="Offset (mins)" variant="outlined" density="comfortable" hide-details />
+                  <v-text-field v-else v-model="w.end_time_local" :disabled="activeTab==='published'" type="time" label="End time" variant="outlined" density="comfortable" hide-details />
+                </div>
+                <div class="field w-240">
+                  <v-select :items="templateVersionOptions" item-title="label" item-value="id" v-model="w.template_version_id" :disabled="activeTab==='published'" label="Template Version" variant="outlined" density="comfortable" hide-details />
+                </div>
+                <div class="actions">
+                  <v-btn v-if="activeTab==='draft'" icon="mdi-delete-outline" variant="text" @click="deleteWindow(w)" />
+                </div>
+              </div>
+              <div v-if="activeTab==='draft'" class="row"><v-btn variant="text" class="create-btn" prepend-icon="mdi-plus" :disabled="busy || !currentOverrideId" @click="addWindow(currentOverrideId)">Add window</v-btn></div>
+            </div>
         </div>
-      </li>
-    </ul>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="detailOpen=false">Close</v-btn>
+          <v-btn v-if="activeTab==='draft'" variant="text" :disabled="busy || !currentOverrideId" @click="saveAll(currentOverrideId)">Save</v-btn>
+          <v-btn v-if="activeTab==='draft'" variant="flat" color="primary" :disabled="busy || !currentOverrideId" data-cy="override-publish-btn" @click="publish(currentOverrideId)">Publish</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-snackbar v-model="showSnackbar" :color="snackbarColor" :timeout="2500">
       {{ snackbarMessage }}
       <template #actions>
@@ -62,27 +115,40 @@
 
 <script setup>
 import { onMounted, ref, inject, watch, reactive } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { settingsAPI } from '@/services/api';
 
 const route = useRoute();
-const router = useRouter();
 const overrides = ref([]);
 const busy = ref(false);
+const detailOpen = ref(false);
+const overrideName = ref('Untitled Override');
 const overrideDate = ref('');
-const templateVersionId = ref('');
+const initialOverrideDate = ref('');
+const dateDirty = ref(false);
+const currentOverrideId = ref('');
+
+// Editor state for single-date windows row (no weekday grouping)
+const editor = reactive({
+  startMode: 'sunrise_offset', endMode: 'sunset_offset', startTime: '07:00', endTime: '10:00', startOffset: 0, endOffset: -150,
+});
+const selectedTemplateVersionId = ref(''); // used when adding first window only
 const templateVersionOptions = ref([]);
-const sideOptions = ref([]);
-const editor = reactive({ sideId: '', mode: 'fixed', startTime: '07:00', endTime: '10:00', startOffset: 0, endOffset: 0 });
+const currentWindows = ref([]);
+const editingVersionId = ref('');
+// cache the most recently saved window per override id to reflect immediately without refresh
+const lastWindowFor = reactive({});
+
+// Toast state
 const showSnackbar = ref(false);
 const snackbarMessage = ref('');
 const snackbarColor = ref('success');
 
-function notify(message, color = 'success') {
-  snackbarMessage.value = message;
-  snackbarColor.value = color;
-  showSnackbar.value = true;
-}
+function notify(message, color = 'success') { snackbarMessage.value = message; snackbarColor.value = color; showSnackbar.value = true; }
+function shortId(id){ return (id || '').slice(0,6); }
+
+const startModeItems = [ { title: 'Sunrise', value: 'sunrise_offset', icon: 'mdi-weather-sunset-up' }, { title: 'Time', value: 'fixed', icon: 'mdi-clock-outline' } ];
+const endModeItems = [ { title: 'Sunset', value: 'sunset_offset', icon: 'mdi-weather-sunset-down' }, { title: 'Time', value: 'fixed', icon: 'mdi-clock-outline' } ];
 
 async function load() {
   try {
@@ -91,67 +157,13 @@ async function load() {
     if (!teeSheetId) { overrides.value = []; return; }
     const { data } = await settingsAPI.v2.listOverrides(teeSheetId);
     overrides.value = data || [];
-    // Fire-and-forget auxiliary loads so main list renders promptly in tests
-    loadTemplateVersions();
-    loadSides();
+    await loadTemplateVersions();
   } catch (e) {
     notify('Failed to load overrides', 'error');
   } finally {
     busy.value = false;
   }
 }
-
-async function createOverride() {
-  try {
-    const teeSheetId = route.params.teeSheetId;
-    const d = overrideDate.value;
-    if (!d) return;
-    await settingsAPI.v2.createOverride(teeSheetId, { date: d });
-    await load();
-    notify('Override created');
-  } catch (e) {
-    notify('Failed to create override', 'error');
-  }
-}
-
-async function addVersion(overrideId) {
-  try {
-    const teeSheetId = route.params.teeSheetId;
-    await settingsAPI.v2.createOverrideVersion(teeSheetId, overrideId, { notes: 'v1' });
-    await load();
-    notify('Override version created');
-  } catch (e) {
-    notify('Failed to add override version', 'error');
-  }
-}
-
-async function publish(overrideId) {
-  try {
-    const teeSheetId = route.params.teeSheetId;
-    await settingsAPI.v2.publishOverride(teeSheetId, overrideId, {});
-    await load();
-    notify('Override published');
-  } catch (e) {
-    notify('Failed to publish override', 'error');
-  }
-}
-
-async function remove(o) {
-  try {
-    const teeSheetId = route.params.teeSheetId;
-    await settingsAPI.v2.deleteOverride(teeSheetId, o.id);
-    await load();
-    notify('Override deleted');
-  } catch (e) {
-    notify(e?.response?.data?.error || 'Failed to delete override', 'error');
-  }
-}
-
-onMounted(load);
-
-// Sync calendar-selected date
-const selectedDate = inject('settings:selectedDate', ref(''));
-watch(selectedDate, (v) => { if (v) overrideDate.value = v; }, { immediate: true });
 
 async function loadTemplateVersions() {
   const teeSheetId = route.params.teeSheetId;
@@ -160,55 +172,394 @@ async function loadTemplateVersions() {
     const { data } = await settingsAPI.v2.listTemplates(teeSheetId);
     const opts = [];
     for (const t of data || []) {
+      const tmplName = t.name || 'Template';
       for (const v of (t.versions || [])) {
         const note = v.notes ? ` — ${v.notes}` : '';
-        const tmplShort = (t.id || '').slice(0, 6);
-        opts.push({ id: v.id, label: `Tmpl ${tmplShort} v${v.version_number}${note}` });
+        opts.push({ id: v.id, label: `${tmplName} v${v.version_number}${note}` });
       }
     }
     templateVersionOptions.value = opts;
-  } catch (_) {
-    templateVersionOptions.value = [];
+  } catch { templateVersionOptions.value = []; }
+}
+
+async function getDefaultTemplateVersionId() {
+  try {
+    const teeSheetId = route.params.teeSheetId;
+    const { data } = await settingsAPI.v2.listTemplates(teeSheetId);
+    const list = Array.isArray(data) ? data : [];
+    if (!list.length) return '';
+    const last = list[list.length - 1];
+    const pub = last.published_version?.id;
+    if (pub) return pub;
+    const versions = Array.isArray(last.versions) ? last.versions : [];
+    return versions.length ? versions[versions.length - 1].id : '';
+  } catch {
+    return '';
   }
 }
 
-async function loadSides() {
-  const teeSheetId = route.params.teeSheetId;
+async function syncFromLatest(overrideId){
   try {
-    const { data } = await settingsAPI.listSides(teeSheetId);
-    sideOptions.value = data || [];
-    if (sideOptions.value.length && !editor.sideId) editor.sideId = sideOptions.value[0].id;
-  } catch (_) {
-    sideOptions.value = [];
-  }
-}
-
-async function saveWindow(overrideId) {
-  const teeSheetId = route.params.teeSheetId;
-  if (!templateVersionId.value || !editor.sideId) { notify('Missing side or template', 'error'); return; }
-  // ensure there is a version to attach the window
-  const { data: ovv } = await settingsAPI.v2.createOverrideVersion(teeSheetId, overrideId, { notes: 'window' });
-  const body = editor.mode === 'fixed'
-    ? { side_id: editor.sideId, start_mode: 'fixed', end_mode: 'fixed', start_time_local: editor.startTime + ':00', end_time_local: editor.endTime + ':00', template_version_id: templateVersionId.value }
-    : { side_id: editor.sideId, start_mode: 'sunrise_offset', end_mode: 'sunset_offset', start_offset_mins: Number(editor.startOffset)||0, end_offset_mins: Number(editor.endOffset)||0, template_version_id: templateVersionId.value };
-  try {
-    await settingsAPI.v2.addOverrideWindow(teeSheetId, overrideId, ovv.id, body);
-    notify('Override window added');
-  } catch (e) {
-    notify('Failed to add override window', 'error');
-  }
-}
-
-function backToCalendar(){
-  try {
-    router.push({ name: 'SettingsTeeSheetsSides', params: { teeSheetId: route.params.teeSheetId } });
+    const teeSheetId = route.params.teeSheetId;
+    // Prefer windows from the current editing version (or draft)
+    let verId = editingVersionId.value;
+    if (!verId) {
+      try {
+        const { data: list } = await settingsAPI.v2.listOverrides(teeSheetId);
+        const ov = (list||[]).find(x=>x.id===overrideId);
+        verId = ov?.draft_version_id || '';
+      } catch {}
+    }
+    const wins = verId ? await settingsAPI.v2.listOverrideWindows(teeSheetId, overrideId, verId).then(r=>r.data).catch(()=>[]) : [];
+    if (Array.isArray(wins) && wins.length){
+      const w = wins[0];
+      const cached = lastWindowFor[overrideId];
+      const wTs = Date.parse(w.updated_at || w.created_at || '');
+      const cTs = Date.parse(cached?.updated_at || cached?.created_at || '');
+      const src = (!cached || isNaN(wTs) || isNaN(cTs) || wTs >= cTs) ? w : cached;
+      editor.startMode = src.start_mode || 'sunrise_offset';
+      editor.endMode = src.end_mode || 'sunset_offset';
+      editor.startTime = (src.start_time_local || '07:00:00').slice(0,5);
+      editor.endTime = (src.end_time_local || '10:00:00').slice(0,5);
+      editor.startOffset = typeof src.start_offset_mins === 'number' ? src.start_offset_mins : 0;
+      editor.endOffset = typeof src.end_offset_mins === 'number' ? src.end_offset_mins : -150;
+      selectedTemplateVersionId.value = src.template_version_id || selectedTemplateVersionId.value || '';
+      if (selectedTemplateVersionId.value && !(templateVersionOptions.value||[]).some(o => o.id === selectedTemplateVersionId.value)) {
+        await loadTemplateVersions();
+      }
+    }
   } catch {}
 }
+
+function canAddNewWindow(){
+  const isFixedOK = editor.startMode !== 'fixed' || !!editor.startTime;
+  const isEndOK = editor.endMode !== 'fixed' || !!editor.endTime;
+  return !!(selectedTemplateVersionId.value && isFixedOK && isEndOK);
+}
+
+function labelForTemplateVersion(id){
+  const found = (templateVersionOptions.value||[]).find(o=>o.id===id);
+  return found ? found.label : `Version ${(id||'').slice(0,8)}`;
+}
+
+const activeTab = ref('draft');
+const publishedWindows = ref([]);
+
+async function refreshWindows(overrideId){
+  try {
+    const teeSheetId = route.params.teeSheetId;
+    const overrides = await settingsAPI.v2.listOverrides(teeSheetId).then(r=>r.data).catch(()=>[]);
+    const ov = (overrides||[]).find(x=>x.id===overrideId) || {};
+    const draftId = ov.draft_version_id || '';
+    const pubId = ov.published_version_id || '';
+    // If override doesn't yet point draft_version_id but we have a working edit version, prefer that
+    const editId = editingVersionId.value || draftId;
+
+    const fetchOne = async (verId) => {
+      if (!verId) return [];
+      try {
+        const { data } = await settingsAPI.v2.listOverrideWindows(teeSheetId, overrideId, verId);
+        const arr = Array.isArray(data) ? data : [];
+        return arr.map(x => ({ ...x, __ver: verId }));
+      } catch { return []; }
+    };
+
+    const [draftList, pubList] = await Promise.all([fetchOne(editId), fetchOne(pubId)]);
+
+    currentWindows.value = draftList
+      .map(w => ({ ...w, start_time_local: (w.start_time_local || '07:00:00').slice(0,5), end_time_local: (w.end_time_local || '10:00:00').slice(0,5) }))
+      .sort((a,b) => String(a.start_time_local).localeCompare(String(b.start_time_local)) || String(a.created_at).localeCompare(String(b.created_at)));
+    publishedWindows.value = pubList
+      .map(w => ({ ...w, start_time_local: (w.start_time_local || '07:00:00').slice(0,5), end_time_local: (w.end_time_local || '10:00:00').slice(0,5) }))
+      .sort((a,b) => String(a.start_time_local).localeCompare(String(b.start_time_local)) || String(a.created_at).localeCompare(String(b.created_at)));
+  } catch {}
+}
+
+async function createOverrideFromToolbar(){
+  try {
+    const teeSheetId = route.params.teeSheetId;
+    const { data } = await settingsAPI.v2.createOverride(teeSheetId, { date: overrideDate.value });
+    currentOverrideId.value = data?.id || '';
+    overrideName.value = data?.name || 'Untitled Override';
+    initialOverrideDate.value = overrideDate.value;
+    detailOpen.value = true;
+    await load();
+    notify('Override created');
+  } catch (e) {
+    notify(e?.response?.data?.error || 'Failed to create override', 'error');
+  }
+}
+
+async function openDetail(o){
+  currentOverrideId.value = o?.id || '';
+  overrideName.value = o?.name || 'Untitled Override';
+  overrideDate.value = o?.date || overrideDate.value;
+  initialOverrideDate.value = overrideDate.value;
+  dateDirty.value = false;
+  detailOpen.value = true;
+  try {
+    const teeSheetId = route.params.teeSheetId;
+    if (!teeSheetId) return;
+
+    // Use remembered version if available
+    let rememberedVersionId = '';
+    try { rememberedVersionId = localStorage.getItem(`ov:lastVersion:${o.id}`) || ''; } catch {}
+
+    const { data: allOverrides } = await settingsAPI.v2.listOverrides(teeSheetId);
+    const fresh = (allOverrides || []).find(x => x.id === o.id) || {};
+    const draftId = fresh.draft_version_id || '';
+    const publishedId = fresh.published_version_id || '';
+
+    // Ensure we always edit a draft version; if none exists, materialize one using the draft-replace endpoint
+    // Prefer draft; ignore remembered if it points to published
+    let editVer = (rememberedVersionId && rememberedVersionId !== publishedId) ? rememberedVersionId : draftId;
+    if (!editVer) {
+      try {
+        const resp = await settingsAPI.v2.replaceOverrideDraft(teeSheetId, o.id, []); // creates draft if needed
+        editVer = resp?.data?.draft_version_id || '';
+        if (editVer) { try { localStorage.setItem(`ov:lastVersion:${o.id}`, editVer); } catch {} }
+      } catch {}
+    }
+    if (!editVer) {
+      // As a very last resort, fall back to published for read-only init
+      editVer = publishedId || '';
+    }
+    if (editVer) {
+      try {
+        const { data: wins } = await settingsAPI.v2.listOverrideWindows(teeSheetId, o.id, editVer);
+        const list = (Array.isArray(wins) ? wins : []).map(w => ({ ...w, __ver: editVer, start_time_local: (w.start_time_local || '07:00:00').slice(0,5), end_time_local: (w.end_time_local || '10:00:00').slice(0,5) }));
+        currentWindows.value = list;
+        editingVersionId.value = editVer;
+        const w = list[0];
+        if (w) {
+          editor.startMode = w.start_mode || 'sunrise_offset';
+          editor.endMode = w.end_mode || 'sunset_offset';
+          editor.startTime = w.start_time_local;
+          editor.endTime = w.end_time_local;
+          editor.startOffset = typeof w.start_offset_mins === 'number' ? w.start_offset_mins : 0;
+          editor.endOffset = typeof w.end_offset_mins === 'number' ? w.end_offset_mins : -150;
+          selectedTemplateVersionId.value = w.template_version_id || selectedTemplateVersionId.value || '';
+        }
+      } catch {}
+    }
+
+    // Load published windows (single call) for the Published tab
+    if (publishedId) {
+      try {
+        const { data: pubWins } = await settingsAPI.v2.listOverrideWindows(teeSheetId, o.id, publishedId);
+        publishedWindows.value = (Array.isArray(pubWins) ? pubWins : []).map(w => ({ ...w, __ver: publishedId, start_time_local: (w.start_time_local || '07:00:00').slice(0,5), end_time_local: (w.end_time_local || '10:00:00').slice(0,5) }))
+          .sort((a,b) => String(a.start_time_local).localeCompare(String(b.start_time_local)) || String(a.created_at).localeCompare(String(b.created_at)));
+      } catch {}
+    } else {
+      publishedWindows.value = [];
+    }
+
+    // Ensure template versions options include selected ID
+    if (selectedTemplateVersionId.value && !(templateVersionOptions.value||[]).some(o => o.id === selectedTemplateVersionId.value)) {
+      await loadTemplateVersions();
+      if (!(templateVersionOptions.value||[]).some(o => o.id === selectedTemplateVersionId.value)) {
+        templateVersionOptions.value = [{ id: selectedTemplateVersionId.value, label: `Version ${(selectedTemplateVersionId.value||'').slice(0,8)}` }, ...(templateVersionOptions.value||[])];
+      }
+    }
+    if (!selectedTemplateVersionId.value) {
+      selectedTemplateVersionId.value = await getDefaultTemplateVersionId();
+    }
+
+    // If there is a published version but the draft is empty, initialize draft by copying published windows (one-time)
+    if (publishedId && editVer && editVer !== publishedId && (!currentWindows.value || currentWindows.value.length === 0)) {
+      try {
+        const { data: pubWins } = await settingsAPI.v2.listOverrideWindows(teeSheetId, o.id, publishedId);
+        const windows = (Array.isArray(pubWins) ? pubWins : []).map(w => ({
+          start_mode: w.start_mode,
+          end_mode: w.end_mode,
+          start_time_local: w.start_time_local,
+          end_time_local: w.end_time_local,
+          start_offset_mins: w.start_offset_mins,
+          end_offset_mins: w.end_offset_mins,
+          template_version_id: w.template_version_id,
+        }));
+        if (windows.length) {
+          // Optimistically render draft windows immediately for UX
+          currentWindows.value = (pubWins || []).map(w => ({ ...w, __ver: editVer, start_time_local: (w.start_time_local||'07:00:00').slice(0,5), end_time_local: (w.end_time_local||'10:00:00').slice(0,5) }));
+          const { data: rep } = await settingsAPI.v2.replaceOverrideDraft(teeSheetId, o.id, windows);
+          editingVersionId.value = rep?.draft_version_id || editVer;
+          await refreshWindows(o.id);
+        }
+      } catch {}
+    }
+  } catch {}
+}
+
+async function saveAll(overrideId){
+  try {
+    busy.value = true;
+    const teeSheetId = route.params.teeSheetId;
+    // Update name/date
+    try {
+      const payload = { name: (overrideName.value||'').trim() || 'Untitled Override' };
+      // Only send date if user changed it intentionally
+      if (dateDirty.value && overrideDate.value) payload['date'] = overrideDate.value;
+      await settingsAPI.v2.updateOverride(teeSheetId, overrideId, payload);
+    } catch {}
+    // Update all existing windows in the editing version
+    if (editingVersionId.value) {
+      for (const w of (currentWindows.value || [])) {
+        const payload = (w.start_mode === 'fixed')
+          ? { start_mode: 'fixed', end_mode: 'fixed', start_time_local: (w.start_time_local || '07:00') + ':00', end_time_local: (w.end_time_local || '10:00') + ':00', start_offset_mins: null, end_offset_mins: null, template_version_id: w.template_version_id }
+          : { start_mode: 'sunrise_offset', end_mode: 'sunset_offset', start_time_local: null, end_time_local: null, start_offset_mins: Number(w.start_offset_mins)||0, end_offset_mins: Number(w.end_offset_mins)||0, template_version_id: w.template_version_id };
+        try { await settingsAPI.v2.updateOverrideWindow(teeSheetId, overrideId, editingVersionId.value, w.id, payload); } catch {}
+      }
+    }
+    // Refresh list silently
+    void refreshWindows(overrideId);
+    notify('Override saved');
+  } catch (e) {
+    notify('Failed to save override', 'error');
+  } finally { busy.value = false; }
+}
+
+// Side-agnostic windows: no side selection required
+
+// Add a new window based on current editor values (creates a fresh version and adds a window for all sides)
+async function addWindow(overrideId){
+  try {
+    if (!canAddNewWindow() && !editingVersionId.value) return;
+    busy.value = true;
+    const teeSheetId = route.params.teeSheetId;
+    // Ensure we have a template version id to attach to the new window
+    if (!selectedTemplateVersionId.value) {
+      selectedTemplateVersionId.value = currentWindows.value[0]?.template_version_id || await getDefaultTemplateVersionId();
+    }
+    if (!selectedTemplateVersionId.value) { notify('Create a template version first', 'error'); return; }
+    // Ensure we have an editing version; if none, create one now
+    if (!editingVersionId.value || editingVersionId.value === publishedId) {
+      const { data: ver } = await settingsAPI.v2.createOverrideVersion(teeSheetId, overrideId, { notes: 'edit' });
+      editingVersionId.value = ver.id;
+      try { localStorage.setItem(`ov:lastVersion:${overrideId}`, ver.id); } catch {}
+    }
+    // Defaults for a new row: use current editor fields
+    const tvId = selectedTemplateVersionId.value;
+    const base = editor.startMode === 'fixed'
+      ? { start_mode: 'fixed', end_mode: 'fixed', start_time_local: (editor.startTime || '07:00') + ':00', end_time_local: (editor.endTime || '10:00') + ':00', start_offset_mins: null, end_offset_mins: null, template_version_id: tvId }
+      : { start_mode: 'sunrise_offset', end_mode: 'sunset_offset', start_time_local: null, end_time_local: null, start_offset_mins: Number(editor.startOffset)||0, end_offset_mins: Number(editor.endOffset)||0, template_version_id: tvId };
+
+    const { data: created } = await settingsAPI.v2.addOverrideWindow(teeSheetId, overrideId, editingVersionId.value, base);
+    if (created) {
+      lastWindowFor[overrideId] = created;
+      // Ensure we are editing the version we just appended to
+      if (!editingVersionId.value) editingVersionId.value = created.override_version_id;
+      await refreshWindows(overrideId);
+    }
+    notify('Window added');
+  } catch (e) {
+    notify('Failed to add window', 'error');
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function publish(overrideId){
+  try {
+    const teeSheetId = route.params.teeSheetId;
+    // Publish the exact version we most recently edited if available; else fall back to API latest
+    let versionId = '';
+    try { versionId = localStorage.getItem(`ov:lastVersion:${overrideId}`) || ''; } catch {}
+    if (!versionId) {
+      try {
+        const wins = await settingsAPI.v2.listOverrideWindowsLatest(teeSheetId, overrideId).then(r=>r.data);
+        if (Array.isArray(wins) && wins.length) versionId = wins[0].override_version_id;
+      } catch {}
+    }
+    if (!versionId) {
+      // No windows yet: create a version and minimal window from current editor values
+      const { data: ver } = await settingsAPI.v2.createOverrideVersion(teeSheetId, overrideId, { notes: 'publish' });
+      const payload = editor.startMode === 'fixed'
+        ? { start_mode: 'fixed', end_mode: 'fixed', start_time_local: (editor.startTime || '07:00') + ':00', end_time_local: (editor.endTime || '10:00') + ':00', start_offset_mins: null, end_offset_mins: null, template_version_id: selectedTemplateVersionId.value }
+        : { start_mode: 'sunrise_offset', end_mode: 'sunset_offset', start_time_local: null, end_time_local: null, start_offset_mins: Number(editor.startOffset)||0, end_offset_mins: Number(editor.endOffset)||0, template_version_id: selectedTemplateVersionId.value };
+      await settingsAPI.v2.addOverrideWindow(teeSheetId, overrideId, ver.id, payload);
+      versionId = ver.id;
+      // Refresh draft list immediately so UI reflects the newly created window
+      editingVersionId.value = versionId;
+      await refreshWindows(overrideId);
+    }
+    await settingsAPI.v2.publishOverride(teeSheetId, overrideId, { version_id: versionId, apply_now: false });
+    // Automatically regenerate slots for the override date
+    try { await settingsAPI.v2.regenerateDate(teeSheetId, overrideDate.value); } catch {}
+    // Refresh detail state so Published tab reflects the newly published windows
+    await refreshWindows(overrideId);
+    // Switch to Published tab to show the result immediately
+    activeTab.value = 'published';
+    // Also refresh the list in the background
+    void load();
+    notify('Override published and regeneration queued');
+  } catch (e) { notify('Failed to publish override', 'error'); }
+}
+
+async function remove(o){
+  try { const teeSheetId = route.params.teeSheetId; await settingsAPI.v2.deleteOverride(teeSheetId, o.id); await load(); notify('Override deleted'); }
+  catch (e) { notify(e?.response?.data?.error || 'Failed to delete override', 'error'); }
+}
+
+
+async function deleteWindow(win){
+  try {
+    const teeSheetId = route.params.teeSheetId;
+    const overrideId = currentOverrideId.value;
+    const verId = win.__ver || editingVersionId.value;
+    if (!verId) return;
+    await settingsAPI.v2.deleteOverrideWindow(teeSheetId, overrideId, verId, win.id);
+    await refreshWindows(overrideId);
+  } catch {}
+}
+
+onMounted(load);
+
+// Default the date from calendar-selected value if present
+const selectedDate = inject('settings:selectedDate', ref(''));
+watch(selectedDate, (v) => {
+  if (!v) return;
+  // Prefill only if the override was just created and date not yet set, but do not overwrite existing override date
+  if (!initialOverrideDate.value) {
+    overrideDate.value = v;
+    initialOverrideDate.value = v;
+    dateDirty.value = false;
+  }
+}, { immediate: true });
+
+// Track manual date edits
+watch(overrideDate, (v) => {
+  if (!initialOverrideDate.value) return;
+  dateDirty.value = v !== initialOverrideDate.value;
+});
 </script>
 
 <style scoped>
-.btn { padding: 6px 10px; border: 1px solid #ccc; border-radius: 6px; }
+.toolbar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.title{ font-weight:800; font-size:28px; }
+.create-btn{ color:#5EE3BB; font-weight:600; letter-spacing:0.04em; }
+.muted{ color:#6b778c; }
+.cards{ display:flex; flex-direction:column; gap:12px; }
+.override-card{ padding:10px 12px; cursor:pointer; width:100%; display:flex; align-items:stretch; }
+.override-card__header{ display:flex; align-items:center; justify-content:space-between; }
+.override-card__title{ font-weight:700; font-size:18px; }
+.override-card__row{ color:#6b778c; margin-top:6px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.color-bar{ width:6px; background:#9be7a8; border-radius:4px; margin-right:10px; }
+.pill{ background:#eef7ff; border-radius:10px; padding:2px 8px; font-size:12px; }
+.pill.archived{ background:#fdecea; color:#b71c1c; }
+.sep{ margin:0 6px; color:#9aa0a6; }
 .row { display: flex; align-items: center; gap: 8px; }
+.section{ margin-top:16px; }
+.section__header{ font-weight:700; font-size:14px; color:#2b2f36; margin-bottom:10px; letter-spacing:0.02em; }
+.section__header.schedule{ font-weight:600; font-size:13px; color:#2b2f36; text-transform:none; letter-spacing:0.02em; }
+.section__grid{ display:grid; column-gap:16px; row-gap:16px; }
+.weekday-col{ display:flex; flex-direction:column; gap:10px; }
+.window-grid{ display:grid; grid-template-columns: 64px 160px 64px 160px 240px 44px; gap:12px; align-items:center; }
+.win-row{ padding:4px 0; }
+.mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:12px; }
+.ellipsis{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.icon-select :deep(.v-field__input){ padding-right:36px; padding-top:6px; padding-bottom:6px; }
+.icon-select :deep(.v-field){ margin:0; }
 </style>
+
 
 
