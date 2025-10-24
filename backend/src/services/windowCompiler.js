@@ -3,13 +3,36 @@
 const { DateTime } = require('luxon');
 const { getSunTimes } = require('./solar');
 const { courseTz } = require('../lib/time');
-const { GolfCourseInstance, TeeSheet, TeeSheetTemplateVersion, TeeSheetTemplateSide } = require('../models');
+const { GolfCourseInstance, TeeSheet, TeeSheetTemplateVersion, TeeSheetTemplateSide, TeeSheetSide } = require('../models');
 
 function clampToDay({ start, end }) {
   const startClamped = start < start.startOf('day') ? start.startOf('day') : start;
   const endOfDay = end.startOf('day').plus({ days: 1 });
   const endClamped = end > endOfDay ? endOfDay : end;
   return { start: startClamped, end: endClamped };
+}
+
+function parseClock({ dateLocal, clock, zone }) {
+  if (!clock || typeof clock !== 'string') return null;
+  const candidates = [
+    'HH:mm:ss', 'HH:mm', 'H:mm', 'h:mm a', 'hh:mm a', 'h a', 'hh a'
+  ];
+  for (const fmt of candidates) {
+    const dt = DateTime.fromFormat(clock.trim(), fmt, { zone });
+    if (dt.isValid) {
+      return DateTime.fromObject({
+        year: dateLocal.year, month: dateLocal.month, day: dateLocal.day,
+        hour: dt.hour, minute: dt.minute, second: dt.second || 0,
+      }, { zone });
+    }
+  }
+  // Fallback: tolerate values like "05:15 PM" with uppercase or extra spaces
+  const cleaned = clock.trim().replace(/\s+/g, ' ').toUpperCase();
+  const dt2 = DateTime.fromFormat(cleaned, 'h:mm A', { zone });
+  if (dt2.isValid) {
+    return DateTime.fromObject({ year: dateLocal.year, month: dateLocal.month, day: dateLocal.day, hour: dt2.hour, minute: dt2.minute, second: dt2.second || 0 }, { zone });
+  }
+  return null;
 }
 
 async function compileWindowsForDate({ teeSheetId, dateISO, sourceType, sourceId, windows }) {
@@ -32,14 +55,14 @@ async function compileWindowsForDate({ teeSheetId, dateISO, sourceType, sourceId
     let startLocal;
     let endLocal;
     if (w.start_mode === 'fixed') {
-      const [h, m = '0', s = '0'] = (w.start_time_local || '00:00:00').split(':');
-      startLocal = DateTime.fromObject({ year: dateLocal.year, month: dateLocal.month, day: dateLocal.day, hour: Number(h), minute: Number(m), second: Number(s) }, { zone });
+      startLocal = parseClock({ dateLocal, clock: w.start_time_local || '00:00:00', zone });
+      if (!startLocal || !startLocal.isValid) continue;
     } else {
       startLocal = sunrise.plus({ minutes: Number(w.start_offset_mins || 0) });
     }
     if (w.end_mode === 'fixed') {
-      const [h, m = '0', s = '0'] = (w.end_time_local || '23:59:59').split(':');
-      endLocal = DateTime.fromObject({ year: dateLocal.year, month: dateLocal.month, day: dateLocal.day, hour: Number(h), minute: Number(m), second: Number(s) }, { zone });
+      endLocal = parseClock({ dateLocal, clock: w.end_time_local || '23:59:59', zone });
+      if (!endLocal || !endLocal.isValid) continue;
     } else {
       endLocal = sunset.plus({ minutes: Number(w.end_offset_mins || 0) });
     }
@@ -63,7 +86,15 @@ async function compileWindowsForDate({ teeSheetId, dateISO, sourceType, sourceId
     if (w.side_id) {
       sides = [{ side_id: w.side_id, start_slots_enabled: true }];
     } else {
-      sides = await TeeSheetTemplateSide.findAll({ where: { version_id: tvId } });
+      // Prefer explicit side mappings for the template version
+      const mapped = await TeeSheetTemplateSide.findAll({ where: { version_id: tvId } });
+      if (mapped && mapped.length) {
+        sides = mapped;
+      } else {
+        // Fallback: when a version has no side mappings yet, fan out to all sides on the sheet
+        const allSides = await TeeSheetSide.findAll({ where: { tee_sheet_id: teeSheetId } });
+        sides = allSides.map(s => ({ side_id: s.id, start_slots_enabled: true }));
+      }
     }
 
     for (const s of sides) {

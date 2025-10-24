@@ -7,7 +7,7 @@
           <div class="d-flex ga-2">
             <v-btn
               color="success"
-              prepend-icon="mdi-file-import"
+              prepend-icon="'fa:fal fa-file-import'"
               @click="showImportDialog = true"
               data-cy="import-customers-btn"
             >
@@ -15,7 +15,7 @@
             </v-btn>
             <v-btn
               color="info"
-              prepend-icon="mdi-file-export"
+              prepend-icon="'fa:fal fa-file-export'"
               @click="showExportDialog = true"
               data-cy="export-customers-btn"
             >
@@ -23,7 +23,7 @@
             </v-btn>
             <v-btn
               color="primary"
-              prepend-icon="mdi-plus"
+              prepend-icon="'fa:fal fa-plus'"
               @click="showCreateDialog = true"
               data-cy="add-customer-btn"
             >
@@ -39,7 +39,7 @@
       <v-col cols="12" md="4">
         <v-text-field
           v-model="search"
-          prepend-inner-icon="mdi-magnify"
+          prepend-inner-icon="fa:fal fa-magnifying-glass"
           label="Search customers..."
           single-line
           hide-details
@@ -72,7 +72,7 @@
       <v-col cols="12" md="2">
         <v-btn
           variant="outlined"
-          prepend-icon="mdi-filter-off"
+          prepend-icon="'fa:fal fa-filter-circle-xmark'"
           @click="clearFilters"
           data-cy="clear-filters-btn"
         >
@@ -96,7 +96,7 @@
                 size="small"
                 color="error"
                 variant="outlined"
-                prepend-icon="mdi-delete"
+                prepend-icon="'fa:fal fa-trash-can'"
                 @click="showBulkDeleteDialog = true"
                 data-cy="bulk-delete-btn"
               >
@@ -135,7 +135,7 @@
                 <td>
                   <div class="d-flex align-center">
                     <v-avatar size="32" class="mr-2" color="primary">
-                      <v-icon icon="mdi-account" />
+                      <v-icon icon="fa:fal fa-user" />
                     </v-avatar>
                     <div>
                       <div class="font-weight-medium">{{ item.full_name }}</div>
@@ -163,7 +163,7 @@
             <template #no-data>
               <div class="text-center pa-6">
                 <v-icon
-                  icon="mdi-account-group"
+                  icon="fa:fal fa-users"
                   size="64"
                   class="mb-2 text-medium-emphasis"
                 />
@@ -288,7 +288,7 @@
             v-model="importFile"
             label="Select CSV file"
             accept=".csv"
-            prepend-icon="mdi-file-delimited"
+            prepend-icon="'fa:fal fa-file-csv'"
             show-size
             data-cy="import-file-input"
           />
@@ -396,7 +396,7 @@
     <v-snackbar v-model="showSnackbar" :color="snackbarColor" timeout="4000">
       {{ snackbarMessage }}
       <template #actions>
-        <v-btn @click="showSnackbar = false" icon="mdi-close" />
+        <v-btn @click="showSnackbar = false" icon="fa:fal fa-xmark" />
       </template>
     </v-snackbar>
   </v-container>

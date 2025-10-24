@@ -275,6 +275,8 @@ export const bookingsAPI = {
     const key = idempotencyKey || `web-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     return api.post('/bookings', body, { headers: { 'Idempotency-Key': key } });
   },
+  update: (id, body) => api.patch(`/bookings/${id}`, body),
+  editPlayers: (id, body) => api.patch(`/bookings/${id}/players`, body),
   reschedule: (id, body) => api.patch(`/bookings/${id}/reschedule`, body),
   cancel: id => api.delete(`/bookings/${id}`),
   mine: () => api.get('/bookings/mine'),

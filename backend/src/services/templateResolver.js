@@ -41,16 +41,24 @@ async function resolveEffectiveWindows({ teeSheetId, dateISO }) {
       where: { override_version_id: override.published_version_id },
       order: [['start_time_local', 'ASC'], ['created_at', 'ASC']],
     });
-    return { source: 'override', windows };
+    // Only use override if it actually defines windows; otherwise fall back to season
+    if (windows && windows.length) {
+      return { source: 'override', windows };
+    }
   }
 
-  // 2) Published season: use its published_version_id only and verify date coverage
-  const season = await TeeSheetSeason.findOne({ where: { tee_sheet_id: teeSheetId, status: 'published' } });
-  if (season && season.published_version_id) {
-    const seasonVersion = await TeeSheetSeasonVersion.findByPk(season.published_version_id);
-    if (seasonVersion && seasonVersion.start_date <= dateLocal.toISODate() && seasonVersion.end_date_exclusive > dateLocal.toISODate()) {
+  // 2) Published season covering the date (consider ALL published seasons)
+  const seasons = await TeeSheetSeason.findAll({ where: { tee_sheet_id: teeSheetId, status: 'published' }, order: [['created_at', 'ASC']] });
+  for (const s of seasons) {
+    if (!s.published_version_id) continue;
+    const seasonVersion = await TeeSheetSeasonVersion.findByPk(s.published_version_id);
+    if (!seasonVersion) continue;
+    const dayIso = dateLocal.toISODate();
+    if (seasonVersion.start_date <= dayIso && seasonVersion.end_date_exclusive > dayIso) {
+      // Support legacy datasets where Sunday was stored as 7 instead of 0
+      const wdWhere = (weekday === 0) ? { [Op.in]: [0, 7] } : weekday;
       const windows = await TeeSheetSeasonWeekdayWindow.findAll({
-        where: { season_version_id: seasonVersion.id, weekday },
+        where: { season_version_id: seasonVersion.id, weekday: wdWhere },
         order: [['position', 'ASC']],
       });
       return { source: 'season', windows };

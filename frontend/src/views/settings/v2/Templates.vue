@@ -1,7 +1,7 @@
 <template>
   <div class="pa-4" data-cy="templates-v2">
     <div class="toolbar">
-      <h2 class="title">Templates (V2)</h2>
+      <h2 class="title">Templates</h2>
       <v-btn variant="text" class="create-btn" :disabled="busy" @click="createTemplate" data-cy="template-create-btn">Create new template</v-btn>
     </div>
 
@@ -19,16 +19,18 @@
       >
         <div class="tpl-card__header">
           <div class="tpl-card__title">{{ t.name || 'Untitled Template' }}</div>
-          <v-menu location="bottom end">
-            <template #activator="{ props }">
-              <v-btn v-bind="props" icon="mdi-dots-vertical" variant="text" density="comfortable" @click.stop></v-btn>
-            </template>
-            <v-list density="compact">
-              <v-list-item :data-cy="`template-menu-delete-${shortId(t.id)}`" @click.stop="remove(t)">
-                <v-list-item-title>Delete</v-list-item-title>
-              </v-list-item>
-            </v-list>
-          </v-menu>
+          <div class="card-menu">
+            <v-menu location="bottom end">
+              <template #activator="{ props }">
+                <v-btn v-bind="props" icon="fa:fal fa-ellipsis-vertical" variant="text" density="comfortable" @click.stop></v-btn>
+              </template>
+              <v-list density="compact">
+                <v-list-item :data-cy="`template-menu-delete-${shortId(t.id)}`" @click.stop="remove(t)">
+                  <v-list-item-title>Delete</v-list-item-title>
+                </v-list-item>
+              </v-list>
+            </v-menu>
+          </div>
         </div>
         <div class="tpl-card__row">
           <span class="pill" :class="{ archived: t.archived }">{{ t.archived ? 'Archived' : 'Active' }}</span>
@@ -512,7 +514,8 @@ onMounted(load);
 .create-btn{ color:#5EE3BB; font-weight:600; letter-spacing:0.04em; }
 .muted{ color:#6b778c; }
 .cards{ display:flex; flex-direction:column; gap:12px; }
-.tpl-card{ padding:10px 12px; cursor:pointer; width:100%; }
+.tpl-card{ padding:10px 12px; cursor:pointer; width:100%; position:relative; border:1px solid #e5e7eb; border-radius:8px; }
+.card-menu{ position:absolute; right:12px; top:10px; }
 .tpl-card__header{ display:flex; align-items:center; justify-content:space-between; }
 .tpl-card__title{ font-weight:700; font-size:18px; }
 .tpl-card__row{ color:#6b778c; margin-top:6px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
@@ -537,7 +540,7 @@ onMounted(load);
 .ver-row{ padding:6px 8px; border:1px solid #eee; border-radius:6px; }
 .side-list{ display:flex; flex-direction:column; gap:16px; }
 .side-columns{ display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:16px; }
-.side-block{ border:1px solid #eee; border-radius:8px; padding:12px; }
+.side-block{ border:1px solid #e5e7eb; border-radius:8px; padding:12px; }
 .side-block__header{ font-weight:700; margin-bottom:8px; }
 .online-multi{ display:flex; flex-wrap:wrap; gap:8px; }
 .side-fields{ display:flex; flex-direction:column; gap:12px; }

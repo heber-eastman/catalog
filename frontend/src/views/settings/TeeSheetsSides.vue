@@ -118,7 +118,7 @@ async function save(sd){
 .sides-toolbar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
 .add-side-btn{ color:#5EE3BB; font-weight:600; letter-spacing:0.04em; }
 .sides-list{ display:flex; flex-direction:column; gap:16px; }
-.side-card{ padding:8px 12px; }
+.side-card{ padding:8px 12px; border:1px solid #e5e7eb !important; border-radius:8px; }
 .side-card__header{ display:flex; align-items:center; justify-content:space-between; padding:16px 8px 8px; }
 .side-card__title{ font-weight:800; font-size:24px; color:#333333; }
 .side-card__actions{ display:flex; align-items:center; gap:8px; }

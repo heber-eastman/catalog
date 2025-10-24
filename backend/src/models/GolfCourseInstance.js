@@ -56,6 +56,10 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         field: 'updated_at',
       },
+      // Optional geo/timezone fields (added via migration 20250625010000)
+      timezone: { type: DataTypes.STRING, allowNull: true },
+      latitude: { type: DataTypes.DECIMAL(9,6), allowNull: true },
+      longitude: { type: DataTypes.DECIMAL(9,6), allowNull: true },
     },
     {
       tableName: 'GolfCourseInstances',

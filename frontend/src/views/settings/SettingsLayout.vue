@@ -7,7 +7,7 @@
             <v-list-item
               v-bind="props"
               :to="{ name: 'SettingsGeneral' }"
-              :prepend-icon="'mdi-cog'"
+              :prepend-icon="'fa:fal fa-gear'"
               class="narrow-nav-item"
               data-cy="subnav-general"
             />
@@ -18,7 +18,7 @@
             <v-list-item
               v-bind="props"
               :to="teeSheetNavTo"
-              :prepend-icon="'mdi-calendar'"
+              :prepend-icon="'fa:fal fa-calendar'"
               :class="['narrow-nav-item', { 'v-list-item--active': isTeeSheet }]"
               data-cy="subnav-tee-sheet-settings"
             />
@@ -41,27 +41,36 @@
             <div class="cal-grid" role="grid" aria-label="Tee sheet calendar">
               <div class="dow" v-for="d in dows" :key="d">{{ d }}</div>
               <div class="day" v-for="n in leadingBlanks" :key="'b'+n"></div>
-              <button
-                class="day"
+              <v-tooltip
                 v-for="d in daysInMonth"
                 :key="'d'+d"
-                :class="[ isSelected(d) ? 'selected' : '', hasOverride(d) ? 'ov-day' : (hasSeason(d) ? 'sea-day' : '') ]"
-                :aria-label="ariaFor(d)"
-                @click="selectDay(d)"
-                data-cy="cal-day"
+                location="top"
+                :text="tooltipFor(d)"
               >
-                {{ d }}
-              </button>
+                <template #activator="{ props }">
+                  <button
+                    class="day"
+                    v-bind="props"
+                    :class="[ isSelected(d) ? 'selected' : '', hasOverride(d) ? 'ov-day' : (hasSeason(d) ? 'sea-day' : '') ]"
+                    :style="styleForDay(d)"
+                    :aria-label="ariaFor(d)"
+                    @click="selectDay(d); openDetailForDate(d)"
+                    data-cy="cal-day"
+                  >
+                    {{ d }}
+                  </button>
+                </template>
+              </v-tooltip>
             </div>
             
           </div>
           
         </div>
-        <router-link :to="{ name: 'SettingsV2GeneralInfo', params:{ teeSheetId } }" data-cy="subnav-general-info"><i class="mdi mdi-information-outline nav-ico"></i><span>General Info</span></router-link>
-        <router-link :to="{ name: 'SettingsTeeSheetsSides', params:{ teeSheetId } }" data-cy="subnav-sides"><i class="mdi mdi-table-large nav-ico"></i><span>Sides</span></router-link>
-        <router-link :to="{ name: 'SettingsV2Seasons', params:{ teeSheetId } }" data-cy="subnav-seasons"><i class="mdi mdi-calendar-range nav-ico"></i><span>Seasons</span></router-link>
-        <router-link :to="{ name: 'SettingsV2Templates', params:{ teeSheetId } }" data-cy="subnav-templates"><i class="mdi mdi-shape-outline nav-ico"></i><span>Templates</span></router-link>
-        <router-link :to="{ name: 'SettingsV2Overrides', params:{ teeSheetId } }" data-cy="subnav-overrides"><i class="mdi mdi-tune nav-ico"></i><span>Overrides</span></router-link>
+        <router-link :to="{ name: 'SettingsV2GeneralInfo', params:{ teeSheetId } }" data-cy="subnav-general-info"><i class="fa-light fa-circle-info nav-ico"></i><span>General Info</span></router-link>
+        <router-link :to="{ name: 'SettingsTeeSheetsSides', params:{ teeSheetId } }" data-cy="subnav-sides"><i class="fa-light fa-table-cells-large nav-ico"></i><span>Sides</span></router-link>
+        <router-link :to="{ name: 'SettingsV2Seasons', params:{ teeSheetId } }" data-cy="subnav-seasons"><i class="fa-light fa-calendar-days nav-ico"></i><span>Seasons</span></router-link>
+        <router-link :to="{ name: 'SettingsV2Templates', params:{ teeSheetId } }" data-cy="subnav-templates"><i class="fa-light fa-shapes nav-ico"></i><span>Templates</span></router-link>
+        <router-link :to="{ name: 'SettingsV2Overrides', params:{ teeSheetId } }" data-cy="subnav-overrides"><i class="fa-light fa-sliders nav-ico"></i><span>Overrides</span></router-link>
     </aside>
     <main class="content">
       <router-view />
@@ -70,7 +79,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, provide } from 'vue';
+import { ref, computed, onMounted, watch, provide, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { settingsAPI, teeTimesAPI } from '@/services/api';
 const route = useRoute();
@@ -114,6 +123,10 @@ const daysInMonth = computed(()=> new Date(current.value.getFullYear(), current.
 const selectedDay = ref(null);
 const overrideDates = ref(new Set());
 const seasonDates = ref(new Set());
+const dateToOverride = ref({}); // { iso: { id, name } }
+const dateToSeasons = ref({}); // { iso: [{ id, name }] }
+const seasonDateToColor = ref({}); // { 'YYYY-MM-DD': '#hex' } - optional tint for seasons
+const overrideDateToColor = ref({}); // { 'YYYY-MM-DD': '#hex' }
 const previewLoading = ref(false);
 const previewError = ref('');
 const previewSlots = ref([]);
@@ -148,6 +161,30 @@ function selectDay(d){
 }
 function isSelected(d){
   return selectedDay.value === d;
+}
+function textColorOn(bg){
+  try {
+    const hex = (bg||'').replace('#','');
+    const r = parseInt(hex.substring(0,2),16), g = parseInt(hex.substring(2,4),16), b = parseInt(hex.substring(4,6),16);
+    const yiq = (r*299 + g*587 + b*114)/1000;
+    return yiq >= 128 ? '#1b1b1b' : '#ffffff';
+  } catch { return '#1b1b1b'; }
+}
+function styleForDay(d){
+  const iso = isoForDay(d);
+  const color = overrideDateToColor.value[iso] || seasonDateToColor.value[iso];
+  if (color) return { background: color, color: textColorOn(color) };
+  return {};
+}
+
+function tooltipFor(d){
+  const iso = isoForDay(d);
+  const parts = [];
+  const ov = dateToOverride.value[iso];
+  if (ov) parts.push(`Override: ${ov.name || 'Untitled Override'}`);
+  const seas = dateToSeasons.value[iso] || [];
+  if (seas.length) parts.push(`Season: ${seas.map(s=>s.name || 'Season').join(', ')}`);
+  return parts.join(' \u2022 ');
 }
 
 function pad(n){ return n < 10 ? `0${n}` : String(n); }
@@ -220,6 +257,8 @@ function hasSeason(d){ return seasonDates.value.has(isoForDay(d)); }
 async function loadCalendarFlags(){
   seasonDates.value = new Set();
   overrideDates.value = new Set();
+  dateToOverride.value = {};
+  dateToSeasons.value = {};
   if (!teeSheetId.value) return;
   try {
     const [ovRes, seaRes] = await Promise.all([
@@ -231,30 +270,88 @@ async function loadCalendarFlags(){
     const startOfMonth = new Date(y, m, 1);
     const endOfMonth = new Date(y, m + 1, 0);
     // Overrides: direct dates
+    overrideDateToColor.value = {};
     (ovRes.data || []).forEach(o => {
       if (!o?.date) return;
+      if (o?.status && o.status !== 'published') return; // only published overrides mark the calendar
       const od = new Date(o.date + 'T00:00:00');
       if (od >= startOfMonth && od <= endOfMonth) {
         overrideDates.value.add(o.date);
+        dateToOverride.value[o.date] = { id: o.id, name: o.name };
+        // prefer API color, else fallback to stored color
+        const apiColor = (typeof o.color === 'string' && /^#?[0-9a-fA-F]{3,8}$/.test(o.color)) ? (o.color.startsWith('#') ? o.color : `#${o.color}`) : '';
+        if (apiColor) {
+          overrideDateToColor.value[o.date] = apiColor;
+        } else {
+          try {
+            const k = `override:color:${o.id}`;
+            const c = localStorage.getItem(k);
+            if (c) overrideDateToColor.value[o.date] = c;
+          } catch {}
+        }
       }
     });
     // Seasons: use published_version or latest version range
+    seasonDateToColor.value = {};
     (seaRes.data || []).forEach(s => {
       const pv = s.published_version || (s.versions && s.versions[s.versions.length - 1]);
       if (!pv?.start_date || !pv?.end_date_exclusive) return;
       const sd = new Date(pv.start_date + 'T00:00:00');
-      const ed = new Date(pv.end_date_exclusive + 'T00:00:00');
+      // Treat end as inclusive for display: include last day (subtract 1 day from exclusive)
+      const edExc = new Date(pv.end_date_exclusive + 'T00:00:00');
+      const ed = new Date(edExc.getFullYear(), edExc.getMonth(), edExc.getDate());
+      ed.setDate(ed.getDate() - 1);
+      // prefer API color; fallback to stored hex; then deterministic HSL
+      let col = (typeof s.color === 'string' && s.color) ? s.color : '';
+      if (!col) {
+        try {
+          const k = `season:color:${s.id}`;
+          const v = localStorage.getItem(k) || '';
+          col = /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/.test(v) ? v : '';
+        } catch { col = ''; }
+      }
+      if (!col) {
+        // Deterministic fallback to keep season colors distinct across reloads
+        try {
+          const str = String(s.id || '');
+          let hash = 0;
+          for (let i = 0; i < str.length; i++) { hash = ((hash << 5) - hash) + str.charCodeAt(i); hash |= 0; }
+          const hue = Math.abs(hash) % 360; const sat = 70; const light = 65;
+          col = `hsl(${hue} ${sat}% ${light}%)`;
+        } catch { col = '#82b1ff'; }
+      }
       // Iterate days within month and within [sd, ed)
       for (let d = 1; d <= endOfMonth.getDate(); d++) {
         const cur = new Date(y, m, d);
-        if (cur >= sd && cur < ed) {
+        if (cur >= sd && cur <= ed) {
           const iso = `${y}-${pad(m+1)}-${pad(d)}`;
           if (!overrideDates.value.has(iso)) seasonDates.value.add(iso);
+          if (col && !overrideDateToColor.value[iso]) seasonDateToColor.value[iso] = col;
+          const list = dateToSeasons.value[iso] || (dateToSeasons.value[iso] = []);
+          if (!list.some(x => x.id === s.id)) list.push({ id: s.id, name: s.name });
         }
       }
     });
   } catch (_) {
     // ignore flags on failure
+  }
+}
+
+function openDetailForDate(d){
+  const iso = isoForDay(d);
+  const ov = dateToOverride.value[iso];
+  if (ov && ov.id) {
+    goOverrides();
+    setTimeout(() => { try { window.dispatchEvent(new CustomEvent('open-override', { detail: { id: ov.id } })); } catch {} }, 50);
+    return;
+  }
+  const seas = dateToSeasons.value[iso] || [];
+  if (seas.length) {
+    const id = seas[0].id;
+    if (id) {
+      goSeasons();
+      setTimeout(() => { try { window.dispatchEvent(new CustomEvent('open-season', { detail: { id } })); } catch {} }, 50);
+    }
   }
 }
 
@@ -428,6 +525,10 @@ function persistSelected(){
 
 onMounted(() => {
   loadSheets();
+  // Refresh calendar colors when overrides broadcast an update
+  const handler = () => { loadCalendarFlags(); };
+  try { window.addEventListener('override-color-updated', handler); } catch {}
+  onBeforeUnmount(() => { try { window.removeEventListener('override-color-updated', handler); } catch {} });
   try {
     const saved = localStorage.getItem('settings:selectedDate');
     if (saved && /^\d{4}-\d{2}-\d{2}$/.test(saved)) {
@@ -458,12 +559,12 @@ try {
 </script>
 
 <style scoped>
-.settings { display: grid; grid-template-columns: 64px 1fr; min-height: calc(100vh - 64px); }
+.settings { display: grid; grid-template-columns: 64px 1fr; min-height: calc(100vh - 64px); font-size: calc(16px * 1.18); --fs-scale: 1.18; /* local type scale for this screen */ --font-body: calc(16px * var(--fs-scale)); --font-label: calc(16px * var(--fs-scale)); }
 .settings.has-third { grid-template-columns: 64px 220px 1fr; }
 .subnav-icons { border-right: 1px solid #eee; padding-top: 6px; }
 .subnav-icons :deep(.v-list){ padding:12px 0 0 0; display:flex; flex-direction:column; align-items:center; gap:0; }
 .subnav-icons :deep(.narrow-nav-item){ width:40px; height:40px; border-radius:8px; justify-content:center; padding:0 !important; margin:0 auto; }
-.subnav-icons :deep(.narrow-nav-item .v-list-item__prepend .v-icon){ font-size:20px !important; width:20px; height:20px; }
+.subnav-icons :deep(.narrow-nav-item .v-list-item__prepend .v-icon){ font-size: calc(20px * var(--fs-scale)) !important; width:20px; height:20px; }
 .subnav-icons :deep(.narrow-nav-item:hover),
 .subnav-icons :deep(.narrow-nav-item.v-list-item--active){ background:#ccf9ff !important; }
 
@@ -482,10 +583,10 @@ try {
 .nav { border-right: 1px solid #eee; padding: 6px 8px; display: grid; gap: 2px; align-content: start; grid-auto-rows: min-content; }
 .nav a { color: #2c3e50; text-decoration: none; display:flex; align-items:center; gap:8px; padding: 6px 8px; line-height: 1.1; border-radius: 6px; }
 .nav a:hover{ background: #eaf4ff; }
-.nav .nav-ico{ font-size: 18px; color:#6b778c; }
+.nav .nav-ico{ font-size: calc(18px * var(--fs-scale)); color:#6b778c; }
 .nav a.router-link-active { font-weight: 600; }
 .nav .scoping{ padding:8px 8px 10px; border-bottom:1px solid #eee; margin-bottom:6px; }
-.nav .scoping .lbl{ display:block; font-size:12px; color:#6b778c; margin-bottom:6px; }
+.nav .scoping .lbl{ display:block; font-size: calc(12px * var(--fs-scale)); color:#6b778c; margin-bottom:6px; }
 .nav .scoping select{ width:100%; padding:6px 8px; border:1px solid #e0e0e0; border-radius:6px; margin-bottom:8px; }
 .calendar{ border:1px solid #e0e0e0; border-radius:8px; padding:8px; margin-bottom:8px; }
 .cal-header{ font-weight:600; margin-bottom:6px; text-align:center; display:flex; align-items:center; justify-content:space-between; }
@@ -493,7 +594,7 @@ try {
 .cal-nav{ border:none; background:transparent; cursor:pointer; padding:4px 8px; border-radius:4px; }
 .cal-nav:hover{ background:#eaf4ff; }
 .cal-grid{ display:grid; grid-template-columns: repeat(7, 1fr); gap:2px; }
-.dow{ font-size:11px; color:#6b778c; text-align:center; padding:2px 0; }
+.dow{ font-size: calc(11px * var(--fs-scale)); color:#6b778c; text-align:center; padding:2px 0; }
 .day{ text-align:center; padding:10px 0; border-radius:8px; transition:background-color .15s ease; }
 .day.selected{ outline: 2px solid #222; outline-offset: -3px; font-weight:700; }
 /* Full-day background colors */
@@ -504,8 +605,8 @@ try {
 .dialog .dlg-body{ background:#fff; padding:12px; border-radius:8px; min-width:300px; }
 .content { padding: 16px; }
 .time { display:inline-block; padding:2px 6px; border:1px solid #ddd; border-radius:6px; margin-right:4px; }
-.time-badge { color:#d32f2f; margin-left:4px; font-size:14px; line-height:1; vertical-align:middle; }
-.time-tag { margin-left:6px; font-size:11px; color:#8d6e63; background:#fbe9e7; border:1px solid #ffccbc; border-radius:4px; padding:1px 4px; }
+.time-badge { color:#d32f2f; margin-left:4px; font-size: calc(14px * var(--fs-scale)); line-height:1; vertical-align:middle; }
+.time-tag { margin-left:6px; font-size: calc(11px * var(--fs-scale)); color:#8d6e63; background:#fbe9e7; border:1px solid #ffccbc; border-radius:4px; padding:1px 4px; }
 .time-tag.blocked { color:#b71c1c; background:#ffebee; border-color:#ffcdd2; }
 </style>
 

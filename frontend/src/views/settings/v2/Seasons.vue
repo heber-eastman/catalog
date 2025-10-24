@@ -1,9 +1,8 @@
 <template>
   <div class="pa-4" data-cy="seasons-v2">
     <div class="toolbar">
-      <h2 class="title">Seasons (V2)</h2>
+      <h2 class="title">Seasons</h2>
       <div class="row">
-        <router-link :to="{ name: 'SettingsTeeSheetsSides', params: { teeSheetId: route.params.teeSheetId } }" class="btn sm" data-cy="back-to-calendar">Back to Calendar</router-link>
         <v-btn variant="text" class="create-btn" :disabled="busy" @click="createSeason" data-cy="season-new-btn">Create new season</v-btn>
       </div>
     </div>
@@ -20,23 +19,32 @@
         @click="openDetail(s)"
         :data-cy="`season-card-${shortId(s.id)}`"
       >
-        <div class="color-bar" />
+        <div class="color-bar" :style="{ background: (s.color || colorForSeason(s.id) || fallbackColorForSeason(s.id)) }" />
         <div class="season-card__body">
           <div class="season-card__header">
             <div class="season-card__title">{{ s.name || `Season ${shortId(s.id)}` }}</div>
-            <v-menu location="bottom end">
-              <template #activator="{ props }">
-                <v-btn v-bind="props" icon="mdi-dots-vertical" variant="text" density="comfortable" @click.stop></v-btn>
-              </template>
-              <v-list density="compact">
-                <v-list-item :data-cy="`season-menu-delete-${shortId(s.id)}`" @click.stop="remove(s)">
-                  <v-list-item-title>Delete</v-list-item-title>
-                </v-list-item>
-              </v-list>
-            </v-menu>
+            <div class="card-menu">
+              <v-menu location="bottom end">
+                <template #activator="{ props }">
+                  <v-btn v-bind="props" icon="fa:fal fa-ellipsis-vertical" variant="text" density="comfortable" @click.stop></v-btn>
+                </template>
+                <v-list density="compact">
+                  <v-list-item :data-cy="`season-menu-delete-${shortId(s.id)}`" @click.stop="remove(s)">
+                    <v-list-item-title>Delete</v-list-item-title>
+                  </v-list-item>
+                </v-list>
+              </v-menu>
+            </div>
           </div>
           <div class="season-card__row">
-            <span class="pill" :class="{ archived: s.status !== 'draft' }">{{ s.status }}</span>
+            <v-icon
+              :icon="s.status === 'draft' ? 'fa:fal fa-pen-to-square' : 'fa:fal fa-rocket-launch'"
+              :class="['status-icon', s.status === 'draft' ? 'draft' : 'published']"
+              size="16"
+              :title="s.status === 'draft' ? 'Draft' : 'Published'"
+              aria-hidden="false"
+              :aria-label="s.status === 'draft' ? 'Draft' : 'Published'"
+            />
             <span class="sep">•</span>
             <span>{{ seasonDates(s) }}</span>
           </div>
@@ -47,13 +55,26 @@
     <v-dialog v-model="detailOpen" max-width="1200">
       <v-card>
         <v-card-title class="text-subtitle-1">Season Settings</v-card-title>
+        <v-tabs v-model="activeTab" density="comfortable" class="mb-2" ref="tabsRef">
+          <v-tab value="draft">Draft</v-tab>
+          <v-tab value="published">Published</v-tab>
+        </v-tabs>
+        <div v-if="showFallbackTabs" class="mb-2">
+          <v-btn-toggle v-model="activeTab" density="comfortable" mandatory>
+            <v-btn value="draft" size="small">Draft</v-btn>
+            <v-btn value="published" size="small">Published</v-btn>
+          </v-btn-toggle>
+        </div>
         <v-card-text>
           <div class="section">
             <div class="section__header">Season Details</div>
             <div class="section__grid">
-              <div class="field w-420"><v-text-field v-model="seasonName" label="Name" variant="outlined" density="comfortable" hide-details /></div>
-              <div class="field w-420"><v-text-field v-model="startDate" type="date" label="Start date" variant="outlined" density="comfortable" hide-details /></div>
-              <div class="field w-420"><v-text-field v-model="endDate" type="date" label="End date (exclusive)" variant="outlined" density="comfortable" hide-details /></div>
+              <div class="field w-220"><v-text-field v-model="seasonName" label="Name" variant="outlined" density="comfortable" hide-details /></div>
+              <div class="field w-220"><v-text-field v-model="startDate" type="date" label="Start date" variant="outlined" density="comfortable" hide-details /></div>
+              <div class="field w-220"><v-text-field v-model="endDate" type="date" label="End date" variant="outlined" density="comfortable" hide-details /></div>
+              <div class="field w-64">
+                <input type="color" v-model="seasonColor" class="color-input" aria-label="Season color" />
+              </div>
             </div>
           </div>
 
@@ -63,6 +84,58 @@
               <div class="weekday-row" v-for="wd in weekdays" :key="wd.value">
                 <div class="day-label">{{ wd.title }}</div>
                 <div class="weekday-col" v-if="expandedByWeekday[wd.value]">
+                  <!-- Published, read-only view -->
+                  <template v-if="activeTab==='published'">
+                    <div
+                      class="window-grid"
+                      v-for="(w, idx) in windowsForDayPublished(wd.value)"
+                      :key="w.id || `${wd.value}-pub-${idx}`"
+                    >
+                      <div class="field w-64">
+                        <v-select class="icon-select" :items="startModeItems" v-model="w.start_mode" disabled item-title="title" item-value="value" variant="outlined" density="comfortable" hide-details>
+                          <template #selection="{ item }">
+                            <v-icon :icon="item?.raw?.icon" size="18" />
+                          </template>
+                          <template #item="{ props, item }">
+                            <v-list-item v-bind="props" density="compact">
+                              <template #prepend>
+                                <v-icon :icon="item?.raw?.icon" size="18" />
+                              </template>
+                            </v-list-item>
+                          </template>
+                        </v-select>
+                      </div>
+                      <div class="field w-160">
+                        <v-text-field v-if="w.start_mode === 'sunrise_offset'" v-model.number="w.start_offset_mins" disabled type="number" label="Offset (mins)" variant="outlined" density="comfortable" hide-details />
+                        <v-text-field v-else v-model="w.start_time_local" disabled type="time" label="Start time" variant="outlined" density="comfortable" hide-details />
+                      </div>
+                      <div class="field w-64">
+                        <v-select class="icon-select" :items="endModeItems" v-model="w.end_mode" disabled item-title="title" item-value="value" variant="outlined" density="comfortable" hide-details>
+                          <template #selection="{ item }">
+                            <v-icon :icon="item?.raw?.icon" size="18" />
+                          </template>
+                          <template #item="{ props, item }">
+                            <v-list-item v-bind="props" density="compact">
+                              <template #prepend>
+                                <v-icon :icon="item?.raw?.icon" size="18" />
+                              </template>
+                            </v-list-item>
+                          </template>
+                        </v-select>
+                      </div>
+                      <div class="field w-160">
+                        <v-text-field v-if="w.end_mode === 'sunset_offset'" v-model.number="w.end_offset_mins" disabled type="number" label="Offset (mins)" variant="outlined" density="comfortable" hide-details />
+                        <v-text-field v-else v-model="w.end_time_local" disabled type="time" label="End time" variant="outlined" density="comfortable" hide-details />
+                      </div>
+                      <div class="field w-240">
+                        <v-select :items="templateVersionOptions" item-title="label" item-value="id" v-model="w.template_version_id" disabled label="Template Version" variant="outlined" density="comfortable" hide-details />
+                      </div>
+                      <div class="actions"></div>
+                    </div>
+                  </template>
+                  
+                  <!-- Draft, editable view -->
+                  <template v-else>
                   <div
                     class="window-grid"
                     v-for="(w, idx) in windowsForDay(wd.value)"
@@ -143,13 +216,13 @@
                     <div class="actions">
                       <v-btn
                         v-if="idx === 0"
-                        icon="mdi-plus"
+                        icon="fa:fal fa-plus"
                         variant="text"
                         :disabled="busy"
                         @click="selectedSeason && addPendingForWeekday(selectedSeason.id, wd.value)"
                       />
                       <v-btn
-                        icon="mdi-trash-can-outline"
+                        icon="fa:fal fa-trash-can"
                         variant="text"
                         :disabled="busy"
                         @click="selectedSeason && deleteWindow(selectedSeason.id, w)"
@@ -236,23 +309,37 @@
                     </div>
                     <div class="actions">
                       <v-btn
-                        icon="mdi-trash-can-outline"
+                        icon="fa:fal fa-trash-can"
                         variant="text"
                         :disabled="busy"
                         @click="selectedSeason && removePendingForWeekday(selectedSeason.id, wd.value, pidx)"
                       />
                     </div>
                   </div>
+                  <!-- If no existing or pending windows, show inline add affordance in expanded view -->
+                  <div v-if="windowsForDay(wd.value).length === 0 && pendingForDay(wd.value).length === 0" class="window-grid">
+                    <div></div>
+                    <div class="add-placeholder" @click="createFirstPending(wd.value)">Add window</div>
+                    <div></div>
+                    <div></div>
+                    <v-btn
+                      icon="fa:fal fa-plus"
+                      variant="text"
+                      :disabled="busy"
+                      @click="createFirstPending(wd.value)"
+                    />
+                  </div>
+                  </template>
                 </div>
                 <div v-else class="weekday-col">
                   <div class="window-grid">
                     <div></div>
-                    <div class="add-placeholder" v-if="!hasWindowsForDay(wd.value)" @click="createFirstPending(wd.value)">Add window</div>
+                    <div class="add-placeholder" v-if="activeTab==='draft' && !hasWindowsForDay(wd.value)" @click="createFirstPending(wd.value)">Add window</div>
                     <div v-else></div>
                     <div></div>
                     <div></div>
-                    <v-btn
-                      icon="mdi-plus"
+                    <v-btn v-if="activeTab==='draft'"
+                      icon="fa:fal fa-plus"
                       variant="text"
                       @click="createFirstPending(wd.value)"
                     />
@@ -266,8 +353,8 @@
         <v-card-actions>
           <v-spacer />
           <v-btn variant="text" @click="detailOpen=false">Close</v-btn>
-          <v-btn variant="text" :disabled="busy || !selectedSeason" @click="selectedSeason && saveAll(selectedSeason.id)">Save</v-btn>
-          <v-btn variant="flat" color="primary" :disabled="busy" @click="selectedSeason && publish(selectedSeason.id)">Publish</v-btn>
+          <v-btn v-if="activeTab==='draft'" variant="text" :disabled="busy || !selectedSeason" @click="selectedSeason && saveAll(selectedSeason.id)">Save</v-btn>
+          <v-btn v-if="activeTab==='draft'" variant="flat" color="primary" :disabled="busy" data-cy="season-publish-btn" @click="selectedSeason && publish(selectedSeason.id)">Publish</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -282,7 +369,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref, reactive, inject, watch } from 'vue';
+import { onMounted, ref, reactive, inject, watch, onBeforeUnmount, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import { settingsAPI } from '@/services/api';
 
@@ -293,7 +380,9 @@ const detailOpen = ref(false);
 const selectedSeason = ref(null);
 const seasonName = ref('');
 const startDate = ref('');
-const endDate = ref('');
+const endDate = ref(''); // UI: inclusive end date
+const initialStartDate = ref('');
+const initialEndDate = ref('');
 const rowStateByWeekday = reactive({
   0: { startMode: 'sunrise_offset', startOffset: 0, startTime: '07:00', endMode: 'sunset_offset', endOffset: -150, endTime: '10:00', templateVersionId: '' },
   1: { startMode: 'sunrise_offset', startOffset: 0, startTime: '07:00', endMode: 'sunset_offset', endOffset: -150, endTime: '10:00', templateVersionId: '' },
@@ -321,20 +410,29 @@ const weekdays = [
 const canAddWindow = ref(false);
 // Pending (unsaved) windows keyed by seasonId then weekday
 const pendingBySeason = reactive({});
+// ADDED: tabs and published cache
+const activeTab = ref('draft');
+const tabsRef = ref(null);
+const showFallbackTabs = ref(false);
+const windowsPublishedBySeason = reactive({});
 
 const startModeItems = [
-  { title: 'Sunrise', value: 'sunrise_offset', icon: 'mdi-weather-sunset-up' },
-  { title: 'Time', value: 'fixed', icon: 'mdi-clock-outline' },
+  { title: 'Sunrise', value: 'sunrise_offset', icon: 'fa:fal fa-sunrise' },
+  { title: 'Time', value: 'fixed', icon: 'fa:fal fa-clock' },
 ];
 const endModeItems = [
-  { title: 'Sunset', value: 'sunset_offset', icon: 'mdi-weather-sunset-down' },
-  { title: 'Time', value: 'fixed', icon: 'mdi-clock-outline' },
+  { title: 'Sunset', value: 'sunset_offset', icon: 'fa:fal fa-sunset' },
+  { title: 'Time', value: 'fixed', icon: 'fa:fal fa-clock' },
 ];
 
 // Toast state
 const showSnackbar = ref(false);
 const snackbarMessage = ref('');
 const snackbarColor = ref('success');
+
+// Season colors: persisted in localStorage by season id
+const seasonColor = ref('#82b1ff');
+const seasonColors = ref({}); // { [seasonId]: '#hex' }
 
 function notify(message, color = 'success') {
   snackbarMessage.value = message;
@@ -353,6 +451,14 @@ async function load() {
     if (!teeSheetId) { seasons.value = []; return; }
     const { data } = await settingsAPI.v2.listSeasons(teeSheetId);
     seasons.value = data || [];
+    // Initialize per-season colors for cards from localStorage (or deterministic fallback)
+    try {
+      for (const s of seasons.value) {
+        const key = `season:color:${s.id}`;
+        const c = localStorage.getItem(key);
+        if (c) seasonColors.value[s.id] = c; else if (!seasonColors.value[s.id]) seasonColors.value[s.id] = fallbackColorForSeason(s.id);
+      }
+    } catch {}
     await loadTemplateVersions();
   } catch (e) {
     notify('Failed to load seasons', 'error');
@@ -365,7 +471,9 @@ function shortId(id){ return (id || '').slice(0,6); }
 function seasonDates(s){
   const v = (s.published_version || (s.versions && s.versions[s.versions.length-1])) || null;
   if (!v) return 'No dates';
-  return `${v.start_date || '—'} to ${v.end_date_exclusive || '—'}`;
+  // Display end date inclusively (v.end_date_exclusive - 1 day)
+  const endInc = safeMinusDays(v.end_date_exclusive, 1);
+  return `${formatHuman(v.start_date)} - ${formatHuman(endInc)}`;
 }
 
 function displayWindow(w){
@@ -382,48 +490,135 @@ function displayWindow(w){
 async function openDetail(s){
   selectedSeason.value = s;
   seasonName.value = s?.name || 'Untitled Season';
+  // Load stored color for this season
+  try {
+    // Prefer persisted API color; fall back to stored hex; then deterministic
+    const apiColor = (s && typeof s.color === 'string' && s.color) ? s.color : '';
+    const stored = getStoredSeasonColor(s.id);
+    seasonColor.value = apiColor || stored || '#82b1ff';
+  } catch { seasonColor.value = s?.color || '#82b1ff'; }
   detailOpen.value = true;
+  activeTab.value = 'draft';
+  // Detect if the Vuetify tabs rendered; if not, show fallback toggle
+  nextTick(() => {
+    try {
+      const el = (tabsRef.value && (tabsRef.value.$el || tabsRef.value)) || null;
+      const visible = !!(el && el.offsetHeight > 0 && el.querySelector('.v-tab'));
+      showFallbackTabs.value = !visible;
+    } catch { showFallbackTabs.value = true; }
+  });
   // Restore latest version dates and template from windows if present
   try {
     // Ensure template options are fresh before setting selected id
     await loadTemplateVersions();
-    // Versions are ordered ASC by created_at from the backend include, so last is latest
-    const latest = (s.published_version || (s.versions && s.versions[s.versions.length-1])) || null;
+    // Prefer the last created version (draft) over published for editing
+    const latest = ((s.versions && s.versions[s.versions.length-1]) || s.published_version) || null;
+    const teeSheetId = route.params.teeSheetId;
+    const pubId = s?.published_version?.id || null;
     if (latest) {
       currentVersionId.value = latest.id || '';
       startDate.value = latest.start_date || '';
-      endDate.value = latest.end_date_exclusive || '';
-      // Load windows to recover template version selection
-      const teeSheetId = route.params.teeSheetId;
-      const { data: windows } = await settingsAPI.v2.listSeasonWeekdayWindows(teeSheetId, s.id, latest.id);
-      // Initialize per-day state from existing windows (use first window per weekday for defaults)
-      const seen = new Set();
-      for (const w of (windows || [])) {
-        if (seen.has(w.weekday)) continue;
-        seen.add(w.weekday);
-        rowStateByWeekday[w.weekday].startMode = w.start_mode || 'sunrise_offset';
-        rowStateByWeekday[w.weekday].endMode = w.end_mode || 'sunset_offset';
-        rowStateByWeekday[w.weekday].startTime = (w.start_time_local || '07:00:00').slice(0,5);
-        rowStateByWeekday[w.weekday].endTime = (w.end_time_local || '10:00:00').slice(0,5);
-        rowStateByWeekday[w.weekday].startOffset = typeof w.start_offset_mins === 'number' ? w.start_offset_mins : 0;
-        rowStateByWeekday[w.weekday].endOffset = typeof w.end_offset_mins === 'number' ? w.end_offset_mins : -150;
-        rowStateByWeekday[w.weekday].templateVersionId = w.template_version_id || rowStateByWeekday[w.weekday].templateVersionId;
+      // Convert exclusive -> inclusive for UI
+      endDate.value = safeMinusDays(latest.end_date_exclusive || '', 1);
+      initialStartDate.value = startDate.value;
+      initialEndDate.value = endDate.value;
+
+      // If we would be editing the published version, create a new draft and copy published windows into it
+      if (pubId && latest.id === pubId) {
+        try {
+          const { data: newVer } = await settingsAPI.v2.createSeasonVersion(teeSheetId, s.id, { start_date: startDate.value || latest.start_date, end_date_exclusive: endDate.value ? safePlusDays(endDate.value, 1) : latest.end_date_exclusive });
+          currentVersionId.value = newVer.id;
+          // Load published windows and copy into the new draft version
+          let publishedWindows = [];
+          try {
+            const { data: pubWins } = await settingsAPI.v2.listSeasonWeekdayWindows(teeSheetId, s.id, pubId);
+            publishedWindows = Array.isArray(pubWins) ? pubWins : [];
+          } catch { publishedWindows = []; }
+          for (const w of publishedWindows) {
+            await settingsAPI.v2.addSeasonWeekdayWindow(teeSheetId, s.id, newVer.id, {
+              weekday: Number(w.weekday) || 0,
+              start_mode: w.start_mode,
+              end_mode: w.end_mode,
+              start_time_local: w.start_time_local,
+              end_time_local: w.end_time_local,
+              start_offset_mins: typeof w.start_offset_mins === 'number' ? w.start_offset_mins : null,
+              end_offset_mins: typeof w.end_offset_mins === 'number' ? w.end_offset_mins : null,
+              template_version_id: w.template_version_id,
+            });
+          }
+          // Refresh draft windows and set published cache
+          const { data: copied } = await settingsAPI.v2.listSeasonWeekdayWindows(teeSheetId, s.id, newVer.id);
+          windowsBySeason[s.id] = Array.isArray(copied) ? copied : [];
+          windowsPublishedBySeason[s.id] = publishedWindows.slice();
+          updateExpandedForSeason(s.id);
+        } catch {
+          windowsBySeason[s.id] = [];
+          windowsPublishedBySeason[s.id] = [];
+        }
+      } else {
+        // Load windows to recover template version selection
+        const { data: windows } = await settingsAPI.v2.listSeasonWeekdayWindows(teeSheetId, s.id, latest.id);
+        // Initialize per-day state from existing windows (use first window per weekday for defaults)
+        const seen = new Set();
+        for (const w of (windows || [])) {
+          if (seen.has(w.weekday)) continue;
+          seen.add(w.weekday);
+          rowStateByWeekday[w.weekday].startMode = w.start_mode || 'sunrise_offset';
+          rowStateByWeekday[w.weekday].endMode = w.end_mode || 'sunset_offset';
+          rowStateByWeekday[w.weekday].startTime = (w.start_time_local || '07:00:00').slice(0,5);
+          rowStateByWeekday[w.weekday].endTime = (w.end_time_local || '10:00:00').slice(0,5);
+          rowStateByWeekday[w.weekday].startOffset = typeof w.start_offset_mins === 'number' ? w.start_offset_mins : 0;
+          rowStateByWeekday[w.weekday].endOffset = typeof w.end_offset_mins === 'number' ? w.end_offset_mins : -150;
+          rowStateByWeekday[w.weekday].templateVersionId = w.template_version_id || rowStateByWeekday[w.weekday].templateVersionId;
+        }
+        // Ensure template options include any referenced ids
+        const tvIds = new Set((windows||[]).map(w=>w.template_version_id).filter(Boolean));
+        if ([...tvIds].some(id => !(templateVersionOptions.value||[]).some(o=>o.id===id))) {
+          await loadTemplateVersions();
+        }
+        // Fill local preview list
+        windowsBySeason[s.id] = (windows || []).slice();
+        // Load published windows for read-only tab
+        let publishedWindows = [];
+        if (pubId) {
+          try {
+            const { data: pubWins } = await settingsAPI.v2.listSeasonWeekdayWindows(teeSheetId, s.id, pubId);
+            publishedWindows = Array.isArray(pubWins) ? pubWins : [];
+          } catch { publishedWindows = []; }
+        }
+        windowsPublishedBySeason[s.id] = publishedWindows.slice();
+        updateExpandedForSeason(s.id);
+        // If latest (draft) has no windows and published has some, copy them into latest
+        if ((windows || []).length === 0 && (publishedWindows || []).length > 0 && pubId && pubId !== latest.id) {
+          try {
+            for (const w of publishedWindows) {
+              await settingsAPI.v2.addSeasonWeekdayWindow(teeSheetId, s.id, latest.id, {
+                weekday: Number(w.weekday) || 0,
+                start_mode: w.start_mode,
+                end_mode: w.end_mode,
+                start_time_local: w.start_time_local,
+                end_time_local: w.end_time_local,
+                start_offset_mins: typeof w.start_offset_mins === 'number' ? w.start_offset_mins : null,
+                end_offset_mins: typeof w.end_offset_mins === 'number' ? w.end_offset_mins : null,
+                template_version_id: w.template_version_id,
+              });
+            }
+            const { data: copied } = await settingsAPI.v2.listSeasonWeekdayWindows(teeSheetId, s.id, latest.id);
+            windowsBySeason[s.id] = Array.isArray(copied) ? copied : [];
+            updateExpandedForSeason(s.id);
+          } catch {}
+        }
       }
-      // Ensure template options include any referenced ids
-      const tvIds = new Set((windows||[]).map(w=>w.template_version_id).filter(Boolean));
-      if ([...tvIds].some(id => !(templateVersionOptions.value||[]).some(o=>o.id===id))) {
-        await loadTemplateVersions();
-      }
-      // Fill local preview list
-      windowsBySeason[s.id] = (windows || []).slice();
-      // Expand rows with existing windows; default expand Sunday only otherwise
+      // Expand rows default behavior if none seen above
       expandedByWeekday[0] = true;
-      for (let i = 1; i <= 6; i++) expandedByWeekday[i] = false;
-      for (const w of (windows || [])) expandedByWeekday[w.weekday] = true;
+      for (let i = 1; i <= 6; i++) expandedByWeekday[i] = expandedByWeekday[i] || false;
     } else {
       startDate.value = '';
       endDate.value = '';
+      initialStartDate.value = '';
+      initialEndDate.value = '';
       windowsBySeason[s.id] = [];
+      windowsPublishedBySeason[s.id] = [];
       currentVersionId.value = '';
       expandedByWeekday[0] = true; for (let i = 1; i <= 6; i++) expandedByWeekday[i] = false;
     }
@@ -447,6 +642,20 @@ function hasWindowsForDay(wd){
 function windowsForDay(wd){
   const s = selectedSeason.value; if (!s) return [];
   return (windowsBySeason[s.id] || []).filter(w => w.weekday === wd);
+}
+
+// Ensure rows with windows are expanded
+function updateExpandedForSeason(seasonId){
+  const list = windowsBySeason[seasonId] || [];
+  const days = new Set(list.map(w => Number(w.weekday) || 0));
+  for (let i = 0; i <= 6; i++) {
+    if (days.has(i)) expandedByWeekday[i] = true;
+  }
+}
+// ADDED: published helper
+function windowsForDayPublished(wd){
+  const s = selectedSeason.value; if (!s) return [];
+  return (windowsPublishedBySeason[s.id] || []).filter(w => w.weekday === wd);
 }
 
 function pendingForDay(wd){
@@ -501,7 +710,7 @@ async function addVersion(seasonId) {
   const sd = startDate.value; const ed = endDate.value;
   if (!sd || !ed) return;
   try {
-    const { data: v } = await settingsAPI.v2.createSeasonVersion(teeSheetId, seasonId, { start_date: sd, end_date_exclusive: ed });
+    const { data: v } = await settingsAPI.v2.createSeasonVersion(teeSheetId, seasonId, { start_date: sd, end_date_exclusive: safePlusDays(ed, 1) });
     // No-op in multi-row UI; use addWindowForWeekday instead
     notify('Version created. Use Add on a weekday row to add windows.');
   } catch (e) {
@@ -516,7 +725,7 @@ async function addWindowForWeekday(seasonId, wd){
   const rs = rowStateByWeekday[wd];
   try {
     if (!currentVersionId.value) {
-      const { data: v } = await settingsAPI.v2.createSeasonVersion(teeSheetId, seasonId, { start_date: sd, end_date_exclusive: ed });
+      const { data: v } = await settingsAPI.v2.createSeasonVersion(teeSheetId, seasonId, { start_date: sd, end_date_exclusive: safePlusDays(ed, 1) });
       currentVersionId.value = v.id;
     }
     const payload = {
@@ -534,6 +743,7 @@ async function addWindowForWeekday(seasonId, wd){
     // Refresh from backend to render inline rows immediately
     const { data: windows } = await settingsAPI.v2.listSeasonWeekdayWindows(teeSheetId, seasonId, currentVersionId.value);
     windowsBySeason[seasonId] = Array.isArray(windows) ? windows : [];
+    updateExpandedForSeason(seasonId);
     notify('Window added');
   } catch (e) {
     notify('Failed to add version/window', 'error');
@@ -564,6 +774,7 @@ async function saveWindow(seasonId, w){
     await settingsAPI.v2.updateSeasonWeekdayWindow(teeSheetId, seasonId, currentVersionId.value, w.id, payload);
     const { data: windows } = await settingsAPI.v2.listSeasonWeekdayWindows(teeSheetId, seasonId, currentVersionId.value);
     windowsBySeason[seasonId] = Array.isArray(windows) ? windows : [];
+    updateExpandedForSeason(seasonId);
     notify('Window saved');
   } catch (e) {
     notify('Failed to save window', 'error');
@@ -612,6 +823,7 @@ async function deleteWindow(seasonId, w){
     await settingsAPI.v2.deleteSeasonWeekdayWindow(teeSheetId, seasonId, currentVersionId.value, w.id);
     const { data: windows } = await settingsAPI.v2.listSeasonWeekdayWindows(teeSheetId, seasonId, currentVersionId.value);
     windowsBySeason[seasonId] = Array.isArray(windows) ? windows : [];
+    updateExpandedForSeason(seasonId);
     notify('Window deleted');
   } catch (e) {
     notify('Failed to delete window', 'error');
@@ -621,12 +833,21 @@ async function deleteWindow(seasonId, w){
 async function publish(seasonId) {
   try {
     const teeSheetId = route.params.teeSheetId;
-    // Use latest version for this season unless already published
+    // Publish the most recent (draft) version if present, else published
     const s = (seasons.value || []).find(x => x.id === seasonId) || selectedSeason.value;
-    const versionId = s?.published_version?.id || (s?.versions && s.versions[s.versions.length - 1]?.id);
+    const versionId = (s?.versions && s.versions[s.versions.length - 1]?.id) || s?.published_version?.id;
     if (!versionId) { notify('No season version to publish', 'error'); return; }
     await settingsAPI.v2.publishSeason(teeSheetId, seasonId, { version_id: versionId, apply_now: false });
     await load();
+    // Refresh published windows and switch tab
+    const refreshed = (seasons.value || []).find(x => x.id === seasonId) || null;
+    if (refreshed?.published_version?.id) {
+      try {
+        const { data: pubWins } = await settingsAPI.v2.listSeasonWeekdayWindows(teeSheetId, seasonId, refreshed.published_version.id);
+        windowsPublishedBySeason[seasonId] = Array.isArray(pubWins) ? pubWins : [];
+      } catch { windowsPublishedBySeason[seasonId] = []; }
+    }
+    activeTab.value = 'published';
     notify('Season published');
   } catch (e) {
     notify('Failed to publish season', 'error');
@@ -637,7 +858,10 @@ async function saveSeasonName(seasonId){
   try {
     const teeSheetId = route.params.teeSheetId;
     const name = (seasonName.value || '').trim() || 'Untitled Season';
-    await settingsAPI.v2.updateSeason(teeSheetId, seasonId, { name });
+    await settingsAPI.v2.updateSeason(teeSheetId, seasonId, { name, color: seasonColor.value || null });
+    // Update local cache for immediate UI
+    try { seasonColors.value[seasonId] = seasonColor.value || '#82b1ff'; } catch {}
+    try { window.dispatchEvent(new CustomEvent('override-color-updated')); } catch {}
     await load();
     notify('Season saved');
   } catch (e) {
@@ -652,7 +876,42 @@ async function saveAll(seasonId){
     const teeSheetId = route.params.teeSheetId;
     // 1) Save season name
     const name = (seasonName.value || '').trim() || 'Untitled Season';
-    await settingsAPI.v2.updateSeason(teeSheetId, seasonId, { name });
+    await settingsAPI.v2.updateSeason(teeSheetId, seasonId, { name, color: seasonColor.value || null });
+    // 1b) Ensure a version exists or roll a new one if dates changed
+    const sd = startDate.value; const ed = endDate.value;
+    if (!currentVersionId.value && sd && ed) {
+      const { data: v } = await settingsAPI.v2.createSeasonVersion(teeSheetId, seasonId, { start_date: sd, end_date_exclusive: safePlusDays(ed, 1) });
+      currentVersionId.value = v.id;
+      initialStartDate.value = sd; initialEndDate.value = ed;
+    } else if (currentVersionId.value && ((sd && sd !== initialStartDate.value) || (ed && ed !== initialEndDate.value))) {
+      // Dates changed: create a new version and copy existing windows into it
+      const oldVersionId = currentVersionId.value;
+      const { data: newVer } = await settingsAPI.v2.createSeasonVersion(teeSheetId, seasonId, { start_date: sd || initialStartDate.value, end_date_exclusive: safePlusDays(ed || initialEndDate.value, 1) });
+      currentVersionId.value = newVer.id;
+      // Copy windows from old version
+      try {
+        const { data: oldWins } = await settingsAPI.v2.listSeasonWeekdayWindows(teeSheetId, seasonId, oldVersionId);
+        for (const w of (Array.isArray(oldWins) ? oldWins : [])) {
+          await settingsAPI.v2.addSeasonWeekdayWindow(teeSheetId, seasonId, newVer.id, {
+            weekday: Number(w.weekday) || 0,
+            start_mode: w.start_mode,
+            end_mode: w.end_mode,
+            start_time_local: w.start_time_local,
+            end_time_local: w.end_time_local,
+            start_offset_mins: typeof w.start_offset_mins === 'number' ? w.start_offset_mins : null,
+            end_offset_mins: typeof w.end_offset_mins === 'number' ? w.end_offset_mins : null,
+            template_version_id: w.template_version_id,
+          });
+        }
+        const { data: copied } = await settingsAPI.v2.listSeasonWeekdayWindows(teeSheetId, seasonId, newVer.id);
+        windowsBySeason[seasonId] = Array.isArray(copied) ? copied : [];
+        updateExpandedForSeason(seasonId);
+      } catch {}
+      initialStartDate.value = sd; initialEndDate.value = ed;
+    }
+    // Update local color cache and notify calendar
+    try { seasonColors.value[seasonId] = seasonColor.value || '#82b1ff'; } catch {}
+    try { window.dispatchEvent(new CustomEvent('override-color-updated')); } catch {}
 
     // 2) Persist each existing window that has an id via PUT
     const list = (windowsBySeason[seasonId] || []).slice();
@@ -676,8 +935,9 @@ async function saveAll(seasonId){
 
     // 3) Create pending windows via POST
     if (!currentVersionId.value && startDate.value && endDate.value) {
-      const { data: v } = await settingsAPI.v2.createSeasonVersion(teeSheetId, seasonId, { start_date: startDate.value, end_date_exclusive: endDate.value });
+      const { data: v } = await settingsAPI.v2.createSeasonVersion(teeSheetId, seasonId, { start_date: startDate.value, end_date_exclusive: safePlusDays(endDate.value, 1) });
       currentVersionId.value = v.id;
+      initialStartDate.value = startDate.value; initialEndDate.value = endDate.value;
     }
     if (currentVersionId.value) {
       const bag = pendingBySeason[seasonId] || {};
@@ -698,6 +958,10 @@ async function saveAll(seasonId){
           await settingsAPI.v2.addSeasonWeekdayWindow(teeSheetId, seasonId, currentVersionId.value, payload);
         }
       }
+      // Refresh windows after creating pending
+      const { data: windows } = await settingsAPI.v2.listSeasonWeekdayWindows(teeSheetId, seasonId, currentVersionId.value);
+      windowsBySeason[seasonId] = Array.isArray(windows) ? windows : [];
+      updateExpandedForSeason(seasonId);
     }
 
     // 3) Reload
@@ -705,6 +969,8 @@ async function saveAll(seasonId){
     // Clear pending cache for this season
     if (pendingBySeason[seasonId]) pendingBySeason[seasonId] = {};
     notify('Season saved');
+    // Refresh calendar flags/colors after version/date changes
+    try { window.dispatchEvent(new CustomEvent('override-color-updated')); } catch {}
   } catch (e) {
     notify('Failed to save season', 'error');
   } finally {
@@ -785,7 +1051,50 @@ async function saveOrder(seasonId) {
   }
 }
 
-onMounted(load);
+onMounted(() => {
+  load();
+  const handler = (ev) => {
+    try {
+      const id = ev?.detail?.id;
+      if (!id) return;
+      const found = (seasons.value || []).find(x => x.id === id);
+      if (found) openDetail(found);
+    } catch {}
+  };
+  try { window.addEventListener('open-season', handler); } catch {}
+  onBeforeUnmount(() => { try { window.removeEventListener('open-season', handler); } catch {} });
+});
+
+function colorForSeason(seasonId){
+  const stored = getStoredSeasonColor(seasonId);
+  if (stored) return stored;
+  return seasonColors.value[seasonId] || fallbackColorForSeason(seasonId);
+}
+
+function getStoredSeasonColor(seasonId){
+  try {
+    const val = localStorage.getItem(`season:color:${seasonId}`) || '';
+    // Accept only #RRGGBB or #RGB
+    if (/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/.test(val)) return val;
+    return '';
+  } catch { return ''; }
+}
+
+// Deterministic fallback color based on ID (stable across reloads)
+function fallbackColorForSeason(id){
+  try {
+    const str = String(id || '');
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash |= 0;
+    }
+    const hue = Math.abs(hash) % 360; // spread over color wheel
+    const sat = 70; // pleasant saturation
+    const light = 65; // readable lightness
+    return `hsl(${hue} ${sat}% ${light}%)`;
+  } catch { return '#82b1ff'; }
+}
 
 // Sync calendar-selected date
 const selectedDate = inject('settings:selectedDate', ref(''));
@@ -835,6 +1144,22 @@ async function getDefaultTemplateVersionId() {
     return '';
   }
 }
+
+// Date helpers (YYYY-MM-DD)
+function safePlusDays(iso, days){
+  try { const d = new Date(String(iso)+'T00:00:00'); d.setDate(d.getDate() + Number(days||0)); return toIso(d); } catch { return iso; }
+}
+function safeMinusDays(iso, days){
+  try { const d = new Date(String(iso)+'T00:00:00'); d.setDate(d.getDate() - Number(days||0)); return toIso(d); } catch { return iso; }
+}
+function toIso(d){ const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; }
+function formatHuman(iso){
+  try {
+    if (!iso) return '—';
+    const d = new Date(String(iso)+'T00:00:00');
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch { return iso || '—'; }
+}
 </script>
 
 <style scoped>
@@ -843,14 +1168,19 @@ async function getDefaultTemplateVersionId() {
 .create-btn{ color:#5EE3BB; font-weight:600; letter-spacing:0.04em; }
 .muted{ color:#6b778c; }
 .cards{ display:flex; flex-direction:column; gap:12px; }
-.season-card{ padding:10px 12px; cursor:pointer; width:100%; display:flex; align-items:stretch; }
+.season-card{ padding:10px 12px; cursor:pointer; width:100%; display:flex; align-items:stretch; position:relative; overflow:hidden; border:1px solid #e5e7eb; border-left:none; border-radius:8px; }
+.season-card__body{ flex:1; padding-left:16px; }
+.card-menu{ position:absolute; right:12px; top:10px; }
 .season-card__header{ display:flex; align-items:center; justify-content:space-between; }
 .season-card__title{ font-weight:700; font-size:18px; }
 .season-card__row{ color:#6b778c; margin-top:6px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.color-bar{ width:6px; background:#82b1ff; border-radius:4px; margin-right:10px; }
+.color-bar{ position:absolute; left:0; top:0; bottom:0; width:12px; background:#82b1ff; border-top-left-radius: inherit; border-bottom-left-radius: inherit; z-index:1; }
 .pill{ background:#eef7ff; border-radius:10px; padding:2px 8px; font-size:12px; }
 .pill.archived{ background:#fdecea; color:#b71c1c; }
 .sep{ margin:0 6px; color:#9aa0a6; }
+.status-icon{ color:#6b778c; }
+.status-icon.draft{ color:#9aa0a6; }
+.status-icon.published{ color:#10b981; }
 .row { display: flex; align-items: center; gap: 8px; }
 .dnd-list { list-style: none; padding: 0; margin: 0; }
 .dnd-item { padding: 6px 8px; border: 1px dashed #ccc; border-radius: 6px; margin-bottom: 6px; cursor: grab; }
@@ -879,6 +1209,7 @@ async function getDefaultTemplateVersionId() {
 .field.grow{ flex:1; min-width:200px; }
 .w-240{ width:240px; }
 .w-420{ width:420px; max-width:100%; }
+.w-220{ width:220px; max-width:100%; }
 .actions{ display:flex; align-items:center; gap:4px; padding-right:4px; }
 .w-160{ width:140px; }
 .w-64{ width:64px; }
@@ -889,6 +1220,11 @@ async function getDefaultTemplateVersionId() {
 .icon-select :deep(.v-field){ margin:0; }
 .icon-select :deep(.v-select__selection-text){ display:flex; align-items:center; }
 .add-placeholder{ color:#1e88e5; cursor:pointer; align-self:center; }
+/* Color input swatch rounded to match border */
+.color-input{ width:56px; height:56px; padding:0; border:1px solid #e0e0e0; border-radius:8px; background:#fff; display:block; }
+.color-input::-webkit-color-swatch-wrapper{ padding:2px; border-radius:8px; }
+.color-input::-webkit-color-swatch{ border:none; border-radius:8px; }
+.color-input::-moz-color-swatch{ border:none; border-radius:8px; }
 </style>
 
 

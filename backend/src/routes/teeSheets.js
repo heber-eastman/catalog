@@ -121,8 +121,14 @@ const v2TemplateSideSettingsPutSchema = Joi.object({
 });
 
 // V2 season schemas
-const v2SeasonCreateSchema = Joi.object({ name: Joi.string().min(1).max(120).default('Untitled Season') });
-const v2SeasonUpdateSchema = Joi.object({ name: Joi.string().min(1).max(120).required() });
+const v2SeasonCreateSchema = Joi.object({
+  name: Joi.string().min(1).max(120).default('Untitled Season'),
+  color: Joi.string().pattern(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/).allow(null),
+});
+const v2SeasonUpdateSchema = Joi.object({
+  name: Joi.string().min(1).max(120).required(),
+  color: Joi.string().pattern(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/).allow(null),
+});
 const v2SeasonVersionCreateSchema = Joi.object({
   start_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
   end_date_exclusive: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
@@ -145,7 +151,11 @@ const v2SeasonWeekdayReorderSchema = Joi.object({
 const v2SeasonPublishSchema = Joi.object({ version_id: Joi.string().uuid().required(), apply_now: Joi.boolean().default(true), start_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional(), end_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional() });
 
 // V2 override schemas
-const v2OverrideCreateSchema = Joi.object({ date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required() });
+const v2OverrideCreateSchema = Joi.object({
+  date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
+  name: Joi.string().max(120).optional(),
+  color: Joi.string().pattern(/^#?[0-9a-fA-F]{3,8}$/).optional(),
+});
 const v2OverrideVersionCreateSchema = Joi.object({ notes: Joi.string().allow('', null) });
 const v2OverrideWindowSchema = Joi.object({
   position: Joi.number().integer().min(0).optional(),
@@ -292,8 +302,29 @@ async function findSeasonSafe(teeSheetId, seasonId) {
 
 // Routes
 router.get('/tee-sheets', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
-  const items = await TeeSheet.findAll({ where: { course_id: req.userRole === 'SuperAdmin' ? { [Op.ne]: null } : req.courseId } });
-  res.json(items);
+  const where = { course_id: req.userRole === 'SuperAdmin' ? { [Op.ne]: null } : req.courseId };
+  try {
+    const items = await TeeSheet.findAll({
+      where,
+      include: [{ association: 'course', attributes: ['id','timezone','latitude','longitude'] }],
+      order: [['created_at','ASC']],
+    });
+    // Flatten course fields for convenience to avoid breaking existing frontend
+    const shaped = items.map(ts => {
+      const j = ts.toJSON();
+      if (j.course) {
+        j.timezone = j.timezone || j.course.timezone || null;
+        j.latitude = j.latitude ?? j.course.latitude ?? null;
+        j.longitude = j.longitude ?? j.course.longitude ?? null;
+      }
+      return j;
+    });
+    return res.json(shaped);
+  } catch (e) {
+    // Fallback without include if association fails in local dev
+    const items = await TeeSheet.findAll({ where, order: [['created_at','ASC']] });
+    return res.json(items);
+  }
 });
 
 router.post('/tee-sheets', requireAuth(['Admin']), async (req, res) => {
@@ -872,7 +903,7 @@ router.get('/tee-sheets/:id/v2/seasons', requireAuth(['Admin', 'Manager', 'Super
   try {
   const sheet = await TeeSheet.findOne({ where: { id: req.params.id } });
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
-  const items = await TeeSheetSeason.findAll({
+  let items = await TeeSheetSeason.findAll({
     where: { tee_sheet_id: sheet.id },
     include: [
       // Order versions so the latest is deterministic
@@ -881,14 +912,40 @@ router.get('/tee-sheets/:id/v2/seasons', requireAuth(['Admin', 'Manager', 'Super
     ],
     order: [['created_at', 'ASC']],
   });
+    // Safety: if ORM include returns without versions/published_version (env mismatch), hydrate via raw queries
+    try {
+      const needHydrate = items.some(it => !Array.isArray(it.versions) || it.versions.length === 0 || (it.published_version_id && !it.published_version));
+      if (needHydrate) {
+        const ids = items.map(it => it.id);
+        const [verRows] = await sequelize.query(
+          'SELECT id, season_id, start_date, end_date_exclusive, created_at FROM "TeeSheetSeasonVersions" WHERE season_id IN (:ids) ORDER BY created_at ASC',
+          { replacements: { ids } }
+        );
+        const bySeason = {};
+        for (const v of (verRows || [])) {
+          const sid = v.season_id;
+          (bySeason[sid] ||= []).push({ id: v.id, season_id: v.season_id, start_date: v.start_date, end_date_exclusive: v.end_date_exclusive, created_at: v.created_at });
+        }
+        items = items.map(it => {
+          const json = it.toJSON ? it.toJSON() : it;
+          const list = bySeason[it.id] || [];
+          json.versions = list;
+          if (json.published_version_id) {
+            json.published_version = list.find(v => String(v.id) === String(json.published_version_id)) || null;
+          }
+          return json;
+        });
+      }
+    } catch (_) { /* ignore */ }
     return res.json(items);
   } catch (e) {
     const code = e && (e.parent?.code || e.original?.code);
     // Missing table or missing column in local DB → fall back to minimal raw query
     if (String(code) === '42P01' || String(code) === '42703') {
       try {
+        // Minimal fallback select without optional columns (e.g., color) to tolerate unmigrated local DBs
         const [rows] = await sequelize.query(
-          'SELECT id, tee_sheet_id, status, archived, created_at, updated_at FROM "TeeSheetSeasons" WHERE tee_sheet_id = :sid ORDER BY created_at ASC',
+          'SELECT id, tee_sheet_id, name, status, published_version_id, archived, created_at, updated_at FROM "TeeSheetSeasons" WHERE tee_sheet_id = :sid ORDER BY created_at ASC',
           { replacements: { sid: req.params.id } }
         );
         const items = (rows || []).map(r => ({
@@ -897,12 +954,35 @@ router.get('/tee-sheets/:id/v2/seasons', requireAuth(['Admin', 'Manager', 'Super
           name: r.name || 'Untitled Season',
           status: r.status || 'draft',
           published_version_id: r.published_version_id || null,
+          color: null,
           archived: !!r.archived,
           created_at: r.created_at,
           updated_at: r.updated_at,
           versions: [],
           published_version: null,
         }));
+        // Attempt to load versions for these seasons so the UI can show dates
+        try {
+          const seasonIds = items.map(i => i.id);
+          if (seasonIds.length) {
+            const [verRows] = await sequelize.query(
+              'SELECT id, season_id, start_date, end_date_exclusive, created_at FROM "TeeSheetSeasonVersions" WHERE season_id IN (:ids) ORDER BY created_at ASC',
+              { replacements: { ids: seasonIds } }
+            );
+            const bySeason = {};
+            for (const v of (verRows || [])) {
+              const sid = v.season_id;
+              (bySeason[sid] ||= []).push({ id: v.id, season_id: v.season_id, start_date: v.start_date, end_date_exclusive: v.end_date_exclusive, created_at: v.created_at });
+            }
+            for (const it of items) {
+              const list = bySeason[it.id] || [];
+              it.versions = list;
+              if (it.published_version_id) {
+                it.published_version = list.find(v => String(v.id) === String(it.published_version_id)) || null;
+              }
+            }
+          }
+        } catch (_) { /* ignore */ }
         return res.json(items);
       } catch (e2) {
         return res.json([]);
@@ -918,7 +998,7 @@ router.post('/tee-sheets/:id/v2/seasons', requireAuth(['Admin']), async (req, re
   const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
   try {
-  const created = await TeeSheetSeason.create({ tee_sheet_id: sheet.id, status: 'draft', name: value?.name || 'Untitled Season' });
+  const created = await TeeSheetSeason.create({ tee_sheet_id: sheet.id, status: 'draft', name: value?.name || 'Untitled Season', color: value?.color || null });
     return res.status(201).json(created);
   } catch (e) {
     // Fallback for local DBs missing columns like name/published_version_id
@@ -927,16 +1007,17 @@ router.post('/tee-sheets/:id/v2/seasons', requireAuth(['Admin']), async (req, re
       const sid = sheet.id;
       const newId = randomUUID();
       const [rows] = await sequelize.query(
-        'INSERT INTO "TeeSheetSeasons" (id, tee_sheet_id, status, archived, created_at, updated_at) VALUES (:id, :sid, :status, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) RETURNING id, tee_sheet_id, status, archived, created_at, updated_at',
-        { replacements: { id: newId, sid, status: 'draft' } }
+        'INSERT INTO "TeeSheetSeasons" (id, tee_sheet_id, name, status, color, archived, created_at, updated_at) VALUES (:id, :sid, :name, :status, :color, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) RETURNING id, tee_sheet_id, name, status, color, archived, created_at, updated_at',
+        { replacements: { id: newId, sid, name: value?.name || 'Untitled Season', status: 'draft', color: value?.color || null } }
       );
       const row = Array.isArray(rows) ? rows[0] : rows;
       return res.status(201).json({
         id: row.id,
         tee_sheet_id: row.tee_sheet_id,
-        name: value?.name || 'Untitled Season',
+        name: row.name || value?.name || 'Untitled Season',
         status: row.status || 'draft',
         published_version_id: null,
+        color: row.color || null,
         archived: !!row.archived,
         created_at: row.created_at,
         updated_at: row.updated_at,
@@ -954,21 +1035,35 @@ router.put('/tee-sheets/:id/v2/seasons/:seasonId', requireAuth(['Admin']), async
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
   const season = await findSeasonSafe(sheet.id, req.params.seasonId);
   if (!season) return res.status(404).json({ error: 'Season not found' });
-  await season.update({ name: value.name });
+  await season.update({ name: value.name, color: value?.color ?? season.color });
   res.json(season);
 });
 
-// Season guarded delete: only when draft and has no versions
+// Season delete (draft only): cascade delete versions and weekday windows
 router.delete('/tee-sheets/:id/v2/seasons/:seasonId', requireAuth(['Admin']), async (req, res) => {
   const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
   const season = await findSeasonSafe(sheet.id, req.params.seasonId);
   if (!season) return res.status(404).json({ error: 'Season not found' });
   if (season.status !== 'draft') return res.status(400).json({ error: 'Only draft seasons can be deleted' });
-  const versionCount = await TeeSheetSeasonVersion.count({ where: { season_id: season.id } });
-  if (versionCount > 0) return res.status(400).json({ error: 'Cannot delete season with existing versions' });
-  await season.destroy();
-  res.status(204).end();
+
+  const trx = await sequelize.transaction();
+  try {
+    const versions = await TeeSheetSeasonVersion.findAll({ where: { season_id: season.id }, transaction: trx });
+    const versionIds = versions.map(v => v.id);
+    if (versionIds.length) {
+      await TeeSheetSeasonWeekdayWindow.destroy({ where: { season_version_id: { [Op.in]: versionIds } }, transaction: trx });
+      await TeeSheetSeasonVersion.destroy({ where: { id: { [Op.in]: versionIds } }, transaction: trx });
+    }
+    // Bypass hooks entirely to avoid environment-specific hook behavior
+    await sequelize.query('DELETE FROM "TeeSheetSeasons" WHERE id = :sid', { replacements: { sid: season.id }, transaction: trx });
+    await trx.commit();
+    res.status(204).end();
+  } catch (e) {
+    try { await trx.rollback(); } catch {}
+    const status = e.status || 400;
+    res.status(status).json({ error: e.message || 'Failed to delete season' });
+  }
 });
 
 router.post('/tee-sheets/:id/v2/seasons/:seasonId/versions', requireAuth(['Admin']), async (req, res) => {
@@ -1435,7 +1530,14 @@ router.post('/tee-sheets/:id/v2/overrides', requireAuth(['Admin']), async (req, 
   const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
   try {
-    const created = await TeeSheetOverride.create({ tee_sheet_id: sheet.id, status: 'draft', date: value.date, name: 'Untitled Override' });
+    const payload = {
+      tee_sheet_id: sheet.id,
+      status: 'draft',
+      date: value.date,
+      name: (value.name || '').trim() || 'Untitled Override',
+    };
+    if (value.color) payload.color = value.color.startsWith('#') ? value.color : `#${value.color}`;
+    const created = await TeeSheetOverride.create(payload);
     res.status(201).json(created);
   } catch (e) {
     res.status(400).json({ error: e.message || 'Failed to create override' });
@@ -1725,11 +1827,30 @@ router.delete('/tee-sheets/:id/v2/overrides/:overrideId', requireAuth(['Admin'])
   const ov = await TeeSheetOverride.findOne({ where: { id: req.params.overrideId, tee_sheet_id: sheet.id } });
   if (!ov) return res.status(404).json({ error: 'Override not found' });
   if (ov.status !== 'draft') return res.status(400).json({ error: 'Only draft overrides can be deleted' });
-  await ov.destroy();
-  res.status(204).end();
+  // Cascade delete versions and their windows, then the override itself
+  const trx = await sequelize.transaction();
+  try {
+    // Prevent deleting if this override somehow points to a published version
+    if (ov.published_version_id) {
+      throw Object.assign(new Error('Cannot delete override with a published version'), { status: 400 });
+    }
+    const versions = await TeeSheetOverrideVersion.findAll({ where: { override_id: ov.id }, transaction: trx });
+    const versionIds = versions.map(v => v.id);
+    if (versionIds.length) {
+      await TeeSheetOverrideWindow.destroy({ where: { override_version_id: { [Op.in]: versionIds } }, transaction: trx });
+      await TeeSheetOverrideVersion.destroy({ where: { id: { [Op.in]: versionIds } }, transaction: trx });
+    }
+    await ov.destroy({ transaction: trx });
+    await trx.commit();
+    res.status(204).end();
+  } catch (e) {
+    try { await trx.rollback(); } catch {}
+    const status = e.status || 400;
+    res.status(status).json({ error: e.message || 'Failed to delete override' });
+  }
 });
 
-// Update override name and/or date
+// Update override name, date, and color
 router.put('/tee-sheets/:id/v2/overrides/:overrideId', requireAuth(['Admin']), async (req, res) => {
   const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
@@ -1738,6 +1859,10 @@ router.put('/tee-sheets/:id/v2/overrides/:overrideId', requireAuth(['Admin']), a
   try {
     if (typeof req.body?.name === 'string') ov.name = (req.body.name || '').trim() || 'Untitled Override';
     if (typeof req.body?.date === 'string') ov.date = req.body.date;
+    if (typeof req.body?.color === 'string' && req.body.color) {
+      const hex = req.body.color.startsWith('#') ? req.body.color : `#${req.body.color}`;
+      if (/^#?[0-9a-fA-F]{3,8}$/.test(hex)) ov.color = hex;
+    }
     await ov.save();
     const reloaded = await TeeSheetOverride.findByPk(ov.id, { include: [{ model: TeeSheetOverrideVersion, as: 'versions' }, { model: TeeSheetOverrideVersion, as: 'published_version' }] });
     res.json(reloaded);

@@ -4,6 +4,7 @@ const express = require('express');
 const router = express.Router();
 const { generateForDate } = require('../services/teeSheetGenerator');
 const { generateForDateV2 } = require('../services/teeSheetGenerator.v2');
+const { resolveEffectiveWindows } = require('../services/templateResolver');
 const Joi = require('joi');
 const { addClient } = require('../services/broadcast');
 const { requireAuth } = require('../middleware/auth');
@@ -143,6 +144,19 @@ router.post('/internal/tee-sheets/:id/regenerate-range', requireAuth(['Admin', '
     res.json({ generated: total });
   } catch (e) {
     res.status(400).json({ error: e.message || 'Regeneration failed' });
+  }
+});
+
+// Debug: Inspect effective windows for a sheet/date (dev only)
+router.get('/internal/tee-sheets/:id/effective-windows', requireAuth(['Admin', 'SuperAdmin']), async (req, res) => {
+  try {
+    if (process.env.ENABLE_INTERNAL_ENDPOINTS !== 'true') return res.status(404).json({ error: 'Not found' });
+    const { date } = req.query || {};
+    if (!date) return res.status(400).json({ error: 'date is required (YYYY-MM-DD)' });
+    const result = await resolveEffectiveWindows({ teeSheetId: req.params.id, dateISO: date });
+    res.json(result);
+  } catch (e) {
+    res.status(400).json({ error: e.message || 'Failed to resolve windows' });
   }
 });
 

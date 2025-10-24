@@ -55,14 +55,29 @@ const creating = ref(false);
 async function load(){
   try {
     const { data } = await settingsAPI.listTeeSheets();
-    hasAnyTeeSheet.value = Array.isArray(data) ? data.length > 0 : false;
-    const id = route.params.teeSheetId;
-    const found = Array.isArray(data) ? data.find(s => String(s.id) === String(id)) : null;
+    const items = Array.isArray(data) ? data : [];
+    hasAnyTeeSheet.value = items.length > 0;
+    if (!hasAnyTeeSheet.value) {
+      teeSheet.value = null;
+      courseTimezone.value = '';
+      courseLat.value = '';
+      courseLon.value = '';
+      return;
+    }
+    // Resolve tee sheet id: route param -> localStorage -> first item
+    let id = route.params.teeSheetId || null;
+    if (!id) { try { id = localStorage.getItem('teeSheet:lastSheet'); } catch {}
+    }
+    if (!id) {
+      id = items[0].id;
+      try { localStorage.setItem('teeSheet:lastSheet', id); } catch {}
+    }
+    const found = items.find(s => String(s.id) === String(id)) || items[0];
     teeSheet.value = found || null;
-    // Best-effort: Some backends include course fields on tee sheet; otherwise leave blank
+    // Best-effort: backend flattens course fields onto tee sheet
     courseTimezone.value = found?.timezone || '';
-    courseLat.value = found?.latitude ?? '';
-    courseLon.value = found?.longitude ?? '';
+    courseLat.value = (found?.latitude ?? '') + '';
+    courseLon.value = (found?.longitude ?? '') + '';
   } catch {
     teeSheet.value = null;
     hasAnyTeeSheet.value = false;

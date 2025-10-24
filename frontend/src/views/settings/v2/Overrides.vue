@@ -1,7 +1,7 @@
 <template>
   <div class="pa-4" data-cy="overrides-v2">
     <div class="toolbar">
-      <h2 class="title">Overrides (V2)</h2>
+      <h2 class="title">Overrides</h2>
       <div class="row">
         <v-btn variant="text" class="create-btn" :disabled="busy" @click="createOverrideFromToolbar" data-cy="override-new-btn">Create new override</v-btn>
       </div>
@@ -19,25 +19,34 @@
         @click="openDetail(o)"
         :data-cy="`override-card-${shortId(o.id)}`"
       >
-        <div class="color-bar" />
+        <div class="color-bar" :style="{ background: colorForOverrideObj(o) }" />
         <div class="override-card__body">
           <div class="override-card__header">
             <div class="override-card__title">{{ o.name || `Override ${shortId(o.id)}` }}</div>
-            <v-menu location="bottom end">
-              <template #activator="{ props }">
-                <v-btn v-bind="props" icon="mdi-dots-vertical" variant="text" density="comfortable" @click.stop></v-btn>
-              </template>
-              <v-list density="compact">
-                <v-list-item :data-cy="`override-menu-delete-${shortId(o.id)}`" @click.stop="remove(o)">
-                  <v-list-item-title>Delete</v-list-item-title>
-                </v-list-item>
-              </v-list>
-            </v-menu>
+            <div class="card-menu">
+              <v-menu location="bottom end">
+                <template #activator="{ props }">
+                  <v-btn v-bind="props" icon="fa:fal fa-ellipsis-vertical" variant="text" density="comfortable" @click.stop></v-btn>
+                </template>
+                <v-list density="compact">
+                  <v-list-item :data-cy="`override-menu-delete-${shortId(o.id)}`" @click.stop="remove(o)">
+                    <v-list-item-title>Delete</v-list-item-title>
+                  </v-list-item>
+                </v-list>
+              </v-menu>
+            </div>
           </div>
           <div class="override-card__row">
-            <span class="pill" :class="{ archived: o.status !== 'draft' }">{{ o.status }}</span>
+            <v-icon
+              :icon="o.status === 'draft' ? 'fa:fal fa-pen-to-square' : 'fa:fal fa-rocket-launch'"
+              :class="['status-icon', o.status === 'draft' ? 'draft' : 'published']"
+              size="16"
+              :title="o.status === 'draft' ? 'Draft' : 'Published'"
+              aria-hidden="false"
+              :aria-label="o.status === 'draft' ? 'Draft' : 'Published'"
+            />
             <span class="sep">•</span>
-            <span>Date: {{ o.date }}</span>
+            <span>{{ formatOverrideDate(o.date) }}</span>
           </div>
         </div>
       </v-card>
@@ -53,9 +62,12 @@
         <v-card-text>
           <div class="section">
             <div class="section__header">Override Details</div>
-            <div class="section__grid">
+            <div class="section__grid details-grid">
               <div class="field w-420"><v-text-field v-model="overrideName" label="Name" variant="outlined" density="comfortable" hide-details /></div>
-              <div class="field w-420"><v-text-field v-model="overrideDate" type="date" label="Date" variant="outlined" density="comfortable" hide-details /></div>
+              <div class="field w-220"><v-text-field v-model="overrideDate" type="date" label="Date" variant="outlined" density="comfortable" hide-details /></div>
+              <div class="field w-64 color-field">
+                <input type="color" v-model="overrideColor" class="color-input" aria-label="Override color" title="Override color" />
+              </div>
             </div>
           </div>
           <div class="section">
@@ -88,10 +100,10 @@
                   <v-select :items="templateVersionOptions" item-title="label" item-value="id" v-model="w.template_version_id" :disabled="activeTab==='published'" label="Template Version" variant="outlined" density="comfortable" hide-details />
                 </div>
                 <div class="actions">
-                  <v-btn v-if="activeTab==='draft'" icon="mdi-delete-outline" variant="text" @click="deleteWindow(w)" />
+                  <v-btn v-if="activeTab==='draft'" icon="fa:fal fa-trash-can" variant="text" @click="deleteWindow(w)" />
                 </div>
               </div>
-              <div v-if="activeTab==='draft'" class="row"><v-btn variant="text" class="create-btn" prepend-icon="mdi-plus" :disabled="busy || !currentOverrideId" @click="addWindow(currentOverrideId)">Add window</v-btn></div>
+              <div v-if="activeTab==='draft'" class="row"><v-btn variant="text" class="create-btn" prepend-icon="fa:fal fa-plus" :disabled="busy || !currentOverrideId" @click="addWindow(currentOverrideId)">Add window</v-btn></div>
             </div>
         </div>
         </v-card-text>
@@ -114,7 +126,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref, inject, watch, reactive } from 'vue';
+import { onMounted, ref, inject, watch, reactive, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { settingsAPI } from '@/services/api';
 
@@ -127,6 +139,8 @@ const overrideDate = ref('');
 const initialOverrideDate = ref('');
 const dateDirty = ref(false);
 const currentOverrideId = ref('');
+const overrideColor = ref('#9be7a8');
+const overrideColors = reactive({}); // { [overrideId]: '#hex' }
 
 // Editor state for single-date windows row (no weekday grouping)
 const editor = reactive({
@@ -147,8 +161,34 @@ const snackbarColor = ref('success');
 function notify(message, color = 'success') { snackbarMessage.value = message; snackbarColor.value = color; showSnackbar.value = true; }
 function shortId(id){ return (id || '').slice(0,6); }
 
-const startModeItems = [ { title: 'Sunrise', value: 'sunrise_offset', icon: 'mdi-weather-sunset-up' }, { title: 'Time', value: 'fixed', icon: 'mdi-clock-outline' } ];
-const endModeItems = [ { title: 'Sunset', value: 'sunset_offset', icon: 'mdi-weather-sunset-down' }, { title: 'Time', value: 'fixed', icon: 'mdi-clock-outline' } ];
+function colorKey(id){ return id ? `override:color:${id}` : ''; }
+function loadColor(id){
+  try { const v = localStorage.getItem(colorKey(id)); return v || '#9be7a8'; } catch { return '#9be7a8'; }
+}
+function saveColor(id, value){
+  try { if (id) localStorage.setItem(colorKey(id), value); } catch {}
+}
+function colorForOverride(id){ return overrideColors[id] || '#9be7a8'; }
+function isValidHex(c){ return typeof c === 'string' && /^#?[0-9a-fA-F]{3,8}$/.test(c); }
+function colorForOverrideObj(o){
+  const api = isValidHex(o?.color) ? (o.color.startsWith('#') ? o.color : `#${o.color}`) : '';
+  return api || colorForOverride(o?.id);
+}
+
+function formatOverrideDate(dateStr){
+  try {
+    if (!dateStr) return '';
+    const d = new Date(`${dateStr}T00:00:00`);
+    const parts = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }).formatToParts(d);
+    const map = Object.fromEntries(parts.map(p => [p.type, p.value]));
+    return `${map.weekday} ${map.month} ${map.day}, ${map.year}`;
+  } catch {
+    return dateStr;
+  }
+}
+
+const startModeItems = [ { title: 'Sunrise', value: 'sunrise_offset', icon: 'fa:fal fa-sunrise' }, { title: 'Time', value: 'fixed', icon: 'fa:fal fa-clock' } ];
+const endModeItems = [ { title: 'Sunset', value: 'sunset_offset', icon: 'fa:fal fa-sunset' }, { title: 'Time', value: 'fixed', icon: 'fa:fal fa-clock' } ];
 
 async function load() {
   try {
@@ -157,6 +197,11 @@ async function load() {
     if (!teeSheetId) { overrides.value = []; return; }
     const { data } = await settingsAPI.v2.listOverrides(teeSheetId);
     overrides.value = data || [];
+    // Prefer API color, else fallback to stored color
+    for (const o of overrides.value) {
+      const apiColor = isValidHex(o?.color) ? (o.color.startsWith('#') ? o.color : `#${o.color}`) : '';
+      overrideColors[o.id] = apiColor || loadColor(o.id);
+    }
     await loadTemplateVersions();
   } catch (e) {
     notify('Failed to load overrides', 'error');
@@ -282,6 +327,8 @@ async function createOverrideFromToolbar(){
     currentOverrideId.value = data?.id || '';
     overrideName.value = data?.name || 'Untitled Override';
     initialOverrideDate.value = overrideDate.value;
+    overrideColor.value = '#9be7a8'; // Default color for new overrides
+    saveColor(currentOverrideId.value, overrideColor.value);
     detailOpen.value = true;
     await load();
     notify('Override created');
@@ -296,6 +343,7 @@ async function openDetail(o){
   overrideDate.value = o?.date || overrideDate.value;
   initialOverrideDate.value = overrideDate.value;
   dateDirty.value = false;
+  overrideColor.value = isValidHex(o?.color) ? (o.color.startsWith('#') ? o.color : `#${o.color}`) : colorForOverride(currentOverrideId.value);
   detailOpen.value = true;
   try {
     const teeSheetId = route.params.teeSheetId;
@@ -399,8 +447,15 @@ async function saveAll(overrideId){
       const payload = { name: (overrideName.value||'').trim() || 'Untitled Override' };
       // Only send date if user changed it intentionally
       if (dateDirty.value && overrideDate.value) payload['date'] = overrideDate.value;
+      if (isValidHex(overrideColor.value)) payload['color'] = overrideColor.value;
       await settingsAPI.v2.updateOverride(teeSheetId, overrideId, payload);
     } catch {}
+    // Persist color locally for card/calendar
+    if (overrideId && overrideColor.value) {
+      saveColor(overrideId, overrideColor.value);
+      overrideColors[overrideId] = overrideColor.value;
+      try { window.dispatchEvent(new CustomEvent('override-color-updated')); } catch {}
+    }
     // Update all existing windows in the editing version
     if (editingVersionId.value) {
       for (const w of (currentWindows.value || [])) {
@@ -512,7 +567,19 @@ async function deleteWindow(win){
   } catch {}
 }
 
-onMounted(load);
+onMounted(() => {
+  load();
+  const handler = (ev) => {
+    try {
+      const id = ev?.detail?.id;
+      if (!id) return;
+      const found = (overrides.value || []).find(x => x.id === id);
+      if (found) openDetail(found);
+    } catch {}
+  };
+  try { window.addEventListener('open-override', handler); } catch {}
+  onBeforeUnmount(() => { try { window.removeEventListener('open-override', handler); } catch {} });
+});
 
 // Default the date from calendar-selected value if present
 const selectedDate = inject('settings:selectedDate', ref(''));
@@ -539,11 +606,13 @@ watch(overrideDate, (v) => {
 .create-btn{ color:#5EE3BB; font-weight:600; letter-spacing:0.04em; }
 .muted{ color:#6b778c; }
 .cards{ display:flex; flex-direction:column; gap:12px; }
-.override-card{ padding:10px 12px; cursor:pointer; width:100%; display:flex; align-items:stretch; }
+.override-card{ padding:10px 12px; cursor:pointer; width:100%; display:flex; align-items:stretch; position:relative; overflow:hidden; border:1px solid #e5e7eb; border-left:none; border-radius:8px; }
+.override-card__body{ flex:1; padding-left:16px; }
+.card-menu{ position:absolute; right:12px; top:10px; }
 .override-card__header{ display:flex; align-items:center; justify-content:space-between; }
 .override-card__title{ font-weight:700; font-size:18px; }
 .override-card__row{ color:#6b778c; margin-top:6px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.color-bar{ width:6px; background:#9be7a8; border-radius:4px; margin-right:10px; }
+.color-bar{ position:absolute; left:0; top:0; bottom:0; width:12px; border-top-left-radius: inherit; border-bottom-left-radius: inherit; z-index:1; }
 .pill{ background:#eef7ff; border-radius:10px; padding:2px 8px; font-size:12px; }
 .pill.archived{ background:#fdecea; color:#b71c1c; }
 .sep{ margin:0 6px; color:#9aa0a6; }
@@ -559,6 +628,15 @@ watch(overrideDate, (v) => {
 .ellipsis{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .icon-select :deep(.v-field__input){ padding-right:36px; padding-top:6px; padding-bottom:6px; }
 .icon-select :deep(.v-field){ margin:0; }
+.details-grid{ grid-template-columns: 420px 220px 64px; align-items:center; }
+.w-420{ max-width:420px; }
+.w-220{ max-width:220px; }
+.w-64{ max-width:64px; }
+.mini-label{ display:block; font-size:12px; color:#6b778c; margin: 2px 0 6px; }
+.color-input{ width:56px; height:56px; padding:0; border:1px solid #e0e0e0; border-radius:8px; background:#fff; display:block; }
+.color-input::-webkit-color-swatch-wrapper{ padding:2px; border-radius:8px; }
+.color-input::-webkit-color-swatch{ border:none; border-radius:8px; }
+.color-input::-moz-color-swatch{ border:none; border-radius:8px; }
 </style>
 
 

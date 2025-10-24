@@ -22,6 +22,7 @@ const {
   Customer,
 } = require('../models');
 const { computeReroundStart, isClassAllowed, calcFeesForLeg } = require('../lib/teeRules');
+const { generateForDateV2 } = require('../services/teeSheetGenerator.v2');
 
 const router = express.Router();
 const { resolveEffectiveWindows } = require('../services/templateResolver');
@@ -122,7 +123,7 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
   } catch (_) { /* non-fatal; fall back to full day */ }
 
   // Fetch slots on date for selected sheets within computed window
-  const slots = await TeeTime.findAll({
+  let slots = await TeeTime.findAll({
     where: {
       tee_sheet_id: { [Op.in]: teeSheets },
       ...(sideFilter.length ? { side_id: { [Op.in]: sideFilter } } : {}),
@@ -133,6 +134,27 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
     },
     order: [['start_time', 'ASC']],
   });
+
+  // Dev-friendly fallback: if no slots were found, auto-generate and retry (development only or when explicitly enabled)
+  if ((process.env.NODE_ENV === 'development' || process.env.AUTO_GENERATE_SLOTS === 'true') && slots.length === 0) {
+    try {
+      for (const sheetId of teeSheets) {
+        // Let the generator resolve windows internally; it will no-op if none exist
+        await generateForDateV2({ teeSheetId: sheetId, dateISO: date });
+      }
+      // Re-query after generation
+      slots = await TeeTime.findAll({
+        where: {
+          tee_sheet_id: { [Op.in]: teeSheets },
+          ...(sideFilter.length ? { side_id: { [Op.in]: sideFilter } } : {}),
+          start_time: { [Op.gte]: windowStart, [Op.lt]: windowEnd },
+        },
+        order: [['start_time', 'ASC']],
+      });
+    } catch (_) {
+      // ignore fallback errors
+    }
+  }
 
   // Load metadata we need
   const sheets = await TeeSheet.findAll({ where: { id: { [Op.in]: teeSheets } } });
@@ -395,26 +417,26 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
       .reduce((sum, it) => sum + (Number(it.party_size) || 0), 0);
     const remainingAdjusted = Math.max(0, (slot.capacity - slot.assigned_count) - held);
 
-    // Build assignment names so the booking owner's name appears once, others as "Guest"
-  const rawAssigns = assignmentsByTt[slot.id] || [];
-  // Track if we've already shown a name (explicit or owner) for a booking id on this tee time
-  const shownNameForBooking = new Set();
+    // Build assignment names in stable seat order (created_at ASC per preload)
+    const orderedAssigns = assignmentsByTt[slot.id] || [];
+    const countPerBooking = new Map();
     const assignmentNames = [];
-    for (const it of rawAssigns) {
-      // Prefer explicit customer name for this seat when present
-      const explicit = (it.customer_name || '').trim();
-    if (explicit) { assignmentNames.push(explicit); shownNameForBooking.add(it.booking_id); continue; }
-    // Otherwise: if we've already shown a name for this booking, label as Guest; else show owner once
-    if (it.booking_id && it.owner_name) {
-      if (shownNameForBooking.has(it.booking_id)) {
-        assignmentNames.push('Guest');
-      } else {
-        assignmentNames.push(it.owner_name);
-        shownNameForBooking.add(it.booking_id);
-      }
+    for (const it of orderedAssigns) {
+    const bid = it.booking_id || '__none__';
+    const count = countPerBooking.get(bid) || 0;
+    const owner = String(it.owner_name || '').trim();
+    const explicit = String(it.customer_name || '').trim();
+    if (count === 0) {
+      // Seat 1 for this booking
+      if (explicit) assignmentNames.push(explicit);
+      else if (owner) assignmentNames.push(owner);
+      else assignmentNames.push('Guest');
     } else {
-      assignmentNames.push('Guest');
+      // Seats 2+ for this booking
+      if (explicit && explicit !== owner) assignmentNames.push(explicit);
+      else assignmentNames.push('Guest');
     }
+    countPerBooking.set(bid, count + 1);
     }
 
     results.push({
@@ -431,7 +453,7 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
       is_start_disabled: isCustomerView ? undefined : slot.is_start_disabled,
       price_total_cents: totalPriceCents,
       price_breakdown: priceBreakdown,
-      assignments: rawAssigns,
+    assignments: orderedAssigns,
       assignment_names: assignmentNames,
     });
   }

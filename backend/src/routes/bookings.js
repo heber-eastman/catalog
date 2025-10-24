@@ -45,6 +45,7 @@ const bookingSchema = Joi.object({
     .items(
       Joi.object({
         customer_id: Joi.string().uuid().allow(null),
+        name: Joi.string().allow('', null).optional(),
         email: Joi.string().email().allow(null, ''),
         walkRide: Joi.string().valid('walk', 'ride').allow(null),
       })
@@ -255,6 +256,34 @@ router.post(
       } catch (_) { /* best-effort; keep owner null on failure */ }
     }
 
+    // Resolve per-player customer IDs in call order (create if only a name is provided)
+    const courseIdForPlayers = sheet.course_id;
+    const toCustomerId = async (p) => {
+      if (p && p.customer_id) return p.customer_id;
+      const name = (p && p.name ? String(p.name) : '').trim();
+      if (!name) return null;
+      try {
+        const parts = name.split(/\s+/).filter(Boolean);
+        const firstName = parts.length > 1 ? parts.slice(0, parts.length - 1).join(' ') : (parts[0] || 'Guest');
+        const lastName = parts.length > 1 ? parts[parts.length - 1] : '';
+        const email = `guest+${Date.now()}@auto.local`;
+        const cust = await Customer.create({
+          course_id: courseIdForPlayers,
+          first_name: firstName,
+          last_name: lastName || 'Guest',
+          email,
+        });
+        return cust.id;
+      } catch (_) {
+        return null;
+      }
+    };
+    const resolvedCustomerIds = [];
+    for (const p of players) {
+      // eslint-disable-next-line no-await-in-loop
+      resolvedCustomerIds.push(await toCustomerId(p));
+    }
+
     // Transactional capacity check and insertions
     try {
       const result = await sequelize.transaction(async t => {
@@ -309,7 +338,7 @@ router.post(
           const assignments = players.map((p, idx) => ({
             booking_round_leg_id: leg.id,
             tee_time_id: tt.id,
-            customer_id: p.customer_id || (idx === 0 ? (ownerCustomerId || null) : null),
+            customer_id: resolvedCustomerIds[idx] || p.customer_id || (idx === 0 ? (ownerCustomerId || null) : null),
           }));
           await TeeTimeAssignment.bulkCreate(assignments, { transaction: t });
 
@@ -363,9 +392,19 @@ router.post(
 const editPlayersSchema = Joi.object({
   add: Joi.number().integer().min(0).default(0),
   remove: Joi.number().integer().min(0).default(0),
+  // Optional full desired players list; when provided, route will reconcile to match its length
+  players: Joi.array().items(
+    Joi.object({
+      customer_id: Joi.string().uuid().allow(null),
+      name: Joi.string().allow('').optional(),
+      email: Joi.string().email().allow('').optional(),
+    })
+  ).optional(),
   transfer_owner_to: Joi.string().uuid().allow(null),
 }).custom((val, helpers) => {
-  if ((val.add || 0) + (val.remove || 0) === 0 && !('transfer_owner_to' in val)) {
+  const hasDelta = (val.add || 0) + (val.remove || 0) > 0;
+  const hasPlayers = Array.isArray(val.players) && val.players.length > 0;
+  if (!hasDelta && !hasPlayers && !('transfer_owner_to' in val)) {
     return helpers.error('any.invalid');
   }
   return val;
@@ -552,16 +591,57 @@ router.patch(
     if (!teeTime) return res.status(400).json({ error: 'Tee time missing' });
 
     const date = teeTime.start_time.toISOString().substring(0, 10);
-    const template = await findTemplateForDate(booking.tee_sheet_id, date);
-    if (!template) return res.status(400).json({ error: 'No calendar assignment for date' });
-    const timeframe = await findTimeframeForSlot(booking.tee_sheet_id, teeTime.side_id, template.day_template_id, teeTime.start_time);
-    if (!timeframe) return res.status(400).json({ error: 'Window not open' });
-    const minRow = await TimeframeMinPlayers.findOne({ where: { timeframe_id: timeframe.id } });
-    const minPlayers = minRow ? minRow.min_players : 1;
+    // Prefer V2 seasons/overrides windows, fallback to legacy day templates
+    let minPlayers = 1;
+    try {
+      const sheet = await TeeSheet.findByPk(booking.tee_sheet_id);
+      if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+      const course = await GolfCourseInstance.findByPk(sheet.course_id);
+      const zone = (course && course.timezone) ? course.timezone : 'UTC';
+      const { windows, source } = await resolveEffectiveWindows({ teeSheetId: booking.tee_sheet_id, dateISO: date });
+      if (windows && windows.length && source) {
+        const compiled = await require('../services/windowCompiler').compileWindowsForDate({ teeSheetId: booking.tee_sheet_id, dateISO: date, sourceType: source, sourceId: null, windows });
+        const local = require('luxon').DateTime.fromJSDate(teeTime.start_time, { zone });
+        const match = compiled.find(w => w.side_id === teeTime.side_id && local >= w.start && local < w.end);
+        if (match && match.template_version_id) {
+          const sideCfg = await TeeSheetTemplateSide.findOne({ where: { version_id: match.template_version_id, side_id: teeTime.side_id } });
+          if (sideCfg && typeof sideCfg.min_players === 'number') minPlayers = sideCfg.min_players;
+        } else {
+          return res.status(400).json({ error: 'Window not open' });
+        }
+      } else {
+        // Legacy fallback
+        const template = await findTemplateForDate(booking.tee_sheet_id, date);
+        if (!template) return res.status(400).json({ error: 'No calendar assignment for date' });
+        const timeframe = await findTimeframeForSlot(booking.tee_sheet_id, teeTime.side_id, template.day_template_id, teeTime.start_time);
+        if (!timeframe) return res.status(400).json({ error: 'Window not open' });
+        const minRow = await TimeframeMinPlayers.findOne({ where: { timeframe_id: timeframe.id } });
+        minPlayers = minRow ? minRow.min_players : 1;
+      }
+    } catch (e) {
+      // On unexpected V2 errors, fall back to legacy
+      try {
+        const template = await findTemplateForDate(booking.tee_sheet_id, date);
+        if (!template) return res.status(400).json({ error: 'No calendar assignment for date' });
+        const timeframe = await findTimeframeForSlot(booking.tee_sheet_id, teeTime.side_id, template.day_template_id, teeTime.start_time);
+        if (!timeframe) return res.status(400).json({ error: 'Window not open' });
+        const minRow = await TimeframeMinPlayers.findOne({ where: { timeframe_id: timeframe.id } });
+        minPlayers = minRow ? minRow.min_players : 1;
+      } catch {
+        return res.status(400).json({ error: 'Window not open' });
+      }
+    }
 
     const currentCount = await TeeTimeAssignment.count({ where: { booking_round_leg_id: firstLeg.id } });
-    const addCount = Number(value.add || 0);
-    const removeCount = Number(value.remove || 0);
+    let addCount = Number(value.add || 0);
+    let removeCount = Number(value.remove || 0);
+    // If a full desired players list is provided, derive add/remove from it
+    if (Array.isArray(value.players)) {
+      const desired = Math.max(0, Number(value.players.length));
+      if (desired > currentCount) { addCount = desired - currentCount; removeCount = 0; }
+      else if (desired < currentCount) { removeCount = currentCount - desired; addCount = 0; }
+      else { addCount = 0; removeCount = 0; }
+    }
 
     if (removeCount > 0) {
       if (currentCount - removeCount < minPlayers) {
@@ -612,6 +692,37 @@ router.patch(
             const rows = Array.from({ length: addCount }).map(() => ({ booking_round_leg_id: leg.id, tee_time_id: ttRow.id }));
             await TeeTimeAssignment.bulkCreate(rows, { transaction: t });
             await ttRow.update({ assigned_count: ttRow.assigned_count + addCount }, { transaction: t });
+          }
+        }
+
+        // If caller supplied desired players list, reconcile assignment customer_ids to match
+        if (Array.isArray(value.players)) {
+          // Build final customer IDs, creating customers for entries without id but with a name
+          const sheet = await TeeSheet.findByPk(booking.tee_sheet_id, { transaction: t });
+          const courseId = sheet ? sheet.course_id : null;
+          const toCustomerId = async (p) => {
+            if (p && p.customer_id) return p.customer_id;
+            const name = (p && p.name ? String(p.name) : '').trim();
+            if (!name) return null;
+            const parts = name.split(/\s+/).filter(Boolean);
+            const firstName = parts.length > 1 ? parts.slice(0, parts.length - 1).join(' ') : (parts[0] || 'Guest');
+            const lastName = parts.length > 1 ? parts[parts.length - 1] : 'Guest';
+            const email = (p && p.email && String(p.email).includes('@')) ? p.email : `guest+${Date.now()}@auto.local`;
+            const cust = await Customer.create({ course_id: courseId, first_name: firstName, last_name: lastName, email }, { transaction: t });
+            return cust.id;
+          };
+          const desiredIds = [];
+          for (const p of value.players) desiredIds.push(await toCustomerId(p));
+
+          for (const leg of booking.legs) {
+            const assigns = await TeeTimeAssignment.findAll({ where: { booking_round_leg_id: leg.id }, order: [['created_at','ASC']], transaction: t, lock: t.LOCK.UPDATE });
+            if (assigns.length !== desiredIds.length) throw Object.assign(new Error('Assignment count mismatch'), { status: 400 });
+            for (let i = 0; i < assigns.length; i++) {
+              const id = desiredIds[i] || null;
+              if (assigns[i].customer_id !== id) {
+                await assigns[i].update({ customer_id: id }, { transaction: t });
+              }
+            }
           }
         }
       });

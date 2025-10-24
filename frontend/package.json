@@ -27,6 +27,7 @@
     "security:audit": "npm audit --audit-level moderate"
   },
   "dependencies": {
+    "@fortawesome/fontawesome-pro": "^7.1.0",
     "@mdi/font": "^7.2.96",
     "axios": "^1.4.0",
     "lodash-es": "^4.17.21",
@@ -37,6 +38,7 @@
     "vuetify": "^3.3.15"
   },
   "devDependencies": {
+    "@fortawesome/fontawesome-free": "^7.1.0",
     "@vitejs/plugin-vue": "^5.2.4",
     "@vitest/coverage-v8": "^3.2.3",
     "@vitest/ui": "^3.2.3",
