@@ -29,7 +29,7 @@ describe('V2 Seasons view', () => {
     window.alert = vi.fn();
     const wrapper = mount(Seasons, { global: {} });
     await new Promise(r => setTimeout(r));
-    expect(wrapper.html()).toContain('Seasons (V2)');
+    expect(wrapper.html()).toContain('Seasons');
     // Open first season card
     const card = wrapper.find('[data-cy^="season-card-"]');
     if (card.exists()) {

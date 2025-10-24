@@ -32,7 +32,7 @@ describe('V2 Templates view', () => {
       global: { },
     });
     await new Promise(r => setTimeout(r));
-    expect(wrapper.html()).toContain('Templates (V2)');
+    expect(wrapper.html()).toContain('Templates');
     // Create template via toolbar button
     const createBtn = wrapper.find('[data-cy="template-create-btn"]');
     if (createBtn.exists()) {

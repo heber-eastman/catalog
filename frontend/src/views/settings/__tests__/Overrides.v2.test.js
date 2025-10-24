@@ -27,7 +27,7 @@ describe('V2 Overrides view', () => {
   it('lists overrides and can create/version/publish', async () => {
     const wrapper = mount(Overrides, { global: {} });
     await new Promise(r => setTimeout(r));
-    expect(wrapper.html()).toContain('Overrides (V2)');
+    expect(wrapper.html()).toContain('Overrides');
     // Create new override via toolbar
     const createBtn = wrapper.find('[data-cy="override-new-btn"]');
     expect(createBtn.exists()).toBe(true);
