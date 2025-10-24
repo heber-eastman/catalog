@@ -8,6 +8,7 @@
     "frontend"
   ],
   "scripts": {
+    "dev": "./dev-start.sh",
     "start": "npm run dev:backend",
     "install:all": "npm install",
     "dev:backend": "npm run dev --workspace=backend",
@@ -38,6 +39,8 @@
     "db:migrate:prod": "NODE_ENV=production npm run db:migrate --workspace=backend",
     "db:seed": "npm run db:seed --workspace=backend",
     "db:reset": "npm run db:reset --workspace=backend",
+    "seed:demo:v2": "npm run seed:demo:v2 --workspace=backend",
+    "verify:release": "npm run test:e2e --workspace=frontend && npm run test:smoke --workspace=backend",
     "aws:setup": "./deploy-aws-setup.sh",
     "deploy:staging": "npm run deploy:staging:backend && npm run deploy:staging:frontend",
     "deploy:staging:backend": "aws ecs update-service --cluster catalog-golf-staging --service catalog-golf-backend-staging --force-new-deployment",

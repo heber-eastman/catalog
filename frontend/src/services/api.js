@@ -33,6 +33,10 @@ api.interceptors.response.use(
       const token = newToken.substring(7);
       localStorage.setItem('jwt_token', token);
     }
+    // Dev fallback: if backend returns token in body, persist it
+    if (response?.data && typeof response.data === 'object' && response.data.token) {
+      try { localStorage.setItem('jwt_token', response.data.token); } catch {}
+    }
     return response;
   },
   async error => {
@@ -253,6 +257,104 @@ export const apiUtils = {
       return null;
     }
   },
+};
+
+// Tee times (availability)
+export const teeTimesAPI = {
+  available: params => api.get('/tee-times/available', { params }),
+};
+
+// Holds
+export const holdsAPI = {
+  holdCart: body => api.post('/holds/cart', body),
+};
+
+// Bookings
+export const bookingsAPI = {
+  create: (body, idempotencyKey) => {
+    const key = idempotencyKey || `web-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    return api.post('/bookings', body, { headers: { 'Idempotency-Key': key } });
+  },
+  update: (id, body) => api.patch(`/bookings/${id}`, body),
+  editPlayers: (id, body) => api.patch(`/bookings/${id}/players`, body),
+  reschedule: (id, body) => api.patch(`/bookings/${id}/reschedule`, body),
+  cancel: id => api.delete(`/bookings/${id}`),
+  mine: () => api.get('/bookings/mine'),
+};
+
+// Settings/Admin APIs (thin helpers; endpoints may be stubbed in tests)
+export const settingsAPI = {
+  // Tee sheets
+  listTeeSheets: () => api.get('/tee-sheets', { params: { ts: Date.now() } }),
+  createTeeSheet: data => api.post('/tee-sheets', data),
+
+  // Sides
+  listSides: teeSheetId => api.get(`/tee-sheets/${teeSheetId}/sides`),
+  createSide: (teeSheetId, data) => api.post(`/tee-sheets/${teeSheetId}/sides`, data),
+  updateSide: (teeSheetId, sideId, data) => api.put(`/tee-sheets/${teeSheetId}/sides/${sideId}`, data),
+
+  // Templates
+  listTemplates: teeSheetId => api.get(`/tee-sheets/${teeSheetId}/templates`),
+  createTemplate: (teeSheetId, data) => api.post(`/tee-sheets/${teeSheetId}/templates`, data),
+
+  // V2 Templates
+  v2: {
+    listTemplates: teeSheetId => api.get(`/tee-sheets/${teeSheetId}/v2/templates`),
+    createTemplate: (teeSheetId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/templates`, data),
+    createTemplateVersion: (teeSheetId, templateId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}/versions`, data),
+    publishTemplate: (teeSheetId, templateId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}/publish`, data),
+    rollbackTemplate: (teeSheetId, templateId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}/rollback`, data),
+    archiveTemplate: (teeSheetId, templateId) => api.post(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}/archive`),
+    unarchiveTemplate: (teeSheetId, templateId) => api.post(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}/unarchive`),
+    deleteTemplate: (teeSheetId, templateId) => api.delete(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}`),
+    listSeasons: teeSheetId => api.get(`/tee-sheets/${teeSheetId}/v2/seasons`),
+    createSeason: (teeSheetId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/seasons`, data),
+    updateSeason: (teeSheetId, seasonId, data) => api.put(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}`, data),
+    createSeasonVersion: (teeSheetId, seasonId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}/versions`, data),
+    listSeasonWeekdayWindows: (teeSheetId, seasonId, seasonVersionId) => api.get(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}/versions/${seasonVersionId}/weekday-windows`),
+    addSeasonWeekdayWindow: (teeSheetId, seasonId, seasonVersionId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}/versions/${seasonVersionId}/weekday-windows`, data),
+    updateSeasonWeekdayWindow: (teeSheetId, seasonId, seasonVersionId, windowId, data) => api.put(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}/versions/${seasonVersionId}/weekday-windows/${windowId}`, data),
+    deleteSeasonWeekdayWindow: (teeSheetId, seasonId, seasonVersionId, windowId) => api.delete(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}/versions/${seasonVersionId}/weekday-windows/${windowId}`),
+    reorderSeasonWeekdayWindows: (teeSheetId, seasonId, seasonVersionId, data) => api.patch(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}/versions/${seasonVersionId}/weekday-windows/reorder`, data),
+    publishSeason: (teeSheetId, seasonId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}/publish`, data),
+    deleteSeason: (teeSheetId, seasonId) => api.delete(`/tee-sheets/${teeSheetId}/v2/seasons/${seasonId}`),
+    listOverrides: teeSheetId => api.get(`/tee-sheets/${teeSheetId}/v2/overrides`),
+    createOverride: (teeSheetId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/overrides`, data),
+    updateOverride: (teeSheetId, overrideId, data) => api.put(`/tee-sheets/${teeSheetId}/v2/overrides/${overrideId}`, data),
+    createOverrideVersion: (teeSheetId, overrideId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/overrides/${overrideId}/versions`, data),
+    listOverrideWindows: (teeSheetId, overrideId, versionId) => api.get(`/tee-sheets/${teeSheetId}/v2/overrides/${overrideId}/versions/${versionId}/windows`),
+    listOverrideWindowsLatest: (teeSheetId, overrideId) => api.get(`/tee-sheets/${teeSheetId}/v2/overrides/${overrideId}/windows/latest`),
+    addOverrideWindow: (teeSheetId, overrideId, overrideVersionId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/overrides/${overrideId}/versions/${overrideVersionId}/windows`, data),
+    updateOverrideWindow: (teeSheetId, overrideId, overrideVersionId, windowId, data) => api.put(`/tee-sheets/${teeSheetId}/v2/overrides/${overrideId}/versions/${overrideVersionId}/windows/${windowId}`, data),
+    reorderOverrideWindows: (teeSheetId, overrideId, overrideVersionId, order) => api.patch(`/tee-sheets/${teeSheetId}/v2/overrides/${overrideId}/versions/${overrideVersionId}/windows/reorder`, { order }),
+    deleteOverrideWindow: (teeSheetId, overrideId, overrideVersionId, windowId) => api.delete(`/tee-sheets/${teeSheetId}/v2/overrides/${overrideId}/versions/${overrideVersionId}/windows/${windowId}`),
+    publishOverride: (teeSheetId, overrideId, data) => api.post(`/tee-sheets/${teeSheetId}/v2/overrides/${overrideId}/publish`, data),
+    deleteOverride: (teeSheetId, overrideId) => api.delete(`/tee-sheets/${teeSheetId}/v2/overrides/${overrideId}`),
+    // Replace-all draft windows (seed or overwrite)
+    replaceOverrideDraft: (teeSheetId, overrideId, windows) => api.put(`/tee-sheets/${teeSheetId}/v2/overrides/${overrideId}/draft`, { windows }),
+    regenerateDate: (teeSheetId, date) => api.post(`/internal/tee-sheets/${teeSheetId}/regenerate`, { date }),
+    regenerateRange: (teeSheetId, start_date, end_date) => api.post(`/internal/tee-sheets/${teeSheetId}/regenerate-range`, { start_date, end_date }),
+    starterPreset: teeSheetId => api.post(`/tee-sheets/${teeSheetId}/v2/starters/preset`),
+    getTemplateSettings: (teeSheetId, templateId) => api.get(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}/settings`),
+    updateTemplateSettings: (teeSheetId, templateId, data) => api.put(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}/settings`, data),
+    // Side Settings
+    getTemplateSideSettings: (teeSheetId, templateId) => api.get(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}/side-settings`, { params: { ts: Date.now() } }),
+    updateTemplateSideSettings: (teeSheetId, templateId, data) => api.put(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}/side-settings`, data),
+  },
+
+  // Timeframes
+  listTimeframes: (teeSheetId, templateId) => api.get(`/tee-sheets/${teeSheetId}/templates/${templateId}/timeframes`),
+  createTimeframe: (teeSheetId, templateId, data) => api.post(`/tee-sheets/${teeSheetId}/templates/${templateId}/timeframes`, data),
+
+  // Calendar
+  assignCalendar: (teeSheetId, data) => api.post(`/tee-sheets/${teeSheetId}/calendar`, data),
+
+  // Generate (internal)
+  generateDay: (teeSheetId, date) => api.post(`/internal/generate?tee_sheet_id=${encodeURIComponent(teeSheetId)}&date=${encodeURIComponent(date)}`),
+
+  // Closures
+  listClosures: teeSheetId => api.get(`/tee-sheets/${teeSheetId}/closures`),
+  createClosure: (teeSheetId, data) => api.post(`/tee-sheets/${teeSheetId}/closures`, data),
 };
 
 export default api;

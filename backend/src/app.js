@@ -8,6 +8,13 @@ const customersRouter = require('./routes/customers');
 const notesRouter = require('./routes/notes');
 const staffRouter = require('./routes/staff');
 const superAdminsRouter = require('./routes/super-admins');
+const teeSheetsRouter = require('./routes/teeSheets');
+const internalRouter = require('./routes/internal');
+const availabilityRouter = require('./routes/availability');
+const holdsRouter = require('./routes/holds');
+const waitlistRouter = require('./routes/waitlist');
+const bookingsRouter = require('./routes/bookings');
+const teeTimesRouter = require('./routes/teeTimes');
 const authRouter = require('./routes/auth');
 const healthRouter = require('./routes/health');
 const { rateLimitMiddleware } = require('./middleware/rateLimit');
@@ -56,8 +63,8 @@ app.use(
       callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'Idempotency-Key'],
   })
 );
 
@@ -93,6 +100,15 @@ app.use('/api/v1', customersRouter);
 app.use('/api/v1', notesRouter);
 app.use('/api/v1/staff', staffRouter);
 app.use('/api/v1/super-admin', superAdminsRouter);
+app.use('/api/v1', teeSheetsRouter);
+app.use('/api/v1', availabilityRouter);
+app.use('/api/v1', holdsRouter);
+app.use('/api/v1', waitlistRouter);
+app.use('/api/v1', bookingsRouter);
+app.use('/api/v1', teeTimesRouter);
+app.use('/', internalRouter);
+// Also expose internal routes under /api/v1 for axios baseURL compatibility
+app.use('/api/v1', internalRouter);
 
 // 404 handler
 app.use((req, res) => {

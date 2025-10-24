@@ -118,3 +118,15 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: vi.fn(),
   })),
 });
+
+// Mock visualViewport used by Vuetify overlays
+Object.defineProperty(window, 'visualViewport', {
+  writable: true,
+  value: {
+    width: 1024,
+    height: 768,
+    scale: 1,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  },
+});

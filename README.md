@@ -164,6 +164,7 @@ npm run dev:frontend
 - `npm run db:migrate --workspace=backend` - Run database migrations
 - `npm run db:seed --workspace=backend` - Seed database with sample data
 - `npm run db:reset --workspace=backend` - Reset database (drop, create, migrate, seed)
+- `npm run seed:demo:v2 --workspace=backend` - Run demo seeders for Tee Sheet V2 (creates demo course tee sheet, template, season, override, and sample tee times)
 
 ### Frontend
 
@@ -193,8 +194,14 @@ npm run test --workspace=backend
 # Run frontend tests only
 npm run test --workspace=frontend
 
-# Run end-to-end tests
+# Run end-to-end tests (all)
 npm run test:e2e
+
+# Run focused V2 settings E2E (calendar, templates, seasons, overrides)
+cd frontend && npm run test:e2e:v2
+
+# Run a11y checks for settings (logs violations, does not fail build)
+cd frontend && npm run test:e2e:a11y
 
 # Run smoke tests
 npm run test:smoke

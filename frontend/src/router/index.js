@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import { apiUtils } from '@/services/api';
+import { apiUtils, settingsAPI } from '@/services/api';
 import Home from '@/views/Home.vue';
 
 const routes = [
@@ -7,6 +7,105 @@ const routes = [
     path: '/',
     name: 'Home',
     component: Home,
+  },
+  {
+    path: '/settings',
+    name: 'Settings',
+    component: () => import('@/views/settings/SettingsLayout.vue'),
+    meta: { requiresAuth: true, roles: ['Admin', 'Manager'] },
+    children: [
+      { path: '', redirect: { name: 'SettingsGeneral' } },
+      { path: 'general', name: 'SettingsGeneral', component: () => import('@/views/settings/General.vue') },
+      // Tee sheet scoped routes (require :teeSheetId)
+      { path: 'tee-sheets/:teeSheetId/v2/general', name: 'SettingsV2GeneralInfo', component: () => import('@/views/settings/v2/GeneralInfo.vue') },
+      { path: 'tee-sheets/:teeSheetId/sides', name: 'SettingsTeeSheetsSides', component: () => import('@/views/settings/TeeSheetsSides.vue') },
+      { path: 'tee-sheets/:teeSheetId/day-templates', name: 'SettingsDayTemplates', component: () => import('@/views/settings/DayTemplates.vue') },
+      { path: 'tee-sheets/:teeSheetId/timeframes', name: 'SettingsTimeframes', component: () => import('@/views/settings/Timeframes.vue') },
+      // V2 Settings pages
+      { path: 'tee-sheets/:teeSheetId/v2/templates', name: 'SettingsV2Templates', component: () => import('@/views/settings/v2/Templates.vue') },
+      { path: 'tee-sheets/:teeSheetId/v2/seasons', name: 'SettingsV2Seasons', component: () => import('@/views/settings/v2/Seasons.vue') },
+      { path: 'tee-sheets/:teeSheetId/v2/overrides', name: 'SettingsV2Overrides', component: () => import('@/views/settings/v2/Overrides.vue') },
+      { path: 'tee-sheets/:teeSheetId/calendar', name: 'SettingsCalendar', component: () => import('@/views/settings/Calendar.vue') },
+      { path: 'tee-sheets/:teeSheetId/closures', name: 'SettingsClosures', component: () => import('@/views/settings/Closures.vue') },
+      { path: 'tee-sheets/:teeSheetId/booking-classes', name: 'SettingsBookingClasses', component: () => import('@/views/settings/BookingClasses.vue') },
+    ],
+  },
+  {
+    path: '/settings/tee-sheet',
+    name: 'SettingsTeeSheetEntry',
+    meta: { requiresAuth: true, roles: ['Admin', 'Manager'] },
+    beforeEnter: async (to, from, next) => {
+      // Resolve last or first available tee sheet id
+      let id = null;
+      try { id = localStorage.getItem('teeSheet:lastSheet'); } catch {}
+      if (!id) {
+        try {
+          const { data } = await settingsAPI.listTeeSheets();
+          id = data?.[0]?.id || null;
+          if (id) localStorage.setItem('teeSheet:lastSheet', id);
+        } catch {}
+      }
+      if (id) {
+        next({ name: 'SettingsTeeSheetsSides', params: { teeSheetId: id } });
+      } else {
+        next({ name: 'SettingsGeneral' });
+      }
+    },
+  },
+  // Legacy redirects without :teeSheetId
+  { path: '/settings/tee-sheets-sides', beforeEnter: async (to, from, next) => {
+      let id = null; try { id = localStorage.getItem('teeSheet:lastSheet'); } catch {}
+      if (!id) { try { const { data } = await settingsAPI.listTeeSheets(); id = data?.[0]?.id; } catch {} }
+      next(id ? { name: 'SettingsTeeSheetsSides', params: { teeSheetId: id } } : { name: 'SettingsGeneral' });
+    } },
+  { path: '/settings/day-templates', beforeEnter: async (to, from, next) => {
+      let id = null; try { id = localStorage.getItem('teeSheet:lastSheet'); } catch {}
+      if (!id) { try { const { data } = await settingsAPI.listTeeSheets(); id = data?.[0]?.id; } catch {} }
+      next(id ? { name: 'SettingsDayTemplates', params: { teeSheetId: id } } : { name: 'SettingsGeneral' });
+    } },
+  { path: '/settings/timeframes', beforeEnter: async (to, from, next) => {
+      let id = null; try { id = localStorage.getItem('teeSheet:lastSheet'); } catch {}
+      if (!id) { try { const { data } = await settingsAPI.listTeeSheets(); id = data?.[0]?.id; } catch {} }
+      next(id ? { name: 'SettingsTimeframes', params: { teeSheetId: id } } : { name: 'SettingsGeneral' });
+    } },
+  { path: '/settings/calendar', beforeEnter: async (to, from, next) => {
+      let id = null; try { id = localStorage.getItem('teeSheet:lastSheet'); } catch {}
+      if (!id) { try { const { data } = await settingsAPI.listTeeSheets(); id = data?.[0]?.id; } catch {} }
+      next(id ? { name: 'SettingsCalendar', params: { teeSheetId: id } } : { name: 'SettingsGeneral' });
+    } },
+  { path: '/settings/closures', beforeEnter: async (to, from, next) => {
+      let id = null; try { id = localStorage.getItem('teeSheet:lastSheet'); } catch {}
+      if (!id) { try { const { data } = await settingsAPI.listTeeSheets(); id = data?.[0]?.id; } catch {} }
+      next(id ? { name: 'SettingsClosures', params: { teeSheetId: id } } : { name: 'SettingsGeneral' });
+    } },
+  { path: '/settings/booking-classes', beforeEnter: async (to, from, next) => {
+      let id = null; try { id = localStorage.getItem('teeSheet:lastSheet'); } catch {}
+      if (!id) { try { const { data } = await settingsAPI.listTeeSheets(); id = data?.[0]?.id; } catch {} }
+      next(id ? { name: 'SettingsBookingClasses', params: { teeSheetId: id } } : { name: 'SettingsGeneral' });
+    } },
+  {
+    path: '/tee-sheet',
+    name: 'TeeSheet',
+    component: () => import('@/views/TeeSheet.vue'),
+    meta: { requiresAuth: true, roles: ['Admin', 'Manager', 'Staff'] },
+  },
+  {
+    path: '/browse',
+    name: 'Browse',
+    component: () => import('@/views/customer/Browse.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/cart',
+    name: 'Cart',
+    component: () => import('@/views/customer/Cart.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/my-tee-times',
+    name: 'MyTeeTimes',
+    component: () => import('@/views/customer/MyTeeTimes.vue'),
+    meta: { requiresAuth: true },
   },
   {
     path: '/about',

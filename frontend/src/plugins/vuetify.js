@@ -2,6 +2,8 @@ import { createVuetify } from 'vuetify';
 import * as components from 'vuetify/components';
 import * as directives from 'vuetify/directives';
 import { aliases, mdi } from 'vuetify/iconsets/mdi';
+import '@fortawesome/fontawesome-pro/css/all.css';
+import { aliases as faAliases, fa } from 'vuetify/iconsets/fa';
 
 import 'vuetify/styles';
 
@@ -10,9 +12,10 @@ export default createVuetify({
   directives,
   icons: {
     defaultSet: 'mdi',
-    aliases,
+    aliases: { ...aliases, ...faAliases },
     sets: {
       mdi,
+      fa,
     },
   },
   theme: {

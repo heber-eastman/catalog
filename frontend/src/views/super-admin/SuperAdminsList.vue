@@ -6,7 +6,7 @@
           <h1>Super Admins Management</h1>
           <v-btn
             color="primary"
-            prepend-icon="mdi-email-plus"
+            prepend-icon="'fa:fal fa-envelope-circle-check'"
             @click="showInviteDialog = true"
             data-cy="invite-super-admin-btn"
           >
@@ -23,7 +23,7 @@
           <v-card-title>
             <v-text-field
               v-model="search"
-              append-inner-icon="mdi-magnify"
+              append-inner-icon="fa:fal fa-magnifying-glass"
               label="Search super admins..."
               single-line
               hide-details
@@ -59,14 +59,14 @@
 
             <template #item.actions="{ item }">
               <v-btn
-                icon="mdi-pencil"
+                icon="fa:fal fa-pen-to-square"
                 size="small"
                 variant="text"
                 @click="editSuperAdmin(item)"
                 data-cy="edit-super-admin-btn"
               />
               <v-btn
-                icon="mdi-email-resend"
+                icon="fa:fal fa-envelope-arrow-right"
                 size="small"
                 variant="text"
                 color="info"
@@ -75,7 +75,7 @@
                 data-cy="resend-invitation-btn"
               />
               <v-btn
-                icon="mdi-email-remove"
+                icon="fa:fal fa-envelope-xmark"
                 size="small"
                 variant="text"
                 color="warning"
@@ -84,7 +84,7 @@
                 data-cy="revoke-invitation-btn"
               />
               <v-btn
-                icon="mdi-account-off"
+                icon="fa:fal fa-user-slash"
                 size="small"
                 variant="text"
                 color="error"

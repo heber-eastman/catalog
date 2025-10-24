@@ -29,11 +29,19 @@ fs.readdirSync(__dirname)
     );
   })
   .forEach(file => {
-    const model = require(path.join(__dirname, file))(
+    const result = require(path.join(__dirname, file))(
       sequelize,
       Sequelize.DataTypes
     );
-    db[model.name] = model;
+    if (!result) return;
+    // Support files that return multiple models in an object
+    if (typeof result === 'object' && !result.name) {
+      Object.values(result).forEach(m => {
+        if (m && m.name) db[m.name] = m;
+      });
+    } else if (result.name) {
+      db[result.name] = result;
+    }
   });
 
 Object.keys(db).forEach(modelName => {
