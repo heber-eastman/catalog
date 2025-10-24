@@ -31,6 +31,15 @@ describe('V2 Admin Templates API', () => {
     // Ensure columns used by models exist in this test DB
     try { await sequelize.query('ALTER TABLE "TeeSheetSeasons" ADD COLUMN IF NOT EXISTS name VARCHAR(120) NOT NULL DEFAULT \'Untitled Season\';'); } catch (e) {}
     try { await require('../../migrations/20250918150000-add-allowed-hole-totals').up(sequelize.getQueryInterface(), require('sequelize')); } catch (e) {}
+    try { await require('../../migrations/20250625010000-add-course-geo-tz').up(sequelize.getQueryInterface(), require('sequelize')); } catch (e) {}
+    // Incremental migrations for overrides/seasons
+    const qi = sequelize.getQueryInterface(); const SequelizeLib = require('sequelize');
+    try { await require('../../migrations/20251008090500-add-name-to-overrides').up(qi, SequelizeLib); } catch (e) {}
+    try { await require('../../migrations/20251010114500-add-draft-version-to-overrides').up(qi, SequelizeLib); } catch (e) {}
+    try { await require('../../migrations/20251010090000-add-position-to-override-windows').up(qi, SequelizeLib); } catch (e) {}
+    try { await require('../../migrations/20251010101500-remove-side-from-override-windows').up(qi, SequelizeLib); } catch (e) {}
+    try { await require('../../migrations/20251017090000-add-color-to-seasons').up(qi, SequelizeLib); } catch (e) {}
+    try { await require('../../migrations/20251017090500-add-color-to-overrides').up(qi, SequelizeLib); } catch (e) {}
   });
 
   beforeEach(async () => {

@@ -20,6 +20,7 @@ describe('Events and Reminders', () => {
     await require('../../migrations/20250612171421-create-staffuser').up(qi, SequelizeLib);
     await require('../../migrations/20250612171422-create-customer').up(qi, SequelizeLib);
     await require('../../migrations/20250625000000-create-tee-sheet-schema').up(qi, SequelizeLib);
+    try { await require('../../migrations/20250625010000-add-course-geo-tz').up(qi, SequelizeLib); } catch (e) {}
     await require('../../migrations/20250626000001-create-events').up(qi, SequelizeLib);
     // Ensure assignment optional customer_id exists in this isolated DB
     try { await require('../../migrations/20251003090000-add-customer-to-assignment').up(qi, SequelizeLib); } catch (e) {}

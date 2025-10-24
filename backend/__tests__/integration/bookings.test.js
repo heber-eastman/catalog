@@ -36,6 +36,8 @@ describe('POST /api/v1/bookings', () => {
     await teeSchemaMigration.up(qi, SequelizeLib);
     // Ensure TeeTimeAssignments has customer_id for tests
     await addCustomerToAssignment.up(qi, SequelizeLib);
+    // Ensure course geo/timezone columns exist
+    try { await require('../../migrations/20250625010000-add-course-geo-tz').up(qi, SequelizeLib); } catch (_) {}
 
     course = await models.GolfCourseInstance.create({ name: 'B Course', subdomain: 'b', status: 'Active' });
     const staff = await models.StaffUser.create({ course_id: course.id, email: 's@ex.com', password: 'p', role: 'Staff', is_active: true });

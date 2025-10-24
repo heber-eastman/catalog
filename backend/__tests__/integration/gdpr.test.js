@@ -17,18 +17,27 @@ describe('GDPR Service Tests', () => {
     await sequelize.authenticate();
 
     // Create tables if they don't exist
+    await sequelize.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');
+    await sequelize.query(`DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_GolfCourseInstances_status') THEN
+        CREATE TYPE "enum_GolfCourseInstances_status" AS ENUM ('Pending','Active','Deactivated');
+      END IF;
+    END $$;`);
     await sequelize.query(`
       CREATE TABLE IF NOT EXISTS "GolfCourseInstances" (
-        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         "name" VARCHAR(255) NOT NULL,
         "subdomain" VARCHAR(255) UNIQUE NOT NULL,
         "primary_admin_id" UUID,
-        "status" VARCHAR(255) NOT NULL DEFAULT 'Pending',
+        "status" "enum_GolfCourseInstances_status" NOT NULL DEFAULT 'Pending',
         "street" VARCHAR(255),
         "city" VARCHAR(255),
         "state" VARCHAR(255),
         "postal_code" VARCHAR(255),
         "country" VARCHAR(255),
+        "timezone" VARCHAR(255),
+        "latitude" DECIMAL(9,6),
+        "longitude" DECIMAL(9,6),
         "date_created" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -37,7 +46,7 @@ describe('GDPR Service Tests', () => {
 
     await sequelize.query(`
       CREATE TABLE IF NOT EXISTS "StaffUsers" (
-        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         "course_id" UUID NOT NULL,
         "email" VARCHAR(255) UNIQUE NOT NULL,
         "password" VARCHAR(255) NOT NULL,
@@ -56,7 +65,7 @@ describe('GDPR Service Tests', () => {
 
     await sequelize.query(`
               CREATE TABLE IF NOT EXISTS "Customers" (
-        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         "course_id" UUID NOT NULL,
         "first_name" VARCHAR(255) NOT NULL,
         "last_name" VARCHAR(255) NOT NULL,

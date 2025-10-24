@@ -17,6 +17,15 @@ describe('generator v2', () => {
       if (!hasSheets || !hasV2) {
         execSync('npx sequelize-cli db:migrate', { stdio: 'inherit', cwd: path.join(__dirname, '../..') });
       }
+      // Apply incremental migrations needed for overrides/seasons
+      const SequelizeLib = require('sequelize');
+      const qi = sequelize.getQueryInterface();
+      try { await require('../../migrations/20251008090500-add-name-to-overrides').up(qi, SequelizeLib); } catch (_) {}
+      try { await require('../../migrations/20251010114500-add-draft-version-to-overrides').up(qi, SequelizeLib); } catch (_) {}
+      try { await require('../../migrations/20251010090000-add-position-to-override-windows').up(qi, SequelizeLib); } catch (_) {}
+      try { await require('../../migrations/20251010101500-remove-side-from-override-windows').up(qi, SequelizeLib); } catch (_) {}
+      try { await require('../../migrations/20251017090000-add-color-to-seasons').up(qi, SequelizeLib); } catch (_) {}
+      try { await require('../../migrations/20251017090500-add-color-to-overrides').up(qi, SequelizeLib); } catch (_) {}
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error('Pre-test migration check (generator v2) failed:', e.message);

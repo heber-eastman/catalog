@@ -27,6 +27,13 @@ describe('Phase1 integrity - templates/seasons/overrides', () => {
     // Ensure columns used by models exist in this test DB
     try { await require('../../migrations/20250918150000-add-allowed-hole-totals').up(qi, SequelizeLib); } catch (e) {}
     try { await qi.sequelize.query('ALTER TABLE "TeeSheetSeasons" ADD COLUMN IF NOT EXISTS name VARCHAR(120) NOT NULL DEFAULT \'Untitled Season\';'); } catch (e) {}
+    // Ensure overrides-related incremental migrations
+    try { await require('../../migrations/20251008090500-add-name-to-overrides').up(qi, SequelizeLib); } catch (e) {}
+    try { await require('../../migrations/20251010114500-add-draft-version-to-overrides').up(qi, SequelizeLib); } catch (e) {}
+    try { await require('../../migrations/20251010090000-add-position-to-override-windows').up(qi, SequelizeLib); } catch (e) {}
+    try { await require('../../migrations/20251010101500-remove-side-from-override-windows').up(qi, SequelizeLib); } catch (e) {}
+    try { await require('../../migrations/20251017090000-add-color-to-seasons').up(qi, SequelizeLib); } catch (e) {}
+    try { await require('../../migrations/20251017090500-add-color-to-overrides').up(qi, SequelizeLib); } catch (e) {}
   });
 
   it('creates versioned template tables and prevents delete when versions exist', async () => {

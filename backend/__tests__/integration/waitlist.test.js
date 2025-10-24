@@ -23,6 +23,7 @@ describe('Waitlist flow', () => {
     await require('../../migrations/20250612171421-create-staffuser').up(qi, SequelizeLib);
     await require('../../migrations/20250612171422-create-customer').up(qi, SequelizeLib);
     await require('../../migrations/20250625000000-create-tee-sheet-schema').up(qi, SequelizeLib);
+    try { await require('../../migrations/20250625010000-add-course-geo-tz').up(qi, SequelizeLib); } catch (_) {}
 
     course = await models.GolfCourseInstance.create({ name: 'W Course', subdomain: 'w', status: 'Active' });
     const staff = await models.StaffUser.create({ course_id: course.id, email: 'w@ex.com', password: 'p', role: 'Staff', is_active: true });

@@ -30,6 +30,7 @@ describe('Holds & Idempotency', () => {
     await customerMigration.up(qi, SequelizeLib);
     await teeSchemaMigration.up(qi, SequelizeLib);
     await v2Migration.up(qi, SequelizeLib);
+    try { await require('../../migrations/20250625010000-add-course-geo-tz').up(qi, SequelizeLib); } catch (_) {}
 
     const course = await models.GolfCourseInstance.create({ name: 'Redis Course', subdomain: 'redis', status: 'Active' });
     const staff = await models.StaffUser.create({ course_id: course.id, email: 's@ex.com', password: 'p', role: 'Staff', is_active: true });

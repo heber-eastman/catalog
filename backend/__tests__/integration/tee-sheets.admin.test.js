@@ -25,6 +25,7 @@ describe('Admin Tee Sheets API', () => {
     await staffMigration.up(qi, SequelizeLib);
     await customerMigration.up(qi, SequelizeLib);
     await teeSchemaMigration.up(qi, SequelizeLib);
+    try { await require('../../migrations/20250625010000-add-course-geo-tz').up(qi, SequelizeLib); } catch (_) {}
 
     const course = await models.GolfCourseInstance.create({
       name: 'Admin Test Course',

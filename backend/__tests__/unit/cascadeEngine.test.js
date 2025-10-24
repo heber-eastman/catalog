@@ -13,6 +13,12 @@ describe('cascadeEngine', () => {
     try { await require('../../migrations/20250908090000-create-templates-seasons-overrides').up(qi, SequelizeLib); } catch {}
     try { await require('../../migrations/20250918150000-add-allowed-hole-totals').up(qi, SequelizeLib); } catch {}
     try { await sequelize.query('ALTER TABLE "TeeSheetSeasons" ADD COLUMN IF NOT EXISTS name VARCHAR(120) NOT NULL DEFAULT \'Untitled Season\';'); } catch {}
+    try { await require('../../migrations/20251008090500-add-name-to-overrides').up(qi, SequelizeLib); } catch {}
+    try { await require('../../migrations/20251010114500-add-draft-version-to-overrides').up(qi, SequelizeLib); } catch {}
+    try { await require('../../migrations/20251010090000-add-position-to-override-windows').up(qi, SequelizeLib); } catch {}
+    try { await require('../../migrations/20251010101500-remove-side-from-override-windows').up(qi, SequelizeLib); } catch {}
+    try { await require('../../migrations/20251017090000-add-color-to-seasons').up(qi, SequelizeLib); } catch {}
+    try { await require('../../migrations/20251017090500-add-color-to-overrides').up(qi, SequelizeLib); } catch {}
   });
 
   test('regenerateApplyNow regenerates for a day', async () => {

@@ -13,11 +13,17 @@ describe('seasonPrevalidation', () => {
     try { await require('../../migrations/20250908090000-create-templates-seasons-overrides').up(qi, SequelizeLib); } catch {}
     try { await require('../../migrations/20250918150000-add-allowed-hole-totals').up(qi, SequelizeLib); } catch {}
     try { await sequelize.query('ALTER TABLE "TeeSheetSeasons" ADD COLUMN IF NOT EXISTS name VARCHAR(120) NOT NULL DEFAULT \'Untitled Season\';'); } catch {}
+    try { await require('../../migrations/20251008090500-add-name-to-overrides').up(qi, SequelizeLib); } catch {}
+    try { await require('../../migrations/20251010114500-add-draft-version-to-overrides').up(qi, SequelizeLib); } catch {}
+    try { await require('../../migrations/20251010090000-add-position-to-override-windows').up(qi, SequelizeLib); } catch {}
+    try { await require('../../migrations/20251010101500-remove-side-from-override-windows').up(qi, SequelizeLib); } catch {}
+    try { await require('../../migrations/20251017090000-add-color-to-seasons').up(qi, SequelizeLib); } catch {}
+    try { await require('../../migrations/20251017090500-add-color-to-overrides').up(qi, SequelizeLib); } catch {}
   });
 
   test('returns ok when windows cover sides and template is published', async () => {
     const { GolfCourseInstance, TeeSheet, TeeSheetSide, TeeSheetTemplate, TeeSheetTemplateVersion, TeeSheetTemplateSide, TeeSheetTemplateSidePrices, TeeSheetSeason, TeeSheetSeasonVersion, TeeSheetSeasonWeekdayWindow } = require('../../src/models');
-    const course = await GolfCourseInstance.create({ name: 'PV', subdomain: 'pv-'+Date.now(), status: 'Active', latitude: 40, longitude: -105, timezone: 'America/Denver' });
+    const course = await GolfCourseInstance.create({ name: 'PV', subdomain: 'pv-'+Date.now(), status: 'Active' });
     const sheet = await TeeSheet.create({ course_id: course.id, name: 'Main' });
     const s1 = await TeeSheetSide.create({ tee_sheet_id: sheet.id, name: 'A', valid_from: new Date(), minutes_per_hole: 12, hole_count: 9, interval_mins: 10 });
     const s2 = await TeeSheetSide.create({ tee_sheet_id: sheet.id, name: 'B', valid_from: new Date(), minutes_per_hole: 12, hole_count: 9, interval_mins: 10 });

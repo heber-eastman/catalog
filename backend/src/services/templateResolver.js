@@ -41,10 +41,8 @@ async function resolveEffectiveWindows({ teeSheetId, dateISO }) {
       where: { override_version_id: override.published_version_id },
       order: [['start_time_local', 'ASC'], ['created_at', 'ASC']],
     });
-    // Only use override if it actually defines windows; otherwise fall back to season
-    if (windows && windows.length) {
-      return { source: 'override', windows };
-    }
+    // Prefer override even if it has zero windows (explicit no-windows override)
+    return { source: 'override', windows };
   }
 
   // 2) Published season covering the date (consider ALL published seasons)
