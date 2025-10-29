@@ -198,7 +198,12 @@
             <label>Number of holes</label>
             <div class="seg">
               <button :class="['seg__btn',{active: holes===9}]" @click="holes=9">9</button>
-              <button :class="['seg__btn',{active: holes===18}]" @click="holes=18">18</button>
+              <button
+                :class="['seg__btn',{active: holes===18, disabled: !canBook18ForDraft}]"
+                :disabled="!canBook18ForDraft"
+                :title="!canBook18ForDraft ? '18 holes unavailable (no valid reround)' : ''"
+                @click="canBook18ForDraft ? (holes=18) : null"
+              >18</button>
             </div>
           </div>
           <div class="field">
@@ -319,7 +324,14 @@
                 <label>Number of holes</label>
                 <div class="player-circles hole-circles">
                   <button type="button" :class="['circle',{active: holes===9}]" :aria-pressed="holes===9" @click="holes=9; hasPlayerEdits=true">9</button>
-                  <button type="button" :class="['circle',{active: holes===18}]" :aria-pressed="holes===18" @click="holes=18; hasPlayerEdits=true">18</button>
+                  <button
+                    type="button"
+                    :class="['circle',{active: holes===18, disabled: !canBook18InDrawer}]"
+                    :aria-pressed="holes===18"
+                    :disabled="!canBook18InDrawer"
+                    :title="!canBook18InDrawer ? '18 holes unavailable (no valid reround)' : '18'"
+                    @click="canBook18InDrawer ? (holes=18, hasPlayerEdits=true) : null"
+                  >18</button>
                 </div>
               </div>
               <div class="field">
@@ -469,6 +481,43 @@ const maxPlayersForDraft = computed(() => {
 });
 
 const playerOptions = computed(() => Array.from({ length: maxPlayersForDraft.value }, (_, i) => i + 1));
+
+// Compute if an 18-hole booking is feasible from a given starting slot for the current players count
+function findReroundCandidate(startSlot, partySize){
+  try {
+    if (!startSlot) return null;
+    const start = new Date(startSlot.start_time);
+    // Resolve side settings for minutes per hole and hole count
+    const side = (sides.value || []).find(s => s.id === startSlot.side_id);
+    const mph = Math.max(1, Number(side?.minutes_per_hole || 12));
+    const holesPerLeg = Math.max(1, Number(side?.hole_count || 9));
+    const reroundStart = new Date(start.getTime() + mph * holesPerLeg * 60000);
+    // Prefer another side first, fallback to same side if needed
+    const otherSideId = (sides.value || []).find(s => s.id !== startSlot.side_id)?.id || startSlot.side_id;
+    let candidate = null;
+    const all = Array.isArray(slots.value) ? slots.value : [];
+    // Scan for earliest slot after reroundStart, preferring other side
+    for (const preferSide of [otherSideId, startSlot.side_id]){
+      const next = all
+        .filter(s => s.tee_sheet_id === startSlot.tee_sheet_id && s.side_id === preferSide && new Date(s.start_time) > reroundStart && !s.is_blocked)
+        .sort((a,b)=> new Date(a.start_time) - new Date(b.start_time))[0];
+      if (next && effectiveRemaining(next) >= Math.max(1, Number(partySize||1))) { candidate = next; break; }
+    }
+    return candidate;
+  } catch { return null; }
+}
+
+const canBook18ForDraft = computed(() => {
+  if (!draftSlot.value) return true;
+  const cand = findReroundCandidate(draftSlot.value, players.value);
+  return !!cand;
+});
+
+const canBook18InDrawer = computed(() => {
+  if (!selectedSlot.value) return true;
+  const cand = findReroundCandidate(selectedSlot.value, players.value);
+  return !!cand;
+});
 
 function parseViewValue(v){
   if (!v || typeof v !== 'string') return { sheetId: currentSheetId.value || '', type: 'split', sideId: '' };
@@ -845,6 +894,8 @@ function openAdd(slot) {
   actionsOpen.value = false;
   drawerOpen.value = true;
   bookingOpen.value = false;
+  // If 18 is not feasible for this slot, default to 9 to avoid misleading selection
+  if (!canBook18ForDraft.value) holes.value = 9;
 }
 
 function openAddWithPlayers(slot, n){
@@ -859,6 +910,7 @@ function openAddWithPlayers(slot, n){
   actionsOpen.value = false;
   drawerOpen.value = true;
   bookingOpen.value = false;
+  if (!canBook18ForDraft.value) holes.value = 9;
 }
 
 function onSeatClick(slot, seatIndex){
@@ -1467,9 +1519,13 @@ onBeforeUnmount(() => {
 .player-circles .circle:hover { background: #f3f4f6; }
 .player-circles .circle:active { transform: scale(0.98); }
 .player-circles .circle.active { background: #ccf9ff; color: #111827; border-color: #99e6f5; }
+.player-circles .circle.disabled, .player-circles .circle:disabled { cursor: not-allowed; opacity: .55; background: #f5f5f5; border-color: #e5e7eb; pointer-events: none; }
+.player-circles .circle.disabled:hover, .player-circles .circle:disabled:hover { background: #f5f5f5; }
 .seg { display: inline-flex; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; }
 .seg__btn { padding: 6px 10px; border: none; background: #fff; cursor: pointer; }
 .seg__btn.active { background: #eef6ff; color: #1d4ed8; }
+.seg__btn.disabled, .seg__btn:disabled { cursor: not-allowed; color: #9ca3af; background: #f3f4f6; pointer-events: none; }
+.seg__btn.disabled:hover, .seg__btn:disabled:hover { background: #f3f4f6; }
 .actions-row { display: flex; justify-content: flex-end; padding: 12px 16px; border-top: 1px solid #eee; }
 .drawer-footer { display: flex; justify-content: space-between; padding: 12px 16px; border-top: 1px solid #eee; }
 

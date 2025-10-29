@@ -19,6 +19,16 @@ module.exports = {
     }
     const teeSheetId = teeSheetRows[0].id;
 
+    // If override for today already exists, skip
+    const existingOverride = await queryInterface.sequelize.query(
+      'SELECT id FROM "TeeSheetOverrides" WHERE tee_sheet_id = :sid AND date = :d LIMIT 1',
+      { replacements: { sid: teeSheetId, d: todayISO }, type: Sequelize.QueryTypes.SELECT }
+    );
+    if (existingOverride.length > 0) {
+      console.log('V2 override for today already exists, skipping...');
+      return;
+    }
+
     // Load sides
     const sides = await queryInterface.sequelize.query(
       'SELECT id FROM "TeeSheetSides" WHERE tee_sheet_id = :sid ORDER BY name',
@@ -37,15 +47,17 @@ module.exports = {
     if (tmplVerRows.length === 0) return;
     const tmplVerId = tmplVerRows[0].id;
 
+    // Insert override first without published_version_id to satisfy FK constraints
     await queryInterface.bulkInsert('TeeSheetOverrides', [{
       id: overrideId,
       tee_sheet_id: teeSheetId,
-      status: 'published',
+      status: 'draft',
       date: todayISO,
-      published_version_id: overrideVerId,
+      published_version_id: null,
       created_at: now,
       updated_at: now,
     }]);
+    // Then insert the version pointing to the override
     await queryInterface.bulkInsert('TeeSheetOverrideVersions', [{
       id: overrideVerId,
       override_id: overrideId,
@@ -53,10 +65,15 @@ module.exports = {
       created_at: now,
       updated_at: now,
     }]);
+    // Finally, publish the override by wiring the published_version_id
+    await queryInterface.bulkUpdate(
+      'TeeSheetOverrides',
+      { status: 'published', published_version_id: overrideVerId, updated_at: now },
+      { id: overrideId }
+    );
     await queryInterface.bulkInsert('TeeSheetOverrideWindows', [{
       id: uuidv4(),
       override_version_id: overrideVerId,
-      side_id: sides[0].id,
       start_mode: 'fixed',
       end_mode: 'fixed',
       start_time_local: '08:00:00',

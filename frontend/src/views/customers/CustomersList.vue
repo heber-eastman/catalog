@@ -4,39 +4,41 @@
       <v-col cols="12">
         <div class="d-flex justify-space-between align-center mb-4">
           <h1>Customers</h1>
-          <div class="d-flex ga-2">
+          <div class="d-flex ga-2 align-center">
             <v-btn
-              color="success"
-              prepend-icon="'fa:fal fa-file-import'"
-              @click="showImportDialog = true"
-              data-cy="import-customers-btn"
-            >
-              Import
-            </v-btn>
-            <v-btn
-              color="info"
-              prepend-icon="'fa:fal fa-file-export'"
-              @click="showExportDialog = true"
-              data-cy="export-customers-btn"
-            >
-              Export
-            </v-btn>
-            <v-btn
-              color="primary"
-              prepend-icon="'fa:fal fa-plus'"
+              variant="text"
+              icon
+              :title="'Add customer'"
+              aria-label="Add customer"
               @click="showCreateDialog = true"
               data-cy="add-customer-btn"
             >
-              Add Customer
+              <v-icon icon="fa:fal fa-user-plus" color="black" />
             </v-btn>
+            <div class="header-actions" style="position: relative;">
+              <v-btn
+                variant="text"
+                icon
+                :title="'More actions'"
+                aria-label="More actions"
+                @click="actionsOpen = !actionsOpen"
+                data-cy="customers-actions-btn"
+              >
+                <v-icon icon="fa:fal fa-ellipsis-vertical" color="black" />
+              </v-btn>
+              <div class="actions-menu" v-if="actionsOpen" v-click-outside="() => (actionsOpen = false)">
+                <button class="full" @click="actionsOpen=false; showImportDialog=true">Import</button>
+                <button class="full" @click="actionsOpen=false; showExportDialog=true">Export</button>
+              </div>
+            </div>
           </div>
         </div>
       </v-col>
     </v-row>
 
     <!-- Filters Row -->
-    <v-row class="mb-4">
-      <v-col cols="12" md="4">
+    <v-row class="mb-2 align-center">
+      <v-col cols="12" md="6">
         <v-text-field
           v-model="search"
           prepend-inner-icon="fa:fal fa-magnifying-glass"
@@ -48,36 +50,45 @@
           @input="debouncedSearch"
         />
       </v-col>
-      <v-col cols="12" md="3">
-        <v-select
-          v-model="membershipFilter"
-          :items="membershipTypeOptions"
-          label="Membership Filter"
-          clearable
-          hide-details
-          data-cy="membership-filter"
-          @update:model-value="applyFilters"
-        />
+      <v-col cols="12" md="6" class="d-flex justify-end ga-2">
+        <!-- Filter button + menu -->
+        <div class="header-actions" style="position: relative;">
+          <v-btn variant="text" icon :title="'Filter'" aria-label="Filter" @click="filterMenuOpen=!filterMenuOpen">
+            <v-icon icon="fa:fal fa-filter" color="black" />
+          </v-btn>
+          <div class="actions-menu" v-if="filterMenuOpen" v-click-outside="() => (filterMenuOpen = false)">
+            <div class="menu-title">Membership</div>
+            <button class="full" v-for="opt in membershipTypeOptions" :key="opt.value" @click="setMembership(opt.value)">
+              <v-icon size="14" :icon="membershipFilter===opt.value ? 'fa:fas fa-check' : 'fa:fal fa-empty'" class="mr-2" />
+              {{ opt.title }}
+            </button>
+            <hr />
+            <button class="full" @click="setMembership(null)">Clear filter</button>
+          </div>
+        </div>
+        <!-- Sort button + menu -->
+        <div class="header-actions" style="position: relative;">
+          <v-btn variant="text" icon :title="'Sort'" aria-label="Sort" @click="sortMenuOpen=!sortMenuOpen">
+            <v-icon icon="fa:fal fa-arrow-down-wide-short" color="black" />
+          </v-btn>
+          <div class="actions-menu" v-if="sortMenuOpen" v-click-outside="() => (sortMenuOpen = false)">
+            <div class="menu-title">Sort by</div>
+            <button class="full" v-for="opt in sortOptions" :key="opt.value" @click="setSort(opt.value)">
+              <v-icon size="14" :icon="sortBy===opt.value ? 'fa:fas fa-check' : 'fa:fal fa-empty'" class="mr-2" />
+              {{ opt.title }}
+            </button>
+          </div>
+        </div>
       </v-col>
-      <v-col cols="12" md="3">
-        <v-select
-          v-model="sortBy"
-          :items="sortOptions"
-          label="Sort By"
-          hide-details
-          data-cy="sort-by"
-          @update:model-value="applySorting"
-        />
-      </v-col>
-      <v-col cols="12" md="2">
-        <v-btn
-          variant="outlined"
-          prepend-icon="'fa:fal fa-filter-circle-xmark'"
-          @click="clearFilters"
-          data-cy="clear-filters-btn"
-        >
-          Clear
-        </v-btn>
+    </v-row>
+
+    <!-- Active filter chips -->
+    <v-row v-if="membershipFilter || sortBy !== 'created_at_desc'" class="mb-4">
+      <v-col cols="12" class="d-flex ga-2">
+        <v-chip v-if="membershipFilter" closable @click:close="setMembership(null)">{{ membershipFilter }}</v-chip>
+        <v-chip v-if="sortBy !== 'created_at_desc'" closable @click:close="setSort('created_at_desc')">
+          {{ sortOptions.find(o=>o.value===sortBy)?.title || 'Sort' }}
+        </v-chip>
       </v-col>
     </v-row>
 
@@ -385,6 +396,9 @@ export default {
       customers: [],
       filteredCustomers: [],
       selectedCustomers: [],
+      actionsOpen: false,
+      filterMenuOpen: false,
+      sortMenuOpen: false,
       loading: false,
       saving: false,
       importing: false,
@@ -541,6 +555,18 @@ export default {
       }
 
       this.filteredCustomers = filtered;
+      this.applySorting();
+    },
+
+    setMembership(val) {
+      this.membershipFilter = val;
+      this.filterMenuOpen = false;
+      this.applyFilters();
+    },
+
+    setSort(val) {
+      this.sortBy = val;
+      this.sortMenuOpen = false;
       this.applySorting();
     },
 
@@ -924,4 +950,30 @@ export default {
 .v-data-table__wrapper table tbody tr.clickable-row:hover {
   background-color: rgba(var(--v-theme-on-surface), 0.04) !important;
 }
+
+/* Header actions dropdown - match TeeSheet drawer actions styling */
+.actions-menu {
+  position: absolute;
+  top: 42px;
+  right: 0;
+  width: 220px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+  border-radius: 8px;
+  padding: 8px;
+  z-index: 2100;
+}
+.actions-menu hr { border: none; border-top: 1px solid #eee; margin: 8px 0; }
+.actions-menu .menu-title { font-weight: 600; font-size: 12px; color: #6b7280; padding: 4px 6px 8px; }
+.actions-menu .full {
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.actions-menu .full:hover { background: #f3f4f6; }
 </style>
