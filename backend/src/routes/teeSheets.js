@@ -31,6 +31,7 @@ const {
   TeeSheetOverride,
   TeeSheetOverrideVersion,
   TeeSheetOverrideWindow,
+  GolfCourseInstance,
 } = require('../models');
 
 const router = express.Router();
@@ -324,6 +325,30 @@ router.get('/tee-sheets', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async
     // Fallback without include if association fails in local dev
     const items = await TeeSheet.findAll({ where, order: [['created_at','ASC']] });
     return res.json(items);
+  }
+});
+
+// Public (authenticated customer) helper: list tee sheets for a course by slug
+router.get('/public/courses/:slug/tee-sheets', requireAuth(['Admin', 'Manager', 'Staff', 'SuperAdmin', 'Customer']), async (req, res) => {
+  try {
+    const slug = String(req.params.slug || '').trim();
+    if (!slug) return res.status(400).json({ error: 'Missing course slug' });
+
+    const course = await GolfCourseInstance.findOne({ where: { subdomain: slug } });
+    if (!course) return res.status(404).json({ error: 'Course not found' });
+
+    // Authorization: Customers and Staff may only access their own course; SuperAdmin can access any
+    const isSuper = (req.userRole || '') === 'SuperAdmin';
+    if (!isSuper) {
+      if (!req.courseId || req.courseId !== course.id) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+    }
+
+    const items = await TeeSheet.findAll({ where: { course_id: course.id }, order: [['created_at','ASC']] });
+    return res.json(items.map(s => ({ id: s.id, name: s.name, is_active: s.is_active })));
+  } catch (e) {
+    return res.status(500).json({ error: 'Failed to load tee sheets' });
   }
 });
 

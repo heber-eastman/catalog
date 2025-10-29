@@ -269,6 +269,11 @@ export const holdsAPI = {
   holdCart: body => api.post('/holds/cart', body),
 };
 
+// Booking/Customer helpers
+export const bookingAPI = {
+  listCourseTeeSheetsBySlug: slug => api.get(`/public/courses/${encodeURIComponent(slug)}/tee-sheets`),
+};
+
 // Bookings
 export const bookingsAPI = {
   create: (body, idempotencyKey) => {

@@ -96,6 +96,18 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/booking',
+    name: 'Booking',
+    component: () => import('@/views/customer/Browse.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/booking/:courseSlug',
+    name: 'BookingCourse',
+    component: () => import('@/views/customer/Browse.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/cart',
     name: 'Cart',
     component: () => import('@/views/customer/Cart.vue'),

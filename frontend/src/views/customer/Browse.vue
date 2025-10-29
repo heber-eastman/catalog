@@ -41,7 +41,10 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { teeTimesAPI, holdsAPI } from '@/services/api';
+import { useRoute } from 'vue-router';
+import { teeTimesAPI, holdsAPI, bookingAPI } from '@/services/api';
+
+const route = useRoute();
 
 const date = ref(new Date().toISOString().substring(0,10));
 const teeSheetsRaw = ref(localStorage.getItem('cust:browse:sheets') || '');
@@ -95,7 +98,49 @@ async function addToCart(slot) {
   window.location.href = '/cart';
 }
 
-onMounted(load);
+async function initFromRoute() {
+  try {
+    // Support deep links: /booking, /booking/:courseSlug, and query params
+    const slug = route.params?.courseSlug || route.query?.course || route.query?.courseSlug;
+    if (slug) {
+      localStorage.setItem('cust:courseSlug', String(slug));
+    }
+    if (route.query?.date && /\d{4}-\d{2}-\d{2}/.test(String(route.query.date))) {
+      date.value = String(route.query.date);
+    }
+    if (route.query?.groupSize) {
+      const n = Number(route.query.groupSize);
+      if (!Number.isNaN(n) && n >= 1 && n <= 4) groupSize.value = n;
+    }
+    if (route.query?.walkRide && (route.query.walkRide === 'walk' || route.query.walkRide === 'ride')) {
+      walkRide.value = String(route.query.walkRide);
+    }
+    if (route.query?.teeSheets) {
+      teeSheetsRaw.value = String(route.query.teeSheets);
+    }
+    if (route.query?.sides) {
+      sidesRaw.value = String(route.query.sides);
+    }
+
+    // If we have a course slug but no teeSheets specified, auto-load sheets for that course
+    if (slug && !teeSheetsRaw.value) {
+      try {
+        const { data } = await bookingAPI.listCourseTeeSheetsBySlug(String(slug));
+        const ids = Array.isArray(data) ? data.map(s => s.id) : [];
+        if (ids.length) {
+          teeSheetsRaw.value = ids.join(',');
+          localStorage.setItem('cust:browse:sheets', teeSheetsRaw.value);
+          localStorage.setItem('cust:lastSheet', ids[0]);
+        }
+      } catch (_) {}
+    }
+  } catch {}
+}
+
+onMounted(async () => {
+  await initFromRoute();
+  await load();
+});
 </script>
 
 <style scoped>
