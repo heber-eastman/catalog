@@ -258,17 +258,22 @@ router.get('/customers', requireAuth(ALL_ROLES), async (req, res) => {
       where.is_archived = is_archived;
     }
 
-    // Calculate offset
-    const offset = (page - 1) * limit;
-
-    // Get customers
-    const { rows } = await Customer.findAndCountAll({
+    // Pagination: allow "All" or non-numeric to mean no limit
+    const limitNum = Number(limit);
+    const pageNum = Number(page);
+    const usePaging = Number.isFinite(limitNum) && limitNum > 0;
+    const findOpts = {
       where,
       order: [[sort, order]],
-      limit: parseInt(limit),
-      offset: parseInt(offset),
       attributes: { include: ['created_at', 'updated_at'] },
-    });
+    };
+    if (usePaging) {
+      findOpts.limit = limitNum;
+      findOpts.offset = Number.isFinite(pageNum) && pageNum > 0 ? (pageNum - 1) * limitNum : 0;
+    }
+
+    // Get customers
+    const { rows } = await Customer.findAndCountAll(findOpts);
 
     res.json(rows);
   } catch (error) {

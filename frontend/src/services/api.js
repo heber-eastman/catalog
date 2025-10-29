@@ -287,6 +287,7 @@ export const settingsAPI = {
   // Tee sheets
   listTeeSheets: () => api.get('/tee-sheets', { params: { ts: Date.now() } }),
   createTeeSheet: data => api.post('/tee-sheets', data),
+  updateTeeSheet: (teeSheetId, data) => api.put(`/tee-sheets/${teeSheetId}`, data),
 
   // Sides
   listSides: teeSheetId => api.get(`/tee-sheets/${teeSheetId}/sides`),

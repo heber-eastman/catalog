@@ -415,28 +415,43 @@ router.get('/tee-times/available', requireAuth(['Admin', 'Manager', 'Staff', 'Su
       .flatMap(h => h.items || [])
       .filter(it => it.tee_time_id === slot.id)
       .reduce((sum, it) => sum + (Number(it.party_size) || 0), 0);
-    const remainingAdjusted = Math.max(0, (slot.capacity - slot.assigned_count) - held);
+
+    // Build assignments and names, but dedupe multiple legs of same booking at same slot
+    const orderedAssignsRaw = assignmentsByTt[slot.id] || [];
+    const minLegByBooking = new Map();
+    for (const it of orderedAssignsRaw) {
+      const bid = it.booking_id || '__none__';
+      const li = typeof it.leg_index === 'number' ? it.leg_index : 0;
+      const prev = minLegByBooking.get(bid);
+      if (prev === undefined || li < prev) minLegByBooking.set(bid, li);
+    }
+    const orderedAssigns = orderedAssignsRaw.filter(it => {
+      const bid = it.booking_id || '__none__';
+      const li = typeof it.leg_index === 'number' ? it.leg_index : 0;
+      return li === (minLegByBooking.get(bid) ?? li);
+    });
+
+    const remainingAdjusted = Math.max(0, (slot.capacity - orderedAssigns.length) - held);
 
     // Build assignment names in stable seat order (created_at ASC per preload)
-    const orderedAssigns = assignmentsByTt[slot.id] || [];
     const countPerBooking = new Map();
     const assignmentNames = [];
     for (const it of orderedAssigns) {
-    const bid = it.booking_id || '__none__';
-    const count = countPerBooking.get(bid) || 0;
-    const owner = String(it.owner_name || '').trim();
-    const explicit = String(it.customer_name || '').trim();
-    if (count === 0) {
-      // Seat 1 for this booking
-      if (explicit) assignmentNames.push(explicit);
-      else if (owner) assignmentNames.push(owner);
-      else assignmentNames.push('Guest');
-    } else {
-      // Seats 2+ for this booking
-      if (explicit && explicit !== owner) assignmentNames.push(explicit);
-      else assignmentNames.push('Guest');
-    }
-    countPerBooking.set(bid, count + 1);
+      const bid = it.booking_id || '__none__';
+      const count = countPerBooking.get(bid) || 0;
+      const owner = String(it.owner_name || '').trim();
+      const explicit = String(it.customer_name || '').trim();
+      if (count === 0) {
+        // Seat 1: prefer owner first to keep lead player in first position
+        if (owner) assignmentNames.push(owner);
+        else if (explicit) assignmentNames.push(explicit);
+        else assignmentNames.push('Guest');
+      } else {
+        // Seats 2+: show explicit name when different from owner; else Guest
+        if (explicit && explicit !== owner) assignmentNames.push(explicit);
+        else assignmentNames.push('Guest');
+      }
+      countPerBooking.set(bid, count + 1);
     }
 
     results.push({

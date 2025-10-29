@@ -529,6 +529,15 @@ onMounted(() => {
   const handler = () => { loadCalendarFlags(); };
   try { window.addEventListener('override-color-updated', handler); } catch {}
   onBeforeUnmount(() => { try { window.removeEventListener('override-color-updated', handler); } catch {} });
+  // When a tee sheet is updated elsewhere (e.g., renamed), refresh list and keep selection
+  const tsHandler = (e) => {
+    const id = (e && e.detail && e.detail.id) ? e.detail.id : teeSheetId.value;
+    loadSheets().then(() => {
+      if (id) teeSheetId.value = id;
+    });
+  };
+  try { window.addEventListener('tee-sheet-updated', tsHandler); } catch {}
+  onBeforeUnmount(() => { try { window.removeEventListener('tee-sheet-updated', tsHandler); } catch {} });
   try {
     const saved = localStorage.getItem('settings:selectedDate');
     if (saved && /^\d{4}-\d{2}-\d{2}$/.test(saved)) {

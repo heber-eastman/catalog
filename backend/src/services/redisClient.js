@@ -9,7 +9,9 @@ function getRedisClient() {
   if (client) return client;
 
   const url = process.env.REDIS_URL || '';
-  const useMock = url.startsWith('mock://') || process.env.NODE_ENV === 'test';
+  const env = (process.env.NODE_ENV || '').toLowerCase();
+  // Use in-memory mock for tests and local development when no REDIS_URL is configured
+  const useMock = url.startsWith('mock://') || env === 'test' || (!url && env !== 'production');
 
   if (useMock) {
     RedisMock = RedisMock || require('ioredis-mock');
@@ -23,8 +25,11 @@ function getRedisClient() {
   }
 
   client.on('error', err => {
-    // eslint-disable-next-line no-console
-    console.error('Redis error:', err.message);
+    const env = (process.env.NODE_ENV || '').toLowerCase();
+    if (env === 'production') {
+      // eslint-disable-next-line no-console
+      console.error('Redis error:', err.message);
+    }
   });
 
   return client;

@@ -221,8 +221,8 @@ async function loadTemplateVersions() {
     for (const t of data || []) {
       const tmplName = t.name || 'Template';
       for (const v of (t.versions || [])) {
-        const note = v.notes ? ` — ${v.notes}` : '';
-        opts.push({ id: v.id, label: `${tmplName} v${v.version_number}${note}` });
+        // Keep label minimal to reflect current template name; omit version notes
+        opts.push({ id: v.id, label: `${tmplName} v${v.version_number}` });
       }
     }
     templateVersionOptions.value = opts;
@@ -325,7 +325,16 @@ async function refreshWindows(overrideId){
 async function createOverrideFromToolbar(){
   try {
     const teeSheetId = route.params.teeSheetId;
-    const { data } = await settingsAPI.v2.createOverride(teeSheetId, { date: overrideDate.value });
+    // Default date: use selected calendar date or today if empty
+    let date = (overrideDate.value || '').trim();
+    if (!date) {
+      try {
+        const sel = selectedDate?.value || '';
+        date = sel && /^\d{4}-\d{2}-\d{2}$/.test(sel) ? sel : new Date().toISOString().slice(0,10);
+      } catch { date = new Date().toISOString().slice(0,10); }
+      overrideDate.value = date;
+    }
+    const { data } = await settingsAPI.v2.createOverride(teeSheetId, { date });
     currentOverrideId.value = data?.id || '';
     overrideName.value = data?.name || 'Untitled Override';
     initialOverrideDate.value = overrideDate.value;
@@ -334,6 +343,7 @@ async function createOverrideFromToolbar(){
     detailOpen.value = true;
     await load();
     notify('Override created');
+    try { window.dispatchEvent(new CustomEvent('override-color-updated')); } catch {}
   } catch (e) {
     notify(e?.response?.data?.error || 'Failed to create override', 'error');
   }
@@ -489,7 +499,7 @@ async function addWindow(overrideId){
     }
     if (!selectedTemplateVersionId.value) { notify('Create a template version first', 'error'); return; }
     // Ensure we have an editing version; if none, create one now
-    if (!editingVersionId.value || editingVersionId.value === publishedId) {
+    if (!editingVersionId.value) {
       const { data: ver } = await settingsAPI.v2.createOverrideVersion(teeSheetId, overrideId, { notes: 'edit' });
       editingVersionId.value = ver.id;
       try { localStorage.setItem(`ov:lastVersion:${overrideId}`, ver.id); } catch {}
@@ -500,7 +510,19 @@ async function addWindow(overrideId){
       ? { start_mode: 'fixed', end_mode: 'fixed', start_time_local: (editor.startTime || '07:00') + ':00', end_time_local: (editor.endTime || '10:00') + ':00', start_offset_mins: null, end_offset_mins: null, template_version_id: tvId }
       : { start_mode: 'sunrise_offset', end_mode: 'sunset_offset', start_time_local: null, end_time_local: null, start_offset_mins: Number(editor.startOffset)||0, end_offset_mins: Number(editor.endOffset)||0, template_version_id: tvId };
 
-    const { data: created } = await settingsAPI.v2.addOverrideWindow(teeSheetId, overrideId, editingVersionId.value, base);
+    // Guard: API requires either fixed times OR offset pair; ensure payload matches schema
+    const payload = { ...base };
+    if (payload.start_mode === 'fixed') {
+      payload.start_offset_mins = null; payload.end_offset_mins = null;
+      payload.start_time_local = (payload.start_time_local || '07:00:00').slice(0,8);
+      payload.end_time_local = (payload.end_time_local || '10:00:00').slice(0,8);
+    } else {
+      payload.start_time_local = null; payload.end_time_local = null;
+      payload.start_offset_mins = Number(payload.start_offset_mins)||0;
+      payload.end_offset_mins = Number(payload.end_offset_mins)||0;
+    }
+
+    const { data: created } = await settingsAPI.v2.addOverrideWindow(teeSheetId, overrideId, editingVersionId.value, payload);
     if (created) {
       lastWindowFor[overrideId] = created;
       // Ensure we are editing the version we just appended to
@@ -540,6 +562,8 @@ async function publish(overrideId){
     try { await settingsAPI.v2.regenerateDate(teeSheetId, overrideDate.value); } catch {}
     // Refresh detail state so Published tab reflects the newly published windows
     await refreshWindows(overrideId);
+    // Broadcast calendar update
+    try { window.dispatchEvent(new CustomEvent('override-color-updated')); } catch {}
     // Switch to Published tab to show the result immediately
     activeTab.value = 'published';
     // Also refresh the list in the background

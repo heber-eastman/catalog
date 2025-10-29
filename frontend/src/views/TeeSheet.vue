@@ -23,12 +23,12 @@
           <i class="fa-light fa-gear"></i>
         </button>
       </div>
+      <div class="col-header" v-if="!isSplit">
+        <div class="cell time">Time</div>
+        <div class="cell" v-for="n in seatCols" :key="'hdr-'+n">Seat {{ n }}</div>
+      </div>
     </header>
     <div v-if="!isSplit && slotsFiltered.length" class="grid">
-      <div class="row header">
-        <div class="cell time">Time</div>
-        <div class="cell" v-for="n in seatCols" :key="n">Seat {{ n }}</div>
-      </div>
       <div class="row" v-for="slot in slotsFiltered" :key="slot.side_id + '-' + slot.start_time" :data-start="slot.start_time"
            @dragover.prevent="onDragOver($event)" @drop="onDrop($event, slot)">
         <div class="cell time" draggable="true" @dragstart="onRowDragStart($event, slot)">{{ formatSlotTime(slot) }}</div>
@@ -53,7 +53,7 @@
           </span>
           <span class="info">
             <span class="meta icon" :title="seg.walkRide==='ride' ? 'Riding' : 'Walking'">{{ seg.walkRide === 'ride' ? '🚗' : '🚶' }}</span>
-            <span v-if="seg.isReround" class="meta icon" title="Reround">⟳</span>
+            <span v-if="seg.holes===18 && seg.legIndex===1" class="meta icon" title="Reround">⟳</span>
           </span>
         </button>
         <!-- Seat hit areas: reveal +N only for hovered cell; full cell clickable; render only when seat empty -->
@@ -75,10 +75,6 @@
       <div class="split-col" v-for="s in sides" :key="s.id">
         <div class="split-title">{{ s.name }}</div>
         <div class="grid mini" v-if="groupedBySide[s.id] && groupedBySide[s.id].length">
-          <div class="row header">
-            <div class="cell time">Time</div>
-            <div class="cell" v-for="n in seatCols" :key="n">Seat {{ n }}</div>
-          </div>
           <div class="row" v-for="slot in groupedBySide[s.id]" :key="slot.side_id + '-' + slot.start_time"
                @dragover.prevent="onDragOver($event)" @drop="onDrop($event, slot)">
             <div class="cell time" draggable="true" @dragstart="onRowDragStart($event, slot)">{{ formatSlotTime(slot) }}</div>
@@ -102,7 +98,7 @@
               </span>
               <span class="info">
                 <span class="meta icon" :title="seg.walkRide==='ride' ? 'Riding' : 'Walking'">{{ seg.walkRide === 'ride' ? '🚗' : '🚶' }}</span>
-                <span v-if="seg.isReround" class="meta icon" title="Reround">⟳</span>
+                <span v-if="seg.holes===18 && seg.legIndex===1" class="meta icon" title="Reround">⟳</span>
               </span>
             </button>
             <template v-for="n in seatCols">
@@ -222,7 +218,7 @@
       <div class="drawer-header">
         <div class="drawer-title">
           <div class="drawer-time">{{ selectedSlot ? formatSlotTime(selectedSlot) : '' }}</div>
-          <div class="drawer-meta" v-if="selectedSlot">Capacity {{ selectedSlot.capacity }} · Remaining {{ selectedSlot.remaining }}</div>
+          <div class="drawer-meta" v-if="selectedSlot">Capacity {{ selectedSlot.capacity }} · Remaining {{ effectiveRemaining(selectedSlot) }}</div>
         </div>
         <div class="drawer-actions">
           <button class="icon-btn" @click="actionsOpen = !actionsOpen" aria-label="Actions"><i class="fa-light fa-ellipsis-vertical"></i></button>
@@ -466,10 +462,10 @@ function savePrefs() {
 }
 // Max players allowed for the draft slot = remaining seats (capped at 4)
 const maxPlayersForDraft = computed(() => {
-  const rem = draftSlot.value ? Number(draftSlot.value.remaining ?? 0) : 4;
-  const cap = draftSlot.value ? Number(draftSlot.value.capacity ?? 4) : 4;
-  const allowed = Math.min(4, Math.max(0, rem), Math.max(0, cap));
-  return allowed > 0 ? allowed : 1;
+  // Use effectiveRemaining which derives from visible segments, not raw API 'remaining'
+  const rem = draftSlot.value ? Math.max(0, effectiveRemaining(draftSlot.value)) : 4;
+  const allowed = Math.min(4, Math.max(1, rem));
+  return allowed;
 });
 
 const playerOptions = computed(() => Array.from({ length: maxPlayersForDraft.value }, (_, i) => i + 1));
@@ -547,55 +543,59 @@ const viewSelectOptions = computed(() => {
 // Build booking segments for a slot: contiguous seats with same booking_id
 function bookingSegments(slot){
   const result = [];
-  // Build one seat per assignment in created_at order; no reliance on assignment_names
-  const assigns = Array.isArray(slot.assignments) ? slot.assignments : [];
-  const seats = [];
-  for (let i = 0; i < assigns.length && seats.length < seatCols; i++) {
+  const assigns = Array.isArray(slot.assignments) ? slot.assignments.slice(0, seatCols) : [];
+  const seatBookingId = new Array(seatCols).fill(null);
+  const seatAssn = new Array(seatCols).fill(null);
+  for (let i = 0; i < seatCols; i++) {
     const a = assigns[i];
     const bid = a && a.booking_id ? a.booking_id : (a && a.round_leg && a.round_leg.booking ? a.round_leg.booking.id : null);
-    if (!bid) continue; // ignore stray/unlinked rows
-    seats.push({ bookingId: bid, assn: a });
+    seatBookingId[i] = bid || null;
+    seatAssn[i] = a || null;
   }
-  // walk left-to-right and group
   let idx = 0;
   while (idx < seatCols) {
-    const seat = seats[idx];
-    if (!seat || !seat.bookingId) { idx += 1; continue; }
+    const bid = seatBookingId[idx];
+    if (!bid) { idx += 1; continue; }
     const start = idx;
     let end = idx + 1;
-    while (end < seatCols && seats[end] && seats[end].bookingId === seat.bookingId) end += 1;
-    const segmentSeats = seats.slice(start, end);
-    // Compute names deterministically per booking, not per raw seat assignment:
-    // - Seat 0: Owner name if available; else first explicit; else Guest
-    // - Seats 2..N: Remaining explicit names in order; then Guests for the rest
-    const segNames = [];
+    while (end < seatCols && seatBookingId[end] === bid) end += 1;
+    const firstAssn = seatAssn[start];
+    const ownerNm = (firstAssn && typeof firstAssn.owner_name === 'string') ? firstAssn.owner_name.trim() : '';
+    // Build names ensuring the owner is shown first, then unique explicit names
+    const explicitOrdered = [];
+    for (let j = start; j < end; j++) {
+      const a = seatAssn[j];
+      const nmRaw = (typeof a?.customer_name === 'string' && a.customer_name.trim())
+        ? a.customer_name.trim()
+        : ((typeof a?.player_name === 'string' && a.player_name.trim()) ? a.player_name.trim() : '');
+      if (!nmRaw) continue;
+      if (ownerNm && nmRaw === ownerNm) continue; // skip duplicates of owner
+      explicitOrdered.push(nmRaw);
+    }
+    const seen = new Set();
+    const uniqueExplicit = [];
+    for (const nm of explicitOrdered) {
+      const key = nm.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      uniqueExplicit.push(nm);
+      if (uniqueExplicit.length >= seatCols - 1) break;
+    }
     const segFullNames = [];
-    const firstAssn = segmentSeats[0]?.assn;
-    const ownerNm = (firstAssn && firstAssn.owner_name) ? firstAssn.owner_name : '';
-    const explicitQueue = [];
-    for (const seatObj of segmentSeats) {
-      const nm = (seatObj && seatObj.assn && typeof seatObj.assn.customer_name === 'string') ? seatObj.assn.customer_name.trim() : '';
-      if (nm && nm !== ownerNm) explicitQueue.push(nm);
-    }
-    for (let j = 0; j < segmentSeats.length; j++) {
-      if (j === 0) {
-        const primary = ownerNm || (explicitQueue.length ? explicitQueue.shift() : 'Guest');
-        segFullNames.push(primary);
-        segNames.push(formatInitialLast(primary));
-      } else {
-        const name = explicitQueue.length ? explicitQueue.shift() : 'Guest';
-        segFullNames.push(name);
-        segNames.push(formatInitialLast(name));
+    if (ownerNm) segFullNames.push(ownerNm);
+    for (const nm of uniqueExplicit) segFullNames.push(nm);
+    // If still short, fill remaining with Guest to match occupied seats count
+    while (segFullNames.length < (end - start)) segFullNames.push('Guest');
+    const segNames = segFullNames.map(n => (isSplit.value ? formatInitialLastCompact(n) : formatInitialLast(n)));
+    const anyRide = (function(){
+      for (let j = start; j < end; j++) {
+        const a = seatAssn[j];
+        const direct = a?.walk_ride ? String(a.walk_ride).toLowerCase() : '';
+        const viaLeg = a?.round_leg?.walk_ride ? String(a.round_leg.walk_ride).toLowerCase() : '';
+        if (direct === 'ride' || direct === 'riding' || viaLeg === 'ride' || viaLeg === 'riding') return true;
       }
-    }
-    // booking-level meta from any seat in the segment
-    const anyRide = segmentSeats.some(s => {
-      if (!s || !s.assn) return false;
-      const direct = s.assn.walk_ride ? String(s.assn.walk_ride).toLowerCase() : '';
-      const viaLeg = s.assn.round_leg && s.assn.round_leg.walk_ride ? String(s.assn.round_leg.walk_ride).toLowerCase() : '';
-      return direct === 'ride' || direct === 'riding' || viaLeg === 'ride' || viaLeg === 'riding';
-    });
-    // booking-level meta from any seat in the segment
+      return false;
+    })();
     const firstVal = firstAssn && firstAssn.walk_ride ? String(firstAssn.walk_ride).toLowerCase() : '';
     const walkRide = anyRide ? 'ride' : (firstVal === 'ride' || firstVal === 'riding' ? 'ride' : 'walk');
     const holes = (() => {
@@ -606,14 +606,13 @@ function bookingSegments(slot){
       const li = typeof firstAssn?.leg_index === 'number' ? firstAssn.leg_index : (firstAssn?.round_leg?.leg_index || 0);
       return li > 0;
     })();
-    // Determine booking status for this segment
     const rawStatus = String(firstAssn?.status || firstAssn?.round_leg?.booking?.status || '').toLowerCase();
     const norm = rawStatus.includes('checked') ? 'checked-in' : (rawStatus === 'paid' ? 'paid' : (rawStatus === 'booked' || rawStatus === 'active' ? 'booked' : 'booked'));
     const statusClass = `status-${norm}`;
     result.push({
-      key: `${slot.id}:${seat.bookingId}:${start}`,
+      key: `${slot.id || slot.start_time}:${bid}:${start}`,
       startSeat: start,
-      length: end - start,
+      length: segFullNames.length,
       names: segNames,
       fullNames: segFullNames,
       walkRide,
@@ -621,7 +620,7 @@ function bookingSegments(slot){
       isReround,
       legIndex: (function(){ const li = typeof firstAssn?.leg_index === 'number' ? firstAssn.leg_index : (firstAssn?.round_leg?.leg_index || 0); return li || 0; })(),
       statusClass,
-      bookingId: seat.bookingId,
+      bookingId: bid,
     });
     idx = end;
   }
@@ -1065,6 +1064,18 @@ function formatInitialLast(label){
   return `${initial} ${last}`.trim();
 }
 
+// Compact version for tight layouts: initial + truncated last name (max 8 chars)
+function formatInitialLastCompact(label){
+  if (!label || label === 'Guest') return 'Guest';
+  const parts = String(label).trim().split(/\s+/);
+  const first = parts[0] || '';
+  const last = parts.slice(1).join(' ');
+  const initial = first ? first.charAt(0).toUpperCase() + '.' : '';
+  const max = 8;
+  const trunc = last.length > max ? last.slice(0, max - 1) + '…' : last;
+  return `${initial} ${trunc}`.trim();
+}
+
 // Read walk/ride from first leg's walk_ride if present
 function seatWalkRide(slot, seatIndex){
   const assn = Array.isArray(slot.assignments) ? slot.assignments[seatIndex - 1] : null;
@@ -1330,7 +1341,10 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .tee-sheet { padding: 16px; }
-.controls { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; margin-bottom: 12px; position: sticky; top: 64px; z-index: 20; background: #fff; padding-top: 8px; padding-bottom: 8px; box-shadow: 0 1px 0 rgba(0,0,0,0.06); margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px; }
+.col-header { flex: 1 0 100%; order: 2; display: grid; grid-template-columns: 120px repeat(4, 1fr); background:#fafafa; height:36px; border-top:1px solid #eee; border-bottom:none; margin-left:-16px; margin-right:-16px; margin-top: 8px; }
+.col-header .cell{ padding:6px 8px; font-size:14px; font-weight:400; border-left:1px solid #eee; display:flex; align-items:center; }
+.col-header .cell.time{ border-left:none; }
 .controls { --ctl-h: 38px; }
 .date-controls { display: flex; gap: 8px; align-items: center; }
 .date-controls .link { background: transparent; border: 1px solid transparent; color: #111827; height: var(--ctl-h); padding: 0 12px; display: inline-flex; align-items: center; cursor: pointer; border-radius: 8px; transition: background .15s, color .15s; }
@@ -1341,21 +1355,31 @@ onBeforeUnmount(() => {
 .date-controls .date-display { background: #fff; border: 1px solid #ddd; border-radius: 8px; height: var(--ctl-h); padding: 0 12px; display: inline-flex; align-items: center; cursor: pointer; }
 .date-controls .date-display .caret { margin-left: 6px; color: #6b7280; }
 .hidden-date { position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; }
-.grid { border: 1px solid #ddd; border-radius: 6px; overflow: hidden; --row-h: 44px; }
-.row { display: grid; grid-template-columns: 120px repeat(4, 1fr); border-top: 1px solid #eee; position: relative; }
+.grid { border: none; border-radius: 0; overflow: hidden; --row-h: 44px; margin-left: -16px; margin-right: -16px; }
+.row { display: grid; grid-template-columns: 120px repeat(4, 1fr); border-top: 1px solid #f1f3f6; position: relative; }
+/* Ensure first row renders its own top border (header has no bottom border) */
+.row::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 0.5px; background: #f1f3f6; }
 .row:not(.header) { height: var(--row-h); }
-.row.header { background: #fafafa; font-weight: 600; }
-.cell { padding: 8px; border-left: 1px solid #eee; }
+.row.header { background: #fafafa; border-top: 1px solid #eee; border-bottom: 1px solid #eee; height: 36px; }
+.cell { padding: 6px 8px; border-left: 1px solid #eee; font-size: 16px; }
+.row.header .cell { font-size: 14px; font-weight: 400; }
 .cell.time { border-left: none; white-space: nowrap; font-size: 18px; display: flex; align-items: center; }
 .cell.seat { min-height: 36px; display: flex; align-items: center; }
 .split { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
 .split-col { display: flex; flex-direction: column; gap: 8px; }
 .split-title { font-weight: 600; padding: 4px 2px; }
+.grid.mini { margin-left: -16px; margin-right: -16px; }
 .grid.mini .row { display: grid; grid-template-columns: 110px repeat(4, 1fr); }
 /* Split view/narrow: hide walk/ride/re-round icons to prevent overlap and allow more room */
 .grid.mini .booking-chip .info { display: none; }
-/* Split view/narrow: let names flex and truncate with ellipsis */
-.grid.mini .booking-chip .player-cell .nm { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Split view/narrow: remove per-player badge and tighten padding */
+.grid.mini .booking-chip .player-cell .badge { display: none; }
+.grid.mini .booking-chip .names { gap: 8px; }
+.grid.mini .booking-chip .player-cell { padding-left: 10px; gap: 6px; }
+.grid.mini .booking-chip .player-cell:first-child { padding-left: 32px; }
+.grid.mini .booking-chip .names .player-cell:nth-child(n+2) { padding-left: 12px; }
+/* Split view/narrow: let names flex and truncate with ellipsis; slightly smaller font */
+.grid.mini .booking-chip .player-cell .nm { min-width: 0; max-width: 100%; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
 /* Hide legacy add buttons (replaced with hover +N) */
 .add { display:none; }
 /* Seat hit areas: cover full cell, show +N only on hovered cell */
@@ -1457,6 +1481,27 @@ onBeforeUnmount(() => {
 .select-wrap { position: relative; display: inline-block; }
 .view-select { appearance: none; -webkit-appearance: none; background: #fff; border: 1px solid #ddd; border-radius: 8px; height: var(--ctl-h); padding: 0 28px 0 12px; font-size: 14px; line-height: var(--ctl-h); }
 .select-wrap .caret { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #6b7280; pointer-events: none; }
+/* Wide screen overrides for split view: restore badges/icons and font size */
+@media (min-width: 1500px) {
+  .grid.mini .booking-chip .info { display: inline-flex; }
+  .grid.mini .booking-chip .player-cell .badge { display: inline-flex; }
+  .grid.mini .booking-chip .player-cell { padding-left: 32px; gap: 8px; }
+  .grid.mini .booking-chip .player-cell:first-child { padding-left: 32px; }
+  .grid.mini .booking-chip .names .player-cell:nth-child(n+2) { padding-left: 34px; }
+  .grid.mini .booking-chip .player-cell .nm { font-size: 21px; }
+  .grid.mini .booking-chip .names { gap: 0; }
+}
+
+/* Medium screens: show badges, hide right-side icons, moderate font size */
+@media (min-width: 900px) and (max-width: 1499px) {
+  .grid.mini .booking-chip .info { display: none; }
+  .grid.mini .booking-chip .player-cell .badge { display: inline-flex; }
+  .grid.mini .booking-chip .player-cell { padding-left: 28px; gap: 6px; }
+  .grid.mini .booking-chip .player-cell:first-child { padding-left: 28px; }
+  .grid.mini .booking-chip .names .player-cell:nth-child(n+2) { padding-left: 30px; }
+  .grid.mini .booking-chip .player-cell .nm { font-size: 18px; }
+  .grid.mini .booking-chip .names { gap: 6px; }
+}
 </style>
 
 

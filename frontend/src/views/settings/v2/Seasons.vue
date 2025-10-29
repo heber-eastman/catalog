@@ -1119,8 +1119,8 @@ async function loadTemplateVersions() {
     for (const t of data || []) {
       const tmplName = t.name || 'Template';
       for (const v of (t.versions || [])) {
-        const note = v.notes ? ` — ${v.notes}` : '';
-        opts.push({ id: v.id, label: `${tmplName} v${v.version_number}${note}` });
+        // Show template name and version only; omit notes to avoid stale suffixes after rename
+        opts.push({ id: v.id, label: `${tmplName} v${v.version_number}` });
       }
     }
     templateVersionOptions.value = opts;

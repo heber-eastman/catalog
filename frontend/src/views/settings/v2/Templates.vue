@@ -78,10 +78,14 @@
                   <v-text-field v-model.number="form.max_players_staff" type="number" min="1" max="8" label="Max players (tee sheet)" variant="outlined" density="comfortable" hide-details />
                   <div>
                     <div class="mb-1" style="font-weight:600; font-size:12px; color:#6b778c;">Players Allowed (Online Booking)</div>
-                    <div class="online-multi">
-                      <v-btn-toggle v-model="form.online_selected" multiple density="comfortable" divided @update:modelValue="ensureContiguousOnline">
-                        <v-btn v-for="n in playerCounts" :key="'sel-'+n" :value="n" variant="outlined">{{ n }}</v-btn>
-                      </v-btn-toggle>
+                    <div class="circle-row" role="group" aria-label="Players allowed (online)">
+                      <button
+                        v-for="n in playerCounts"
+                        :key="'sel-'+n"
+                        type="button"
+                        :class="['circle', { active: (form.online_selected||[]).includes(n) }]"
+                        @click="toggleOnline(n)"
+                      >{{ n }}</button>
                     </div>
                   </div>
                 </div>
@@ -505,6 +509,13 @@ function ensureContiguousOnline(){
   for (let n = min; n <= max; n += 1) range.push(n);
   form.online_selected = range;
 }
+
+function toggleOnline(n){
+  const set = new Set(Array.isArray(form.online_selected) ? form.online_selected : []);
+  if (set.has(n)) set.delete(n); else set.add(n);
+  form.online_selected = Array.from(set);
+  ensureContiguousOnline();
+}
 onMounted(load);
 </script>
 
@@ -543,6 +554,11 @@ onMounted(load);
 .side-block{ border:1px solid #e5e7eb; border-radius:8px; padding:12px; }
 .side-block__header{ font-weight:700; margin-bottom:8px; }
 .online-multi{ display:flex; flex-wrap:wrap; gap:8px; }
+.circle-row{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+.circle-row .circle{ width:48px; height:48px; border-radius:50%; background:#fff; border:1px solid #d1d5db; color:#111827; display:inline-flex; align-items:center; justify-content:center; font-size:24px; line-height:1; cursor:pointer; transition: background .15s, color .15s, border-color .15s, transform .08s; }
+.circle-row .circle:hover{ background:#f3f4f6; }
+.circle-row .circle:active{ transform: scale(0.98); }
+.circle-row .circle.active{ background:#ccf9ff; color:#111827; border-color:#99e6f5; }
 .side-fields{ display:flex; flex-direction:column; gap:12px; }
 </style>
 

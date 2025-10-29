@@ -1,9 +1,9 @@
 <template>
-  <v-container>
+  <v-container fluid>
     <v-row>
       <v-col cols="12">
         <div class="d-flex justify-space-between align-center mb-4">
-          <h1>Customers Management</h1>
+          <h1>Customers</h1>
           <div class="d-flex ga-2">
             <v-btn
               color="success"
@@ -83,37 +83,17 @@
 
     <!-- Customers Table -->
     <v-row>
-      <v-col cols="12">
-        <v-card>
-          <v-card-title class="d-flex justify-space-between align-center">
-            <span>Customers ({{ filteredCustomers.length }})</span>
-            <div class="d-flex align-center ga-2">
-              <v-chip color="primary" size="small">
-                {{ selectedCustomers.length }} selected
-              </v-chip>
-              <v-btn
-                v-if="selectedCustomers.length > 0"
-                size="small"
-                color="error"
-                variant="outlined"
-                prepend-icon="'fa:fal fa-trash-can'"
-                @click="showBulkDeleteDialog = true"
-                data-cy="bulk-delete-btn"
-              >
-                Delete Selected
-              </v-btn>
-            </div>
-          </v-card-title>
+      <v-col cols="12" class="pa-0">
+        <v-card variant="text" class="pa-0">
 
           <v-data-table
-            v-model="selectedCustomers"
             :headers="headers"
             :items="filteredCustomers"
             :loading="loading"
             :search="search"
-            show-select
+            hide-default-footer
+            :items-per-page="-1"
             class="elevation-1"
-            item-value="id"
             data-cy="customers-table"
           >
             <template #item="{ item }">
@@ -122,16 +102,6 @@
                 @click="viewCustomer(item)"
                 data-cy="customer-row"
               >
-                <td>
-                  <v-checkbox-btn
-                    :model-value="selectedCustomers.includes(item.id)"
-                    @update:model-value="
-                      toggleCustomerSelection(item.id, $event)
-                    "
-                    @click.stop
-                    data-cy="customer-checkbox"
-                  />
-                </td>
                 <td>
                   <div class="d-flex align-center">
                     <v-avatar size="32" class="mr-2" color="primary">
@@ -181,6 +151,8 @@
               </div>
             </template>
           </v-data-table>
+          <!-- Infinite scroll sentinel -->
+          <div ref="infiniteSentinel" style="height: 1px"></div>
         </v-card>
       </v-col>
     </v-row>
@@ -482,23 +454,47 @@ export default {
         { title: 'Membership', key: 'membership_type', sortable: true },
         { title: 'Created', key: 'created_at', sortable: true },
       ],
+
+      // Infinite scroll state
+      page: 1,
+      limit: 50,
+      moreAvailable: true,
+      observer: null,
     };
   },
   async mounted() {
-    await this.loadCustomers();
+    await this.resetAndLoad();
     this.debouncedSearch = debounce(this.performSearch, 300);
+
+    // Setup intersection observer for infinite scroll
+    try {
+      this.observer = new IntersectionObserver(entries => {
+        for (const e of entries) {
+          if (e.isIntersecting) this.loadNextPage();
+        }
+      }, { root: null, rootMargin: '800px 0px 800px 0px', threshold: 0 });
+      if (this.$refs.infiniteSentinel) this.observer.observe(this.$refs.infiniteSentinel);
+    } catch (_) {}
   },
   methods: {
     async loadCustomers() {
       this.loading = true;
       try {
-        const response = await customerAPI.getAll();
-        this.customers = (response.data.customers || response.data || []).map(
-          customer => ({
-            ...customer,
-            full_name: `${customer.first_name} ${customer.last_name}`,
-          })
-        );
+        const params = {
+          page: this.page,
+          limit: this.limit,
+          search: this.search || undefined,
+          membership_type: this.membershipFilter || undefined,
+          sort: 'created_at',
+          order: 'DESC',
+        };
+        const response = await customerAPI.getAll(params);
+        const items = (response.data.customers || response.data || []).map(c => ({
+          ...c,
+          full_name: `${c.first_name} ${c.last_name}`,
+        }));
+        if (this.page === 1) this.customers = items; else this.customers.push(...items);
+        this.moreAvailable = items.length >= this.limit;
         this.applyFilters();
       } catch (error) {
         this.showNotification(
@@ -509,6 +505,18 @@ export default {
       } finally {
         this.loading = false;
       }
+    },
+
+    async resetAndLoad() {
+      this.page = 1;
+      this.moreAvailable = true;
+      await this.loadCustomers();
+    },
+
+    async loadNextPage() {
+      if (this.loading || !this.moreAvailable) return;
+      this.page += 1;
+      await this.loadCustomers();
     },
 
     applyFilters() {
@@ -568,14 +576,14 @@ export default {
     },
 
     performSearch() {
-      this.applyFilters();
+      this.resetAndLoad();
     },
 
     clearFilters() {
       this.search = '';
       this.membershipFilter = null;
       this.sortBy = 'created_at_desc';
-      this.applyFilters();
+      this.resetAndLoad();
     },
 
     viewCustomer(customer) {
@@ -728,10 +736,10 @@ export default {
     getExportDescription() {
       const counts = {
         all: this.customers.length,
-        selected: this.selectedCustomers.length,
         filtered: this.filteredCustomers.length,
       };
-      return `This will export ${counts[this.exportType]} customers in ${this.exportFormat.toUpperCase()} format.`;
+      const key = this.exportType === 'all' ? 'all' : 'filtered';
+      return `This will export ${counts[key]} customers in ${this.exportFormat.toUpperCase()} format.`;
     },
 
     async processExport() {

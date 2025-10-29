@@ -103,7 +103,7 @@ router.post(
     if (teeTimes.length !== teeTimeIds.length) return res.status(404).json({ error: 'One or more tee times not found' });
     if (!teeTimes.every(t => t.tee_sheet_id === teeSheetId)) return res.status(400).json({ error: 'Tee times must belong to the same tee sheet' });
 
-  // Auto-compute reround for 18 holes when only first leg provided
+  // Auto-compute reround for 18 holes when only first leg provided (strict; requires distinct next slot)
   if (value.holes === 18 && teeTimes.length === 1) {
     try {
       const first = teeTimes[0];
@@ -135,15 +135,14 @@ router.post(
       const targets = [configuredReroundSideId, otherSide.id, startSide.id].filter(Boolean);
       let reround = null;
       for (const sid of targets) {
-        // Snap to the next available slot at or after the computed reround start
         reround = await TeeTime.findOne({
-          where: { tee_sheet_id: teeSheetId, side_id: sid, start_time: { [Op.gte]: reroundStart } },
+          where: { tee_sheet_id: teeSheetId, side_id: sid, start_time: { [Op.gt]: reroundStart } },
           order: [['start_time', 'ASC']],
         });
         if (reround) break;
       }
-      if (!reround) {
-        return res.status(400).json({ error: 'Reround tee time not found' });
+      if (!reround || reround.id === first.id) {
+        return res.status(409).json({ error: 'Reround slot unavailable' });
       }
       teeTimes = [first, reround];
     } catch (e) {
@@ -162,6 +161,8 @@ router.post(
     const course = await GolfCourseInstance.findByPk(sheet.course_id);
     const zone = (course && course.timezone) ? course.timezone : 'UTC';
     let usedV2 = false;
+    // Dev mode handled later via legacy fallback (no pre-push here to avoid duplicate legs)
+    const isProd = (process.env.NODE_ENV || '').toLowerCase() === 'production';
     try {
       const { windows, source } = await resolveEffectiveWindows({ teeSheetId, dateISO: date });
       if (source && windows && windows.length) {
@@ -178,8 +179,7 @@ router.post(
         }
         if (allMatch) {
           for (const tt of teeTimes) {
-            // Pricing TBD for V2; keep zero for now
-            const legPrice = 0;
+            const legPrice = 0; // Pricing TBD for V2
             totalPriceCents += legPrice;
             legsComputed.push({ tt, timeframe: null, legPrice });
           }
@@ -193,10 +193,27 @@ router.post(
     if (!usedV2) {
       // Legacy DayTemplate/Timeframe path
       const template = await findTemplateForDate(teeSheetId, date);
-      if (!template) return res.status(400).json({ error: 'Window not open' });
+      if (!template) {
+        // Dev-friendly fallback: if no calendar assignment but tee times exist and are not blocked, allow booking
+        const allUnblocked = teeTimes.every(tt => !tt.is_blocked);
+        if (!allUnblocked || (process.env.NODE_ENV || '').toLowerCase() === 'production') {
+          return res.status(400).json({ error: 'Window not open' });
+        }
+        // Push zero-priced legs without timeframe
+        for (const tt of teeTimes) {
+          legsComputed.push({ tt, timeframe: null, legPrice: 0 });
+        }
+      } else {
       for (const tt of teeTimes) {
         const timeframe = await findTimeframeForSlot(teeSheetId, tt.side_id, template.day_template_id, tt.start_time);
-        if (!timeframe) return res.status(400).json({ error: 'Window not open' });
+        if (!timeframe) {
+          // Dev-friendly fallback: permit booking without timeframe when not in production
+          if ((process.env.NODE_ENV || '').toLowerCase() !== 'production' && !tt.is_blocked) {
+            legsComputed.push({ tt, timeframe: null, legPrice: 0 });
+            continue;
+          }
+          return res.status(400).json({ error: 'Window not open' });
+        }
 
         // Access rules
         const access = await TimeframeAccessRule.findAll({ where: { timeframe_id: timeframe.id } });
@@ -226,6 +243,45 @@ router.post(
         legsComputed.push({ tt, timeframe, legPrice });
       }
     }
+    }
+
+    // De-duplicate legs by tee time id to prevent double-assignments (e.g., dev/V2 overlap)
+    const legsToCreate = (() => {
+      const seen = new Set();
+      const out = [];
+      for (const lg of legsComputed) {
+        const id = lg && lg.tt && lg.tt.id;
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        out.push(lg);
+      }
+      return out;
+    })();
+
+    // Helper to find-or-create a customer by (course_id, first_name, last_name) or by email when provided
+    async function findOrCreateCustomer({ courseId, firstName, lastName, email }) {
+      const whereByName = {
+        course_id: courseId,
+        first_name: { [Op.iLike]: (firstName || '').trim() },
+        last_name: { [Op.iLike]: (lastName || '').trim() },
+      };
+      // Prefer email match if provided
+      if (email && String(email).includes('@')) {
+        const byEmail = await Customer.findOne({ where: { course_id: courseId, email: { [Op.iLike]: String(email).trim() } } });
+        if (byEmail) return byEmail.id;
+      }
+      const byName = await Customer.findOne({ where: whereByName });
+      if (byName) return byName.id;
+      try {
+        const cust = await Customer.create({ course_id: courseId, first_name: firstName || 'Guest', last_name: lastName || 'Guest', email: email && String(email).includes('@') ? email : `guest+${Date.now()}@auto.local` });
+        return cust.id;
+      } catch (e) {
+        // Unique name constraint may have raced; fetch existing
+        const existing = await Customer.findOne({ where: whereByName });
+        if (existing) return existing.id;
+        throw e;
+      }
+    }
 
     // Determine booking owner (customer)
     let ownerCustomerId = null;
@@ -242,46 +298,90 @@ router.post(
           const parts = name.split(/\s+/).filter(Boolean);
           const firstName = parts.length > 1 ? parts.slice(0, parts.length - 1).join(' ') : (parts[0] || 'Guest');
           const lastName = parts.length > 1 ? parts[parts.length - 1] : '';
-          const email = (value.lead_email && String(value.lead_email).includes('@'))
-            ? value.lead_email
-            : `guest+${Date.now()}@auto.local`;
-          const cust = await Customer.create({
-            course_id: courseId,
-            first_name: firstName,
-            last_name: lastName || 'Guest',
-            email,
-          });
-          ownerCustomerId = cust.id;
+          const email = (value.lead_email && String(value.lead_email).includes('@')) ? value.lead_email : null;
+          ownerCustomerId = await findOrCreateCustomer({ courseId, firstName, lastName, email });
         }
       } catch (_) { /* best-effort; keep owner null on failure */ }
     }
 
+    // Single-source owner: prefer first player info if owner still not set
+    try {
+      const p0 = players[0] || {};
+      if (!ownerCustomerId) {
+        const sourceName = (p0.name || value.lead_name || '').trim();
+        const sourceEmail = (value.lead_email && String(value.lead_email).includes('@')) ? value.lead_email : null;
+        if (sourceName) {
+          const sheetRow = await TeeSheet.findByPk(teeSheetId);
+          const courseId = sheetRow ? sheetRow.course_id : null;
+          if (courseId) {
+            const parts = sourceName.split(/\s+/).filter(Boolean);
+            const firstName = parts.length > 1 ? parts.slice(0, parts.length - 1).join(' ') : (parts[0] || 'Guest');
+            const lastName = parts.length > 1 ? parts[parts.length - 1] : '';
+            ownerCustomerId = await findOrCreateCustomer({ courseId, firstName, lastName, email: sourceEmail });
+          }
+        }
+      }
+      // Ensure first player is bound to owner id if available
+      if (ownerCustomerId) {
+        players[0] = Object.assign({}, players[0], { customer_id: ownerCustomerId, name: '' });
+      }
+    } catch (_) {}
+
+    // Ensure lead player uses ownerCustomerId to avoid duplicate customer creation
+    if (ownerCustomerId && Array.isArray(players) && players.length > 0) {
+      try {
+        if (!players[0].customer_id) {
+          // If first slot provided only a name for the lead, bind it to the newly created owner
+          players[0].customer_id = ownerCustomerId;
+          players[0].name = '';
+        }
+      } catch (_) {}
+    }
+
     // Resolve per-player customer IDs in call order (create if only a name is provided)
     const courseIdForPlayers = sheet.course_id;
+    const leadNameNorm = (value.lead_name || '').trim().toLowerCase();
     const toCustomerId = async (p) => {
       if (p && p.customer_id) return p.customer_id;
       const name = (p && p.name ? String(p.name) : '').trim();
       if (!name) return null;
+      // If this name matches the newly-created owner, reuse the owner id to avoid duplicates
+      if (ownerCustomerId && leadNameNorm && name.toLowerCase() === leadNameNorm) {
+        return ownerCustomerId;
+      }
       try {
         const parts = name.split(/\s+/).filter(Boolean);
         const firstName = parts.length > 1 ? parts.slice(0, parts.length - 1).join(' ') : (parts[0] || 'Guest');
         const lastName = parts.length > 1 ? parts[parts.length - 1] : '';
-        const email = `guest+${Date.now()}@auto.local`;
-        const cust = await Customer.create({
-          course_id: courseIdForPlayers,
-          first_name: firstName,
-          last_name: lastName || 'Guest',
-          email,
-        });
-        return cust.id;
+        const email = null;
+        return await findOrCreateCustomer({ courseId: courseIdForPlayers, firstName, lastName, email });
       } catch (_) {
         return null;
       }
     };
     const resolvedCustomerIds = [];
-    for (const p of players) {
+    for (let i = 0; i < players.length; i++) {
+      if (i === 0 && ownerCustomerId) {
+        resolvedCustomerIds.push(ownerCustomerId);
+        continue;
+      }
       // eslint-disable-next-line no-await-in-loop
-      resolvedCustomerIds.push(await toCustomerId(p));
+      resolvedCustomerIds.push(await toCustomerId(players[i]));
+    }
+
+    // Fallback: ensure every non-empty player name has a customer created
+    for (let i = 0; i < players.length; i++) {
+      if (!resolvedCustomerIds[i]) {
+        const nm = (players[i] && players[i].name ? String(players[i].name) : '').trim();
+        if (nm) {
+          const parts = nm.split(/\s+/).filter(Boolean);
+          const firstName = parts.length > 1 ? parts.slice(0, parts.length - 1).join(' ') : (parts[0] || 'Guest');
+          const lastName = parts.length > 1 ? parts[parts.length - 1] : '';
+          const email = (players[i] && players[i].email && String(players[i].email).includes('@')) ? players[i].email : null;
+          // eslint-disable-next-line no-await-in-loop
+          resolvedCustomerIds[i] = await findOrCreateCustomer({ courseId: courseIdForPlayers, firstName, lastName, email });
+        }
+      }
     }
 
     // Transactional capacity check and insertions
@@ -295,9 +395,10 @@ router.post(
           lock: t.LOCK.UPDATE,
         });
 
-        // Capacity strict across all legs
+        // Capacity strict across all legs (use actual assignment count, not cached field)
         for (const row of locked) {
-          const remaining = row.capacity - row.assigned_count;
+          const currentAssigned = await TeeTimeAssignment.count({ where: { tee_time_id: row.id }, transaction: t });
+          const remaining = row.capacity - currentAssigned;
           if (remaining < players.length) {
             const err = new Error('Insufficient capacity');
             err.status = 409;
@@ -321,8 +422,9 @@ router.post(
         const anyRideSelected = players.some(p => (p.walkRide || 'ride') === 'ride');
         const legWalkRide = anyRideSelected ? 'ride' : 'walk';
 
-        for (let i = 0; i < legsComputed.length; i++) {
-          const { tt, legPrice } = legsComputed[i];
+        const createdLegs = [];
+        for (let i = 0; i < legsToCreate.length; i++) {
+          const { tt, legPrice } = legsToCreate[i];
           const leg = await BookingRoundLeg.create(
             {
               booking_id: booking.id,
@@ -333,6 +435,7 @@ router.post(
             },
             { transaction: t }
           );
+          createdLegs.push({ id: leg.id, leg_index: i });
 
           // Assign each player to the tee time (one assignment per player)
           const assignments = players.map((p, idx) => ({
@@ -342,8 +445,39 @@ router.post(
           }));
           await TeeTimeAssignment.bulkCreate(assignments, { transaction: t });
 
-          // Update counts
-          await tt.update({ assigned_count: tt.assigned_count + players.length }, { transaction: t });
+          // Update counts to exact current assignment count
+          const newCount = await TeeTimeAssignment.count({ where: { tee_time_id: tt.id }, transaction: t });
+          await tt.update({ assigned_count: newCount }, { transaction: t });
+        }
+
+        // Safety: if multiple legs pointed to the same tee time, keep assignments only for the smallest leg_index
+        if (createdLegs.length > 1) {
+          const legIdToIndex = new Map(createdLegs.map(l => [l.id, l.leg_index]));
+          const legIds = createdLegs.map(l => l.id);
+          const assigns = await TeeTimeAssignment.findAll({ where: { booking_round_leg_id: { [Op.in]: legIds } }, transaction: t, lock: t.LOCK.UPDATE });
+          const byTt = new Map();
+          for (const a of assigns) {
+            const arr = byTt.get(a.tee_time_id) || [];
+            arr.push(a);
+            byTt.set(a.tee_time_id, arr);
+          }
+          for (const [ttId, arr] of byTt.entries()) {
+            if (arr.length <= players.length) continue; // one leg worth expected
+            // Determine preferred leg_index
+            let minIdx = Infinity; let keepLegId = null;
+            for (const a of arr) {
+              const idx = legIdToIndex.get(a.booking_round_leg_id) ?? 0;
+              if (idx < minIdx) { minIdx = idx; keepLegId = a.booking_round_leg_id; }
+            }
+            const toRemove = arr.filter(a => a.booking_round_leg_id !== keepLegId);
+            if (toRemove.length) {
+              const ids = toRemove.map(a => a.id);
+              await TeeTimeAssignment.destroy({ where: { id: { [Op.in]: ids } }, transaction: t });
+              const ttRow = await TeeTime.findByPk(ttId, { transaction: t, lock: t.LOCK.UPDATE });
+              const cnt = await TeeTimeAssignment.count({ where: { tee_time_id: ttId }, transaction: t });
+              await ttRow.update({ assigned_count: cnt }, { transaction: t });
+            }
+          }
         }
 
         return { ok: true };
