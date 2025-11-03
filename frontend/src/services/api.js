@@ -95,6 +95,8 @@ api.interceptors.response.use(
       if (
         typeof window !== 'undefined' &&
         window.location.pathname !== '/login' &&
+        // Allow unauthenticated browsing for golfer booking pages
+        !window.location.pathname.startsWith('/booking') &&
         !window.location.pathname.includes('/login')
       ) {
         console.log('Authentication failed, redirecting to login');
@@ -149,6 +151,12 @@ export const authAPI = {
     });
   },
   getCurrentUser: () => api.get('/auth/me'),
+};
+
+// Customer-facing auth (booking engine)
+export const customerAuthAPI = {
+  signup: data => api.post('/auth/customer/signup', data),
+  login: data => api.post('/auth/customer/login', data),
 };
 
 // Customer API methods
@@ -269,6 +277,13 @@ export const holdsAPI = {
   holdCart: body => api.post('/holds/cart', body),
 };
 
+// Booking/Customer helpers
+export const bookingAPI = {
+  listCourseTeeSheetsBySlug: slug => api.get(`/public/courses/${encodeURIComponent(slug)}/tee-sheets`),
+  getCourseBySlug: slug => api.get(`/public/courses/${encodeURIComponent(slug)}`),
+  getCourseDayInfo: (slug, dateISO) => api.get(`/public/courses/${encodeURIComponent(slug)}/day-info`, { params: { date: dateISO } }),
+};
+
 // Bookings
 export const bookingsAPI = {
   create: (body, idempotencyKey) => {
@@ -341,6 +356,9 @@ export const settingsAPI = {
     // Side Settings
     getTemplateSideSettings: (teeSheetId, templateId) => api.get(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}/side-settings`, { params: { ts: Date.now() } }),
     updateTemplateSideSettings: (teeSheetId, templateId, data) => api.put(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}/side-settings`, data),
+    // Booking window settings
+    getBookingWindows: (teeSheetId, templateId) => api.get(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}/booking-windows`),
+    updateBookingWindows: (teeSheetId, templateId, data) => api.put(`/tee-sheets/${teeSheetId}/v2/templates/${templateId}/booking-windows`, data),
   },
 
   // Timeframes

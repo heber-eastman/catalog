@@ -1,6 +1,6 @@
 <template>
   <v-app>
-    <v-app-bar app color="white" elevation="0" class="app-header">
+  <v-app-bar v-if="!isPublicBookingRoute" app color="white" elevation="0" class="app-header">
       <!-- Mobile hamburger menu button -->
       <v-app-bar-nav-icon 
         v-if="isAuthenticated && !isAuthPage && !smAndUp" 
@@ -29,7 +29,7 @@
 
     <!-- Navigation Drawer -->
     <v-navigation-drawer
-      v-if="isAuthenticated && !isAuthPage"
+      v-if="!isPublicBookingRoute && isAuthenticated && !isAuthPage"
       v-model="drawerOpen"
       :permanent="smAndUp"
       :temporary="!smAndUp"
@@ -206,6 +206,7 @@ const isSuperAdmin = ref(false)
 const userRole = ref('')
 const drawerOpen = ref(true) // Initialize as true, will be properly set by watcher
 const isSettingsRoute = computed(() => route.path.startsWith('/settings'))
+const isPublicBookingRoute = computed(() => route.path.startsWith('/booking') || route.path.startsWith('/my-tee-times'))
 
 // Computed properties
 const isAuthPage = computed(() => {

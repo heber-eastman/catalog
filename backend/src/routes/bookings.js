@@ -103,51 +103,17 @@ router.post(
     if (teeTimes.length !== teeTimeIds.length) return res.status(404).json({ error: 'One or more tee times not found' });
     if (!teeTimes.every(t => t.tee_sheet_id === teeSheetId)) return res.status(400).json({ error: 'Tee times must belong to the same tee sheet' });
 
-  // Auto-compute reround for 18 holes when only first leg provided (strict; requires distinct next slot)
+  // Auto-compute reround for 18 when only first leg provided using denormalized fields
   if (value.holes === 18 && teeTimes.length === 1) {
-    try {
-      const first = teeTimes[0];
-      const sides = await TeeSheetSide.findAll({ where: { tee_sheet_id: teeSheetId } });
-      const startSide = sides.find(s => s.id === first.side_id) || (await TeeSheetSide.findByPk(first.side_id));
-
-      // Determine reround target side from active template settings (v2)
-      const sheetRow = await TeeSheet.findByPk(teeSheetId);
-      const course = sheetRow ? await GolfCourseInstance.findByPk(sheetRow.course_id) : null;
-      const zone = (course && course.timezone) ? course.timezone : 'UTC';
-      const dateISO = first.start_time.toISOString().substring(0,10);
-      const { windows, source } = await resolveEffectiveWindows({ teeSheetId, dateISO });
-      let configuredReroundSideId = null;
-      if (windows && windows.length && source) {
-        const compiled = await compileWindowsForDate({ teeSheetId, dateISO, sourceType: source, sourceId: null, windows });
-        const local = DateTime.fromJSDate(first.start_time, { zone });
-        const match = compiled.find(w => w.side_id === first.side_id && local >= w.start && local < w.end);
-        if (match && match.template_version_id) {
-          const sideCfg = await TeeSheetTemplateSide.findOne({ where: { version_id: match.template_version_id, side_id: first.side_id } });
-          if (sideCfg && sideCfg.rerounds_to_side_id) configuredReroundSideId = sideCfg.rerounds_to_side_id;
-        }
-      }
-
-      // Compute reround start after first leg holes (usually 9)
-      const reroundStart = computeReroundStart({ minutes_per_hole: startSide.minutes_per_hole, hole_count: startSide.hole_count }, first.start_time);
-
-      // Primary target: configured reround side; fallback to any other side; lastly same side
-      const otherSide = sides.find(s => s.id !== first.side_id) || startSide;
-      const targets = [configuredReroundSideId, otherSide.id, startSide.id].filter(Boolean);
-      let reround = null;
-      for (const sid of targets) {
-        reround = await TeeTime.findOne({
-          where: { tee_sheet_id: teeSheetId, side_id: sid, start_time: { [Op.gt]: reroundStart } },
-          order: [['start_time', 'ASC']],
-        });
-        if (reround) break;
-      }
-      if (!reround || reround.id === first.id) {
-        return res.status(409).json({ error: 'Reround slot unavailable' });
-      }
-      teeTimes = [first, reround];
-    } catch (e) {
-      return res.status(400).json({ error: 'Failed to compute reround tee time' });
+    const first = teeTimes[0];
+    if (!first.can_start_18 || !first.reround_tee_time_id) {
+      return res.status(409).json({ error: 'Reround slot unavailable' });
     }
+    const reround = await TeeTime.findByPk(first.reround_tee_time_id);
+    if (!reround || reround.tee_sheet_id !== teeSheetId) {
+      return res.status(409).json({ error: 'Reround slot unavailable' });
+    }
+    teeTimes = [first, reround];
   }
 
     // Determine date and prefer V2 seasons/overrides windows; fall back to legacy templates
@@ -184,6 +150,38 @@ router.post(
             legsComputed.push({ tt, timeframe: null, legPrice });
           }
           usedV2 = true;
+          // Enforce booking window for customers (not staff)
+          const isStaff = ['Admin', 'Manager', 'Staff', 'SuperAdmin'].includes(req.userRole || '');
+          if (!isStaff) {
+            try {
+              const course = await GolfCourseInstance.findByPk(sheet.course_id);
+              const zone = (course && course.timezone) ? course.timezone : 'UTC';
+              const releaseClock = sheet && sheet.daily_release_local ? String(sheet.daily_release_local) : '07:00';
+              const m = /^([0-2]\d):([0-5]\d)/.exec(releaseClock) || [];
+              const relH = parseInt(m[1] || '7', 10);
+              const relM = parseInt(m[2] || '0', 10);
+              const cls = String(classId || '').toLowerCase();
+              // Find a representative version id (from compiled) and read window
+              const versionId = compiled[0]?.template_version_id;
+              let maxDays = null;
+              try {
+                const [rows] = await sequelize.query(
+                  'SELECT max_days_in_advance FROM "TemplateVersionBookingWindows" WHERE template_version_id = :vid AND LOWER(booking_class_id) = :cid LIMIT 1',
+                  { replacements: { vid: versionId, cid: cls } }
+                );
+                if (Array.isArray(rows) && rows.length > 0) maxDays = Number(rows[0].max_days_in_advance);
+              } catch (_) {}
+              if (!(Number.isInteger(maxDays) && maxDays >= 0)) {
+                return res.status(403).json({ error: 'Booking window not open' });
+              }
+              // Evaluate against earliest leg (first tee time)
+              const firstTt = teeTimes[0];
+              const localStart = DateTime.fromJSDate(firstTt.start_time, { zone });
+              const releaseDate = localStart.startOf('day').minus({ days: maxDays }).set({ hour: relH, minute: relM, second: 0, millisecond: 0 });
+              const nowLocal = DateTime.now().setZone(zone);
+              if (nowLocal < releaseDate) return res.status(403).json({ error: 'Booking window not open' });
+            } catch (_) {}
+          }
         }
       }
     } catch (_) {
@@ -288,7 +286,17 @@ router.post(
     if (value.owner_customer_id) {
       ownerCustomerId = value.owner_customer_id;
     } else if (['Customer'].includes(req.userRole || '')) {
-      ownerCustomerId = req.userId;
+      // Customer users are global; bind/attach them to the course by creating/finding a Customer row at booking time
+      try {
+        const sheetRow = await TeeSheet.findByPk(teeSheetId);
+        const courseId = sheetRow ? sheetRow.course_id : null;
+        if (courseId) {
+          const firstName = (req.user && req.user.first_name) || 'Guest';
+          const lastName = (req.user && req.user.last_name) || '';
+          const email = (req.user && req.user.email) || null;
+          ownerCustomerId = await findOrCreateCustomer({ courseId, firstName, lastName, email });
+        }
+      } catch (_) { ownerCustomerId = null; }
     } else if (!ownerCustomerId && (value.lead_name || value.lead_email)) {
       try {
         const sheetRow = await TeeSheet.findByPk(teeSheetId);
@@ -951,8 +959,21 @@ module.exports = router;
 // List current user's bookings (customer)
 router.get('/bookings/mine', requireAuth(['Customer']), async (req, res) => {
   try {
+    // Resolve owner ids for this logged-in customer
+    const email = (req.user && req.user.email) ? String(req.user.email).trim() : '';
+    let ownerIdFilter = {};
+    if (email && email.includes('@')) {
+      const owners = await Customer.findAll({ where: { email: { [Op.iLike]: email } }, attributes: ['id'] });
+      const ids = owners.map(o => o.id);
+      if (!ids.length) return res.json([]);
+      ownerIdFilter = { [Op.in]: ids };
+    } else {
+      // Fallback to no results when we cannot match identity
+      return res.json([]);
+    }
+
     const rows = await Booking.findAll({
-      where: { owner_customer_id: req.userId, status: 'Active' },
+      where: { owner_customer_id: ownerIdFilter, status: { [Op.in]: ['Booked', 'Active', 'Pending'] } },
       include: [
         {
           model: BookingRoundLeg,
@@ -969,11 +990,30 @@ router.get('/bookings/mine', requireAuth(['Customer']), async (req, res) => {
       order: [[{ model: BookingRoundLeg, as: 'legs' }, 'leg_index', 'ASC']],
     });
 
-    const out = rows.map(b => ({
+    // Map tee_sheet_id -> course timezone for correct local comparisons
+    const sheetIds = Array.from(new Set(rows.map(r => r.tee_sheet_id).filter(Boolean)));
+    const sheets = sheetIds.length ? await TeeSheet.findAll({ where: { id: { [Op.in]: sheetIds } } }) : [];
+    const courseIds = Array.from(new Set(sheets.map(s => s.course_id).filter(Boolean)));
+    const courses = courseIds.length ? await GolfCourseInstance.findAll({ where: { id: { [Op.in]: courseIds } } }) : [];
+    const zoneBySheet = new Map(sheets.map(s => [s.id, (courses.find(c => c.id === s.course_id)?.timezone) || 'UTC']));
+    const nowByZoneCache = new Map();
+    const futureOnly = rows.filter(b => {
+      const firstLeg = (b.legs || []).find(l => l.leg_index === 0);
+      const tt = firstLeg && firstLeg.assignments && firstLeg.assignments[0] && firstLeg.assignments[0].tee_time;
+      if (!tt || !tt.start_time) return false;
+      const zone = zoneBySheet.get(b.tee_sheet_id) || 'UTC';
+      const localStart = require('luxon').DateTime.fromJSDate(tt.start_time, { zone });
+      let nowLocal = nowByZoneCache.get(zone);
+      if (!nowLocal) { nowLocal = require('luxon').DateTime.now().setZone(zone); nowByZoneCache.set(zone, nowLocal); }
+      return localStart > nowLocal;
+    });
+
+    const out = futureOnly.map(b => ({
       id: b.id,
       tee_sheet_id: b.tee_sheet_id,
       total_price_cents: b.total_price_cents,
       status: b.status,
+      players: (b.legs && b.legs[0] && Array.isArray(b.legs[0].assignments)) ? b.legs[0].assignments.length : 0,
       legs: (b.legs || []).map(l => ({
         leg_index: l.leg_index,
         tee_time: l.assignments && l.assignments[0] && l.assignments[0].tee_time
@@ -981,6 +1021,7 @@ router.get('/bookings/mine', requireAuth(['Customer']), async (req, res) => {
               id: l.assignments[0].tee_time.id,
               start_time: l.assignments[0].tee_time.start_time,
               side_id: l.assignments[0].tee_time.side_id,
+              start_time_local: (() => { try { const zone = zoneBySheet.get(b.tee_sheet_id) || 'UTC'; return require('luxon').DateTime.fromJSDate(l.assignments[0].tee_time.start_time, { zone }).toISO(); } catch { return null } })(),
             }
           : null,
         price_cents: l.price_cents,

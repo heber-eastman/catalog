@@ -52,20 +52,20 @@
       </v-card>
     </div>
 
-    <v-dialog v-model="detailOpen" max-width="1200">
-      <v-card>
-        <v-card-title class="text-subtitle-1">Season Settings</v-card-title>
+    <!-- Side Panel: Season Settings -->
+    <div v-if="detailOpen" class="drawer-backdrop" @click="detailOpen=false"></div>
+    <aside class="drawer right" :class="{ open: detailOpen }" aria-label="Season Settings">
+      <div class="drawer-header">
+        <div class="drawer-title">Season Settings</div>
+        <v-btn class="close" variant="text" @click="detailOpen=false">✕</v-btn>
+      </div>
+      <div class="drawer-body">
         <v-tabs v-model="activeTab" density="comfortable" class="mb-2" ref="tabsRef">
           <v-tab value="draft">Draft</v-tab>
           <v-tab value="published">Published</v-tab>
         </v-tabs>
-        <div v-if="showFallbackTabs" class="mb-2">
-          <v-btn-toggle v-model="activeTab" density="comfortable" mandatory>
-            <v-btn value="draft" size="small">Draft</v-btn>
-            <v-btn value="published" size="small">Published</v-btn>
-          </v-btn-toggle>
-        </div>
-        <v-card-text>
+        <!-- Removed fallback toggle to avoid duplicate tabs in drawer -->
+        <div class="drawer-content">
           <div class="section">
             <div class="section__header">Season Details</div>
             <div class="section__grid">
@@ -349,15 +349,15 @@
             </div>
           </div>
 
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="detailOpen=false">Close</v-btn>
-          <v-btn v-if="activeTab==='draft'" variant="text" :disabled="busy || !selectedSeason" @click="selectedSeason && saveAll(selectedSeason.id)">Save</v-btn>
-          <v-btn v-if="activeTab==='draft'" variant="flat" color="primary" :disabled="busy" data-cy="season-publish-btn" @click="selectedSeason && publish(selectedSeason.id)">Publish</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+        </div>
+      </div>
+      <div class="drawer-actions">
+        <v-spacer />
+        <v-btn variant="text" @click="detailOpen=false">Close</v-btn>
+        <v-btn v-if="activeTab==='draft'" variant="text" :disabled="busy || !selectedSeason" @click="selectedSeason && saveAll(selectedSeason.id)">Save</v-btn>
+        <v-btn v-if="activeTab==='draft'" variant="flat" color="primary" :disabled="busy" data-cy="season-publish-btn" @click="selectedSeason && publish(selectedSeason.id)">Publish</v-btn>
+      </div>
+    </aside>
 
     <v-snackbar v-model="showSnackbar" :color="snackbarColor" :timeout="2500">
       {{ snackbarMessage }}
@@ -1225,6 +1225,17 @@ function formatHuman(iso){
 .color-input::-webkit-color-swatch-wrapper{ padding:2px; border-radius:8px; }
 .color-input::-webkit-color-swatch{ border:none; border-radius:8px; }
 .color-input::-moz-color-swatch{ border:none; border-radius:8px; }
+
+/* Drawer styles (side panel) */
+.drawer-backdrop{ position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 9998; }
+.drawer{ position: fixed; top: 0; right: 0; height: 100vh; width: min(96vw, 1200px); max-width: 1200px; background: #fff; border-left: 1px solid #e5e7eb; transform: translateX(100%); transition: transform .2s ease-in-out; z-index: 9999; display: grid; grid-template-rows: auto 1fr auto; }
+.drawer.open{ transform: translateX(0); }
+.drawer-header{ display:flex; align-items:center; justify-content:space-between; padding:12px 12px 8px; border-bottom:1px solid #e5e7eb; }
+.drawer-title{ font-weight:700; font-size:16px; }
+.drawer-header .close{ background:#f3f4f6; border:1px solid #e5e7eb; border-radius:10px; min-width:36px; height:36px; }
+.drawer-body{ overflow:auto; padding: 8px 12px 12px; }
+.drawer-content{ padding-bottom: 8px; }
+.drawer-actions{ padding: 10px 12px; border-top:1px solid #e5e7eb; display:flex; align-items:center; gap:8px; }
 </style>
 
 

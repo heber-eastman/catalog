@@ -96,6 +96,24 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/booking',
+    name: 'Booking',
+    component: () => import('@/views/booking/BookingPage.vue'),
+    meta: {},
+  },
+  {
+    path: '/booking/:courseSlug',
+    name: 'BookingCourse',
+    component: () => import('@/views/booking/BookingPage.vue'),
+    meta: {},
+  },
+  {
+    path: '/booking/:courseSlug/tee-time/:teeTimeId',
+    name: 'BookingTeeTime',
+    component: () => import('@/views/booking/BookingTeeTime.vue'),
+    meta: {},
+  },
+  {
     path: '/cart',
     name: 'Cart',
     component: () => import('@/views/customer/Cart.vue'),

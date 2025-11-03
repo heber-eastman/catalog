@@ -8,6 +8,7 @@ const {
   TeeTime,
   ClosureBlock,
   GolfCourseInstance,
+  TeeSheetTemplateSide,
 } = require('../models');
 const { resolveEffectiveWindows } = require('./templateResolver');
 const { compileWindowsForDate } = require('./windowCompiler');
@@ -30,6 +31,14 @@ async function generateForDateV2({ teeSheetId, dateISO }) {
 
   // Compile windows with clamp/snap and correct interval per template version
   const compiled = await compileWindowsForDate({ teeSheetId, dateISO, sourceType: 'effective', sourceId: null, windows });
+  const versionIds = Array.from(new Set(compiled.map(w => w.template_version_id).filter(Boolean)));
+  const sideCfgList = versionIds.length
+    ? await TeeSheetTemplateSide.findAll({ where: { version_id: { [Op.in]: versionIds } } })
+    : [];
+  const sideCfgByVS = {};
+  for (const s of sideCfgList) sideCfgByVS[`${s.version_id}:${s.side_id}`] = s;
+  const windowsBySide = {};
+  for (const w of compiled) { (windowsBySide[w.side_id] || (windowsBySide[w.side_id] = [])).push(w); }
 
   for (const c of compiled) {
     const side = sides[c.side_id];
@@ -89,6 +98,56 @@ async function generateForDateV2({ teeSheetId, dateISO }) {
       } else {
         generated += 1;
       }
+    }
+  }
+
+  // Pairing pass: annotate reround pairing and holes label
+  const dayStartUtc = DateTime.fromISO(`${dateISO}T00:00:00`, { zone }).toUTC().toJSDate();
+  const dayEndUtc = DateTime.fromISO(`${dateISO}T23:59:59`, { zone }).toUTC().toJSDate();
+  const allRows = await TeeTime.findAll({
+    where: { tee_sheet_id: teeSheetId, start_time: { [Op.gte]: dayStartUtc, [Op.lte]: dayEndUtc } },
+    order: [['start_time', 'ASC']],
+  });
+  const bySideRows = {};
+  for (const r of allRows) { (bySideRows[r.side_id] || (bySideRows[r.side_id] = [])).push(r); }
+
+  function findVersionFor(sideId, startTime) {
+    const wins = windowsBySide[sideId] || [];
+    const local = DateTime.fromJSDate(startTime, { zone });
+    for (const w of wins) { if (local >= w.start && local < w.end) return w.template_version_id; }
+    return null;
+  }
+
+  for (const row of allRows) {
+    const versionId = findVersionFor(row.side_id, row.start_time);
+    const cfg = versionId ? sideCfgByVS[`${versionId}:${row.side_id}`] : null;
+    let can18 = false; let rotateId = null; let reroundId = null; let holes = '9';
+    if (cfg && cfg.rerounds_to_side_id) {
+      rotateId = cfg.rerounds_to_side_id;
+      const side = sides[row.side_id];
+      const reroundStart = DateTime.fromJSDate(row.start_time, { zone })
+        .plus({ minutes: (side.minutes_per_hole || 10) * (side.hole_count || 9) })
+        .toUTC()
+        .toJSDate();
+      const candidates = bySideRows[rotateId] || [];
+      const c = candidates.find(r => r.start_time > reroundStart);
+      if (c) { can18 = true; reroundId = c.id; holes = '9/18'; }
+    }
+    const needsUpdate = (
+      row.can_start_18 !== can18 ||
+      String(row.rerounds_to_side_id || '') !== String(rotateId || '') ||
+      String(row.reround_tee_time_id || '') !== String(reroundId || '') ||
+      String(row.holes_label || '9') !== holes
+    );
+    if (needsUpdate) {
+      try {
+        await row.update({
+          can_start_18: can18,
+          rerounds_to_side_id: rotateId,
+          reround_tee_time_id: reroundId,
+          holes_label: holes,
+        });
+      } catch (_) {}
     }
   }
 

@@ -18,6 +18,19 @@
           :readonly="saving"
           class="field span-2"
         />
+    <v-text-field
+      v-model="dailyRelease"
+      label="Daily release time (HH:MM)"
+      variant="outlined"
+      density="comfortable"
+      :rules="timeRules"
+      hint="Local time when booking opens each day (e.g., 07:00)"
+      persistent-hint
+      :readonly="saving"
+      class="field"
+      placeholder="07:00"
+      @blur="normalizeTime"
+    />
       </div>
 
     </v-card>
@@ -36,7 +49,36 @@ const courseTimezone = ref('');
 const courseLat = ref('');
 const courseLon = ref('');
 const saving = ref(false);
-const canSave = computed(() => !!teeSheet.value && name.value.trim().length >= 2 && name.value.trim() !== (teeSheet.value?.name || ''));
+const dailyRelease = ref('07:00');
+const timeRules = [
+  (v) => /^\d{2}:\d{2}$/.test(String(v || '')) || 'Use HH:MM (24-hour)',
+  (v) => {
+    const m = String(v || '').match(/^(\d{2}):(\d{2})$/);
+    if (!m) return true;
+    const hh = Number(m[1]);
+    const mm = Number(m[2]);
+    return (hh >= 0 && hh <= 23 && mm >= 0 && mm <= 59) || 'Invalid time';
+  },
+];
+
+function normalizeTime(){
+  const v = String(dailyRelease.value || '').trim();
+  // Accept H:MM and HH:M formats and pad to HH:MM
+  const m = v.match(/^(\d{1,2}):(\d{1,2})$/);
+  if (!m) return; // leave as-is; rules will show error if needed
+  let hh = String(m[1]).padStart(2, '0');
+  let mm = String(m[2]).padStart(2, '0');
+  const hhn = Number(hh);
+  const mmn = Number(mm);
+  if (!(hhn >= 0 && hhn <= 23 && mmn >= 0 && mmn <= 59)) return;
+  dailyRelease.value = `${hh}:${mm}`;
+}
+const canSave = computed(() => {
+  if (!teeSheet.value) return false;
+  const nameChanged = name.value.trim() !== (teeSheet.value?.name || '');
+  const drChanged = (dailyRelease.value || '').trim() !== (teeSheet.value?.daily_release_local || '07:00');
+  return name.value.trim().length >= 2 && (nameChanged || drChanged);
+});
 
 async function load(){
   try {
@@ -48,6 +90,7 @@ async function load(){
     courseTimezone.value = found?.timezone || '';
     courseLat.value = found?.latitude ?? '';
     courseLon.value = found?.longitude ?? '';
+  dailyRelease.value = (found?.daily_release_local || '07:00');
   } catch {
     teeSheet.value = null;
   }
@@ -57,9 +100,11 @@ async function save(){
   if (!teeSheet.value) return;
   try{
     saving.value = true;
-    const payload = { name: name.value.trim(), description: teeSheet.value?.description || '', is_active: teeSheet.value?.is_active ?? true };
+    const payload = { name: name.value.trim(), description: teeSheet.value?.description || '', is_active: teeSheet.value?.is_active ?? true, daily_release_local: (dailyRelease.value || '07:00').trim() };
     const { data } = await settingsAPI.updateTeeSheet(teeSheet.value.id, payload);
     teeSheet.value = data || { ...teeSheet.value, name: payload.name };
+    // reflect updated daily release locally if response is partial
+    teeSheet.value.daily_release_local = data?.daily_release_local || payload.daily_release_local;
     try { window.dispatchEvent(new CustomEvent('tee-sheet-updated', { detail: { id: teeSheet.value.id, name: payload.name } })); } catch {}
   } finally {
     saving.value = false;
@@ -68,6 +113,7 @@ async function save(){
 
 function reset(){
   name.value = teeSheet.value?.name || '';
+  dailyRelease.value = teeSheet.value?.daily_release_local || '07:00';
 }
 
 onMounted(load);
