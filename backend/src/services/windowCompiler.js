@@ -45,7 +45,10 @@ async function compileWindowsForDate({ teeSheetId, dateISO, sourceType, sourceId
   const tz = courseTz(zone);
   const dateLocal = tz.fromISO(`${dateISO}T00:00:00`);
 
-  const sun = getSunTimes({ date: dateLocal.toJSDate(), latitude: course?.latitude, longitude: course?.longitude, timezone: zone });
+  // Use a timezone-agnostic anchor (UTC noon) for SunCalc to avoid off-by-one when
+  // the host system timezone differs from the course timezone.
+  const dateForSun = DateTime.fromObject({ year: dateLocal.year, month: dateLocal.month, day: dateLocal.day, hour: 12, minute: 0, second: 0 }, { zone: 'UTC' }).toJSDate();
+  const sun = getSunTimes({ date: dateForSun, latitude: course?.latitude, longitude: course?.longitude, timezone: zone });
   const sunrise = tz.fromJSDate(sun.sunrise);
   const sunset = tz.fromJSDate(sun.sunset);
 

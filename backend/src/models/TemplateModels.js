@@ -108,6 +108,15 @@ module.exports = (sequelize, DataTypes) => {
     updated_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },
   }, { tableName: 'TeeSheetSeasonWeekdayWindows', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });
 
+  const TemplateVersionBookingWindow = sequelize.define('TemplateVersionBookingWindow', {
+    id: { type: DataTypes.UUID, primaryKey: true, defaultValue: DataTypes.UUIDV4 },
+    template_version_id: { type: DataTypes.UUID, allowNull: false },
+    booking_class_id: { type: DataTypes.STRING(64), allowNull: false },
+    max_days_in_advance: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },
+    updated_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },
+  }, { tableName: 'TemplateVersionBookingWindows', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });
+
   const TeeSheetOverride = sequelize.define('TeeSheetOverride', {
     id: { type: DataTypes.UUID, primaryKey: true, defaultValue: DataTypes.UUIDV4 },
     tee_sheet_id: { type: DataTypes.UUID, allowNull: false },
@@ -157,6 +166,8 @@ module.exports = (sequelize, DataTypes) => {
   });
   TeeSheetTemplate.hasMany(TeeSheetTemplateOnlineAccess, { foreignKey: 'template_id', as: 'online_access' });
   TeeSheetTemplateOnlineAccess.belongsTo(TeeSheetTemplate, { foreignKey: 'template_id', as: 'template' });
+  TeeSheetTemplateVersion.hasMany(TemplateVersionBookingWindow, { foreignKey: 'template_version_id', as: 'booking_windows' });
+  TemplateVersionBookingWindow.belongsTo(TeeSheetTemplateVersion, { foreignKey: 'template_version_id', as: 'template_version' });
   // Publishing invariants for templates
   TeeSheetTemplate.addHook('beforeSave', async (instance, options) => {
     if (!instance.changed('published_version_id') || !instance.published_version_id) return;
@@ -248,6 +259,7 @@ module.exports = (sequelize, DataTypes) => {
     TeeSheetSeason,
     TeeSheetSeasonVersion,
     TeeSheetSeasonWeekdayWindow,
+    TemplateVersionBookingWindow,
     TeeSheetOverride,
     TeeSheetOverrideVersion,
     TeeSheetOverrideWindow,

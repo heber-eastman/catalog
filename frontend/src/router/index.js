@@ -98,14 +98,20 @@ const routes = [
   {
     path: '/booking',
     name: 'Booking',
-    component: () => import('@/views/customer/Browse.vue'),
-    meta: { requiresAuth: true },
+    component: () => import('@/views/booking/BookingPage.vue'),
+    meta: {},
   },
   {
     path: '/booking/:courseSlug',
     name: 'BookingCourse',
-    component: () => import('@/views/customer/Browse.vue'),
-    meta: { requiresAuth: true },
+    component: () => import('@/views/booking/BookingPage.vue'),
+    meta: {},
+  },
+  {
+    path: '/booking/:courseSlug/tee-time/:teeTimeId',
+    name: 'BookingTeeTime',
+    component: () => import('@/views/booking/BookingTeeTime.vue'),
+    meta: {},
   },
   {
     path: '/cart',

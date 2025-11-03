@@ -5,10 +5,11 @@
       <input placeholder="Sheet IDs (comma)" v-model="teeSheetsRaw" />
       <input placeholder="Side IDs (comma)" v-model="sidesRaw" />
       <select v-model="walkRide">
+        <option value="">Any</option>
         <option value="ride">Ride</option>
         <option value="walk">Walk</option>
       </select>
-      <input type="number" min="1" max="4" v-model.number="groupSize" />
+      <input type="number" min="1" max="4" v-model.number="groupSize" placeholder="Group Size (any)" />
       <label style="display:flex;align-items:center;gap:6px">
         <input type="checkbox" v-model="staffView" data-cy="staff-view-toggle" /> Staff view
       </label>
@@ -49,8 +50,8 @@ const route = useRoute();
 const date = ref(new Date().toISOString().substring(0,10));
 const teeSheetsRaw = ref(localStorage.getItem('cust:browse:sheets') || '');
 const sidesRaw = ref(localStorage.getItem('cust:browse:sides') || '');
-const walkRide = ref('ride');
-const groupSize = ref(2);
+const walkRide = ref(''); // empty means no filter
+const groupSize = ref(null); // null means no filter
 const classId = ref('Full');
 const staffView = ref(false);
 const compareCustomer = ref(false);
@@ -72,11 +73,11 @@ async function load() {
   const base = {
     date: date.value,
     teeSheets: sheets,
-    groupSize: groupSize.value,
-    walkRide: walkRide.value,
     classId: classId.value,
     customerView: !staffView.value,
   };
+  if (typeof groupSize.value === 'number' && groupSize.value >= 1) base.groupSize = groupSize.value;
+  if (walkRide.value === 'walk' || walkRide.value === 'ride') base.walkRide = walkRide.value;
   if (sides.length) base['sides[]'] = sides;
   const { data } = await teeTimesAPI.available(base);
   slots.value = data;

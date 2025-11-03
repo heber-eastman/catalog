@@ -3,7 +3,7 @@
 const express = require('express');
 const Joi = require('joi');
 const { Op, Sequelize } = require('sequelize');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, optionalAuth } = require('../middleware/auth');
 const {
   TeeSheet,
   TeeSheetSide,
@@ -32,6 +32,7 @@ const {
   TeeSheetOverrideVersion,
   TeeSheetOverrideWindow,
   GolfCourseInstance,
+  TemplateVersionBookingWindow,
 } = require('../models');
 
 const router = express.Router();
@@ -40,12 +41,15 @@ const { generateForDateV2 } = require('../services/teeSheetGenerator.v2');
 const { prevalidateSeasonVersion } = require('../services/seasonPrevalidation');
 const { regenerateApplyNow } = require('../services/cascadeEngine');
 const { templateCoversSideSet } = require('../services/validators.v2');
+const solar = require('../services/solar');
 
 // Validation schemas
 const teeSheetSchema = Joi.object({
   name: Joi.string().min(2).max(120).required(),
   description: Joi.string().allow('', null),
   is_active: Joi.boolean().optional(),
+  // HH:MM (24h) local time that slots open for booking
+  daily_release_local: Joi.string().pattern(/^\d{2}:\d{2}$/).optional(),
 });
 
 const sideSchema = Joi.object({
@@ -329,7 +333,7 @@ router.get('/tee-sheets', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async
 });
 
 // Public (authenticated customer) helper: list tee sheets for a course by slug
-router.get('/public/courses/:slug/tee-sheets', requireAuth(['Admin', 'Manager', 'Staff', 'SuperAdmin', 'Customer']), async (req, res) => {
+router.get('/public/courses/:slug/tee-sheets', optionalAuth(), async (req, res) => {
   try {
     const slug = String(req.params.slug || '').trim();
     if (!slug) return res.status(400).json({ error: 'Missing course slug' });
@@ -337,18 +341,95 @@ router.get('/public/courses/:slug/tee-sheets', requireAuth(['Admin', 'Manager', 
     const course = await GolfCourseInstance.findOne({ where: { subdomain: slug } });
     if (!course) return res.status(404).json({ error: 'Course not found' });
 
-    // Authorization: Customers and Staff may only access their own course; SuperAdmin can access any
-    const isSuper = (req.userRole || '') === 'SuperAdmin';
-    if (!isSuper) {
-      if (!req.courseId || req.courseId !== course.id) {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-    }
+    // Public endpoint: allow anonymous access
 
     const items = await TeeSheet.findAll({ where: { course_id: course.id }, order: [['created_at','ASC']] });
-    return res.json(items.map(s => ({ id: s.id, name: s.name, is_active: s.is_active })));
+    const sides = await TeeSheetSide.findAll({ where: { tee_sheet_id: { [Sequelize.Op.in]: items.map(s => s.id) } }, order: [['valid_from','ASC']] });
+    const sidesBySheet = items.reduce((acc, s) => { acc[s.id] = []; return acc; }, {});
+    for (const sd of sides) { if (sidesBySheet[sd.tee_sheet_id]) sidesBySheet[sd.tee_sheet_id].push({ id: sd.id, name: sd.name }); }
+    return res.json(items.map(s => ({ id: s.id, name: s.name, is_active: s.is_active, sides: sidesBySheet[s.id] || [] })));
   } catch (e) {
     return res.status(500).json({ error: 'Failed to load tee sheets' });
+  }
+});
+
+// Public: get course by slug (basic info for booking header)
+router.get('/public/courses/:slug', optionalAuth(), async (req, res) => {
+  try {
+    const slug = String(req.params.slug || '').trim();
+    if (!slug) return res.status(400).json({ error: 'Missing course slug' });
+    const course = await GolfCourseInstance.findOne({ where: { subdomain: slug } });
+    if (!course) return res.status(404).json({ error: 'Course not found' });
+    return res.json({ id: course.id, name: course.name, subdomain: course.subdomain, timezone: course.timezone || 'UTC' });
+  } catch (e) {
+    return res.status(500).json({ error: 'Failed to load course' });
+  }
+});
+
+// Public: day info (sunrise/sunset and simple temp in F) for a course and date
+router.get('/public/courses/:slug/day-info', optionalAuth(), async (req, res) => {
+  try {
+    const slug = String(req.params.slug || '').trim();
+    const dateISO = String(req.query.date || '').trim();
+    if (!slug || !/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) return res.status(400).json({ error: 'Missing or invalid parameters' });
+    const course = await GolfCourseInstance.findOne({ where: { subdomain: slug } });
+    if (!course) return res.status(404).json({ error: 'Course not found' });
+
+    const zone = course.timezone || 'UTC';
+    const lat = course.latitude != null ? Number(course.latitude) : null;
+    const lon = course.longitude != null ? Number(course.longitude) : null;
+    const dt = DateTime.fromISO(dateISO, { zone });
+
+    let { sunrise, sunset } = await solar.getSunTimes({ date: dt.toJSDate(), latitude: lat, longitude: lon, timezone: zone });
+    let temperature_f = null;
+    // Optional weather fetch (best-effort) using Open-Meteo current temperature in F when asking for today
+    try {
+      if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&current=temperature_2m&temperature_unit=fahrenheit&timezone=${encodeURIComponent(zone)}`;
+        const fetchImpl = (await import('node-fetch')).default;
+        const resp = await fetchImpl(url, { timeout: 5000 });
+        if (resp.ok) {
+          const json = await resp.json();
+          const t = json && json.current && typeof json.current.temperature_2m === 'number' ? json.current.temperature_2m : null;
+          temperature_f = t;
+        }
+      }
+    } catch (_) {
+      // ignore weather failures
+    }
+
+    // If sunrise/sunset look obviously wrong, attempt API fallback
+    try {
+      const srHour = DateTime.fromJSDate(sunrise, { zone }).hour;
+      const ssHour = DateTime.fromJSDate(sunset, { zone }).hour;
+      if (Number.isFinite(lat) && Number.isFinite(lon) && (srHour >= 21 || srHour < 3 || ssHour <= 3 || ssHour >= 22)) {
+        const fetchImpl = (await import('node-fetch')).default;
+        const url = `https://api.sunrise-sunset.org/json?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lon)}&date=${encodeURIComponent(dateISO)}&formatted=0`;
+        const resp = await fetchImpl(url, { timeout: 5000 });
+        if (resp.ok) {
+          const js = await resp.json();
+          if (js && js.status === 'OK' && js.results) {
+            const sru = js.results.sunrise ? new Date(js.results.sunrise) : sunrise;
+            const ssu = js.results.sunset ? new Date(js.results.sunset) : sunset;
+            sunrise = sru;
+            sunset = ssu;
+          }
+        }
+      }
+    } catch (_) {}
+
+    const sunriseLocal = DateTime.fromJSDate(sunrise, { zone }).toFormat('h:mm a');
+    const sunsetLocal = DateTime.fromJSDate(sunset, { zone }).toFormat('h:mm a');
+    return res.json({
+      sunrise,
+      sunset,
+      sunrise_local: sunriseLocal,
+      sunset_local: sunsetLocal,
+      timezone: zone,
+      temperature_f,
+    });
+  } catch (e) {
+    return res.status(500).json({ error: 'Failed to load day info' });
   }
 });
 
@@ -1317,6 +1398,67 @@ router.get('/tee-sheets/:id/v2/templates/:templateId/side-settings', requireAuth
     }
     // Otherwise return error
     return res.status(500).json({ error: 'Failed to load side settings' });
+  }
+});
+
+// Booking windows (per template version, per class)
+router.get('/tee-sheets/:id/v2/templates/:templateId/booking-windows', requireAuth(['Admin', 'Manager', 'SuperAdmin']), async (req, res) => {
+  try {
+    const sheet = await TeeSheet.findOne({ where: { id: req.params.id } });
+    if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+    const tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: sheet.id } });
+    if (!tmpl) return res.status(404).json({ error: 'Template not found' });
+    let version = null;
+    try {
+      version = await TeeSheetTemplateVersion.findOne({ where: { template_id: tmpl.id }, order: [['version_number', 'DESC']] });
+    } catch (e) {
+      const code = e && (e.parent?.code || e.original?.code);
+      if (String(code) === '42703' || String(code) === '42P01') {
+        const [rows] = await sequelize.query('SELECT id FROM "TeeSheetTemplateVersions" WHERE template_id = :tid ORDER BY created_at DESC LIMIT 1', { replacements: { tid: tmpl.id } });
+        const row = Array.isArray(rows) ? rows[0] : rows;
+        if (row && row.id) version = { id: row.id };
+      } else {
+        throw e;
+      }
+    }
+    if (!version) return res.json({ version_id: null, windows: [], online_access: [] });
+    const wins = await TemplateVersionBookingWindow.findAll({ where: { template_version_id: version.id } }).catch(() => []);
+    const online = await TeeSheetTemplateOnlineAccess.findAll({ where: { template_id: tmpl.id } }).catch(() => []);
+    res.json({ version_id: version.id, windows: (wins||[]).map(w => ({ booking_class_id: w.booking_class_id, max_days_in_advance: w.max_days_in_advance })), online_access: (online||[]).map(o => ({ booking_class_id: o.booking_class_id, is_online_allowed: !!o.is_online_allowed })) });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to load booking windows' });
+  }
+});
+
+router.put('/tee-sheets/:id/v2/templates/:templateId/booking-windows', requireAuth(['Admin']), async (req, res) => {
+  const schema = Joi.object({
+    version_id: Joi.string().uuid().required(),
+    entries: Joi.array().items(Joi.object({ booking_class_id: Joi.string().required(), is_online_allowed: Joi.boolean().required(), max_days_in_advance: Joi.number().integer().min(0).required() })).min(1).required(),
+  });
+  const { error, value } = schema.validate(req.body || {});
+  if (error) return res.status(400).json({ error: error.message });
+  try {
+    const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
+    if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
+    const tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: sheet.id } });
+    if (!tmpl) return res.status(404).json({ error: 'Template not found' });
+    // Upsert online access at template level
+    for (const ent of value.entries) {
+      try {
+        const [row, created] = await TeeSheetTemplateOnlineAccess.findOrCreate({ where: { template_id: tmpl.id, booking_class_id: ent.booking_class_id }, defaults: { is_online_allowed: ent.is_online_allowed } });
+        if (!created) await row.update({ is_online_allowed: ent.is_online_allowed });
+      } catch (_) {}
+    }
+    // Upsert windows for provided version
+    for (const ent of value.entries) {
+      try {
+        const [row, created] = await TemplateVersionBookingWindow.findOrCreate({ where: { template_version_id: value.version_id, booking_class_id: ent.booking_class_id }, defaults: { max_days_in_advance: ent.max_days_in_advance } });
+        if (!created) await row.update({ max_days_in_advance: ent.max_days_in_advance });
+      } catch (_) {}
+    }
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to update booking windows' });
   }
 });
 

@@ -89,9 +89,39 @@ const requireSuperAdmin = () => {
   };
 };
 
+// Optional auth: if a valid token is present, populate req fields; otherwise continue anonymously
+const optionalAuth = () => {
+  return async (req, res, next) => {
+    try {
+      let token = req.cookies.jwt;
+      if (!token) {
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+          token = authHeader.substring(7);
+        }
+      }
+      if (!token) {
+        return next();
+      }
+      const decoded = await verifyToken(token);
+      if (!decoded) {
+        return next();
+      }
+      req.user = decoded;
+      req.userId = decoded.user_id;
+      req.courseId = decoded.course_id;
+      req.userRole = decoded.role;
+    } catch (_) {
+      // ignore and proceed as anonymous
+    }
+    next();
+  };
+};
+
 module.exports = {
   requireAuth,
   requireSuperAdmin,
+  optionalAuth,
   STAFF_ROLES,
   SUPER_ADMIN_ROLES,
   ALL_ROLES,

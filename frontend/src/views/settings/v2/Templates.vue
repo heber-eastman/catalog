@@ -93,15 +93,32 @@
 
               <div class="section">
                 <div class="section__header">Booking Class Settings</div>
-                <div class="class-grid">
-                  <v-checkbox
-                    v-for="cls in courseClasses"
-                    :key="cls"
-                    v-model="classToggles[cls]"
-                    :label="cls"
-                    density="compact"
-                    hide-details
-                  />
+                <div class="muted" style="margin-bottom:8px; font-size:12px;">Check to enable online booking for the class. Set how many days in advance golfers in this class can book.</div>
+                <div class="class-grid rows">
+                  <div v-for="cls in courseClasses" :key="cls" class="class-row">
+                    <v-checkbox
+                      class="bc-check"
+                      v-model="classToggles[cls]"
+                      :label="cls.charAt(0).toUpperCase()+cls.slice(1)"
+                      density="compact"
+                      color="primary"
+                      true-icon="fa:fal fa-square-check"
+                      false-icon="fa:fal fa-square"
+                      hide-details
+                    />
+                    <v-text-field
+                      v-model.number="windowDays[cls]"
+                      type="number"
+                      min="0"
+                      label="Max days in advance"
+                      variant="outlined"
+                      density="comfortable"
+                      :rules="daysRules"
+                      class="days-input"
+                      :disabled="!classToggles[cls]"
+                      @blur="normalizeDays(cls)"
+                    />
+                  </div>
                 </div>
               </div>
             </v-window-item>
@@ -197,8 +214,21 @@ const detailOpen = ref(false);
 const tab = ref('teetime');
 const form = reactive({ name: '', interval_type: 'standard', interval_mins: 10, max_players_staff: 4, max_players_online: 4, online_selected: [2,3,4], online_access: [] });
 const intervalTypes = ['standard'];
-const courseClasses = ['Public', 'Member', 'Full'];
+const courseClasses = ['public', 'junior', 'full', 'senior', 'social'];
 const classToggles = reactive({});
+const windowDays = reactive({});
+const daysRules = [
+  v => (v === undefined || v === null || Number.isFinite(v)) || 'Enter a number',
+  v => (v === undefined || v === null || (typeof v === 'number' && v >= 0)) || 'Must be  0',
+  v => (v === undefined || v === null || Number.isInteger(Number(v))) || 'Must be an integer',
+];
+
+function normalizeDays(cls){
+  const raw = windowDays[cls];
+  let num = Number(raw);
+  if (!Number.isFinite(num) || num < 0) num = 0;
+  windowDays[cls] = Math.trunc(num);
+}
 const saving = ref(false);
 const playerCounts = [1,2,3,4,5,6];
 
@@ -290,7 +320,7 @@ async function remove(t) {
 }
 
 function shortId(id){ return (id || '').slice(0,6); }
-function openDetail(t){
+async function openDetail(t){
   selected.value = t;
   // Initialize form from selected
   form.name = t.name || '';
@@ -305,17 +335,29 @@ function openDetail(t){
   const map = {};
   for (const c of courseClasses) map[c] = true;
   const online = t.online_access || [];
-  for (const r of online) { map[r.booking_class_id] = !!r.is_online_allowed; }
+  for (const r of online) { map[r.booking_class_id?.toLowerCase?.() || r.booking_class_id] = !!r.is_online_allowed; }
   Object.assign(classToggles, map);
   detailOpen.value = true;
   // Load side settings for this template
-  loadSideSettings().catch(()=>{});
+  await loadSideSettings().catch(()=>{});
+  // Load booking windows for latest version
+  await loadBookingWindows();
 }
 
 async function saveSettings(){
   if (!selected.value) return;
   try {
     saving.value = true;
+    // Validation: if an extended holes option is selected for a side, require a rotate target
+    for (const s of sideSettings) {
+      const base = baseHoleCount(s.side_id);
+      const hasExtended = Array.isArray(s.hole_selected) && s.hole_selected.some(n => Number(n) > base);
+      if (hasExtended && !s.rotates_to_side_id) {
+        notify(`Rotation required: ${s.name} must rotate to a side when allowing 18 holes`, 'error');
+        saving.value = false;
+        return;
+      }
+    }
     const teeSheetId = route.params.teeSheetId;
     const payload = {
       name: form.name || 'Untitled Template',
@@ -344,6 +386,15 @@ async function saveSettings(){
         allowed_hole_totals: Array.isArray(s.hole_selected) ? s.hole_selected.slice() : [],
       }));
       tasks.push(settingsAPI.v2.updateTemplateSideSettings(teeSheetId, selected.value.id, { version_id: sideVersionId.value, sides: sidesPayload }));
+    }
+    // Persist booking windows with online access for current version
+    if (sideVersionId.value) {
+      const entries = courseClasses.map(cls => {
+        const enabled = !!classToggles[cls];
+        const days = enabled ? Number(windowDays[cls] || 0) : 0;
+        return { booking_class_id: cls, is_online_allowed: enabled, max_days_in_advance: days };
+      });
+      tasks.push(settingsAPI.v2.updateBookingWindows(teeSheetId, selected.value.id, { version_id: sideVersionId.value, entries }));
     }
     await Promise.all(tasks);
     await load();
@@ -400,6 +451,24 @@ async function loadSideSettings(){
   } finally {
     sideBusy.value = false;
   }
+}
+
+async function loadBookingWindows(){
+  try {
+    const teeSheetId = route.params.teeSheetId;
+    if (!teeSheetId || !selected.value) return;
+    const { data } = await settingsAPI.v2.getBookingWindows(teeSheetId, selected.value.id);
+    const wins = Array.isArray(data?.windows) ? data.windows : [];
+    const online = Array.isArray(data?.online_access) ? data.online_access : [];
+    for (const cls of courseClasses) {
+      const w = wins.find(x => String(x.booking_class_id).toLowerCase() === cls);
+      windowDays[cls] = w ? Number(w.max_days_in_advance) : 0;
+    }
+    for (const a of online) {
+      const k = String(a.booking_class_id || '').toLowerCase();
+      if (k) classToggles[k] = !!a.is_online_allowed;
+    }
+  } catch {}
 }
 
 function computeBookableOptions(){
@@ -537,13 +606,21 @@ onMounted(load);
 .sep{ margin:0 6px; color:#9aa0a6; }
 .after-tabs{ margin-top:20px; }
 .section{ margin-top:16px; }
-.section__header{ font-weight:700; font-size:14px; color:#2b2f36; margin-bottom:10px; letter-spacing:0.02em; }
+.section__header{ font-weight:700; font-size:21px; color:#2b2f36; margin-bottom:10px; letter-spacing:0.02em; }
 .section__grid{ display:grid; column-gap:16px; row-gap:16px; }
 .section__grid.two-cols{ grid-template-columns: repeat(2, minmax(160px,1fr)); }
 .detail-grid{ display:grid; grid-template-columns: repeat(4, minmax(160px,1fr)); column-gap:16px; row-gap:16px; padding-top:6px; }
 .mt-3{ margin-top:16px; }
 .mb-1{ margin-bottom:8px; }
 .class-grid{ display:flex; flex-direction:column; gap:5px; align-items:flex-start; }
+.class-grid.rows .class-row{ display:grid; grid-template-columns: 140px 220px; align-items:start; gap:12px; }
+.class-grid.rows .class-row :deep(.v-label){ white-space:nowrap; }
+.class-grid.rows .bc-check{ margin-top: 0; }
+/* Nudge the label down to align with the numeric text inside the text field */
+.class-grid.rows .bc-check :deep(.v-selection-control){ align-items: flex-start; gap: 10px; }
+.class-grid.rows .bc-check :deep(.v-selection-control__input){ margin-top: 16px; }
+.class-grid.rows .bc-check :deep(.v-label){ padding-top: 8px; margin-left: 6px; }
+.days-input{ width:220px; }
 /* Reduce Vuetify checkbox vertical margins inside list */
 :deep(.class-grid .v-input){ margin-top: 0 !important; margin-bottom: 0 !important; }
 :deep(.class-grid .v-selection-control){ min-height: 28px; }

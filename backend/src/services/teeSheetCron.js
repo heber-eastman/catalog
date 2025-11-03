@@ -3,7 +3,7 @@
 const cron = require('node-cron');
 const { DateTime } = require('luxon');
 const { GolfCourseInstance, TeeSheet } = require('../models');
-const { generateForDate } = require('./teeSheetGenerator');
+const { generateForDateV2 } = require('./teeSheetGenerator.v2');
 const { sendReminders } = require('./reminderService');
 
 function startTeeSheetCron() {
@@ -19,8 +19,12 @@ function startTeeSheetCron() {
         if (nowLocal.hour === 0 && nowLocal.minute === 5) {
           const sheets = await TeeSheet.findAll({ where: { course_id: course.id } });
           const dateISO = nowLocal.toISODate();
+          const horizonDays = Number(process.env.CRON_GENERATION_HORIZON_DAYS || 1);
           for (const sheet of sheets) {
-            await generateForDate({ teeSheetId: sheet.id, dateISO });
+            for (let d = 0; d < horizonDays; d += 1) {
+              const day = nowLocal.plus({ days: d }).toISODate();
+              await generateForDateV2({ teeSheetId: sheet.id, dateISO: day });
+            }
           }
         }
       }

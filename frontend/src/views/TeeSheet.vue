@@ -486,24 +486,28 @@ const playerOptions = computed(() => Array.from({ length: maxPlayersForDraft.val
 function findReroundCandidate(startSlot, partySize){
   try {
     if (!startSlot) return null;
+    // Prefer denormalized pairing if available
+    if (startSlot.can_start_18 && startSlot.reround_tee_time_id) {
+      const all = Array.isArray(slots.value) ? slots.value : [];
+      const paired = all.find(s => s.id === startSlot.reround_tee_time_id);
+      if (paired && !paired.is_blocked && effectiveRemaining(paired) >= Math.max(1, Number(partySize||1))) return paired;
+      return null;
+    }
+    // Fallback: infer by time/side if denormalized fields absent
     const start = new Date(startSlot.start_time);
-    // Resolve side settings for minutes per hole and hole count
     const side = (sides.value || []).find(s => s.id === startSlot.side_id);
     const mph = Math.max(1, Number(side?.minutes_per_hole || 12));
     const holesPerLeg = Math.max(1, Number(side?.hole_count || 9));
     const reroundStart = new Date(start.getTime() + mph * holesPerLeg * 60000);
-    // Prefer another side first, fallback to same side if needed
     const otherSideId = (sides.value || []).find(s => s.id !== startSlot.side_id)?.id || startSlot.side_id;
-    let candidate = null;
     const all = Array.isArray(slots.value) ? slots.value : [];
-    // Scan for earliest slot after reroundStart, preferring other side
-    for (const preferSide of [otherSideId, startSlot.side_id]){
-      const next = all
+    const next = [otherSideId, startSlot.side_id]
+      .map(preferSide => all
         .filter(s => s.tee_sheet_id === startSlot.tee_sheet_id && s.side_id === preferSide && new Date(s.start_time) > reroundStart && !s.is_blocked)
-        .sort((a,b)=> new Date(a.start_time) - new Date(b.start_time))[0];
-      if (next && effectiveRemaining(next) >= Math.max(1, Number(partySize||1))) { candidate = next; break; }
-    }
-    return candidate;
+        .sort((a,b)=> new Date(a.start_time) - new Date(b.start_time))[0])
+      .find(Boolean);
+    if (next && effectiveRemaining(next) >= Math.max(1, Number(partySize||1))) return next;
+    return null;
   } catch { return null; }
 }
 
