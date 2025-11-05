@@ -530,10 +530,11 @@ router.post(
   }
 );
 
-// Edit players: add/remove and optional owner transfer
+// Edit players: add/remove and optional owner transfer; optionally change holes (9/18)
 const editPlayersSchema = Joi.object({
   add: Joi.number().integer().min(0).default(0),
   remove: Joi.number().integer().min(0).default(0),
+  holes: Joi.number().valid(9, 18).optional(),
   // Optional full desired players list; when provided, route will reconcile to match its length
   players: Joi.array().items(
     Joi.object({
@@ -546,7 +547,8 @@ const editPlayersSchema = Joi.object({
 }).custom((val, helpers) => {
   const hasDelta = (val.add || 0) + (val.remove || 0) > 0;
   const hasPlayers = Array.isArray(val.players) && val.players.length > 0;
-  if (!hasDelta && !hasPlayers && !('transfer_owner_to' in val)) {
+  const hasHoles = typeof val.holes === 'number';
+  if (!hasDelta && !hasPlayers && !('transfer_owner_to' in val) && !hasHoles) {
     return helpers.error('any.invalid');
   }
   return val;
@@ -839,6 +841,10 @@ router.patch(
 
         // If caller supplied desired players list, reconcile assignment customer_ids to match
         if (Array.isArray(value.players)) {
+          const onlyHolesChange = (typeof value.holes === 'number') && (addCount === 0) && (removeCount === 0) && !Object.prototype.hasOwnProperty.call(value, 'transfer_owner_to');
+          if (onlyHolesChange) {
+            // Skip reconciliation when only changing holes (avoid unnecessary customer creations)
+          } else {
           // Build final customer IDs, creating customers for entries without id but with a name
           const sheet = await TeeSheet.findByPk(booking.tee_sheet_id, { transaction: t });
           const courseId = sheet ? sheet.course_id : null;
@@ -866,11 +872,59 @@ router.patch(
               }
             }
           }
+          }
+        }
+
+        // Optional holes change
+        if (typeof value.holes === 'number') {
+          const desiredLegs = value.holes === 18 ? 2 : 1;
+          // Reload legs with lock
+          const legs = await BookingRoundLeg.findAll({ where: { booking_id: booking.id }, order: [['leg_index','ASC']], transaction: t, lock: t.LOCK.UPDATE });
+          if (desiredLegs < legs.length) {
+            // Drop second leg: remove its assignments and the leg row
+            const second = legs.find(l => l.leg_index === 1);
+            if (second) {
+              const assigns = await TeeTimeAssignment.findAll({ where: { booking_round_leg_id: second.id }, transaction: t, lock: t.LOCK.UPDATE });
+              const ttCounts = Array.isArray(assigns) ? assigns.reduce((acc, a) => { acc[a.tee_time_id] = (acc[a.tee_time_id] || 0) + 1; return acc; }, {}) : {};
+              if (assigns && assigns.length) {
+                const ids = assigns.map(a => a.id);
+                await TeeTimeAssignment.destroy({ where: { id: { [Op.in]: ids } }, transaction: t });
+              }
+              // decrement counts on affected tee times
+              for (const [ttId, dec] of Object.entries(ttCounts || {})) {
+                const ttRow = await TeeTime.findByPk(ttId, { transaction: t, lock: t.LOCK.UPDATE });
+                await ttRow.update({ assigned_count: Math.max(0, ttRow.assigned_count - dec) }, { transaction: t });
+              }
+              await BookingRoundLeg.destroy({ where: { id: second.id }, transaction: t });
+            }
+          } else if (desiredLegs > legs.length) {
+            // Add second leg using reround tee time from first leg
+            const first = legs.find(l => l.leg_index === 0) || legs[0];
+            const firstAssign = await TeeTimeAssignment.findOne({ where: { booking_round_leg_id: first.id }, transaction: t });
+            if (!firstAssign) throw Object.assign(new Error('Assignments missing'), { status: 400 });
+            const firstTt = await TeeTime.findByPk(firstAssign.tee_time_id, { transaction: t });
+            const reroundId = firstTt && firstTt.reround_tee_time_id;
+            if (!reroundId) throw Object.assign(new Error('Reround slot unavailable'), { status: 409 });
+            const reroundTt = await TeeTime.findByPk(reroundId, { transaction: t, lock: t.LOCK.UPDATE });
+            if (!reroundTt || reroundTt.tee_sheet_id !== booking.tee_sheet_id) throw Object.assign(new Error('Reround slot unavailable'), { status: 409 });
+            const playersCountNow = await TeeTimeAssignment.count({ where: { booking_round_leg_id: first.id }, transaction: t });
+            const remaining = reroundTt.capacity - reroundTt.assigned_count;
+            if (remaining < playersCountNow) throw Object.assign(new Error('Insufficient capacity for reround'), { status: 409 });
+            // Create second leg mirroring walk/ride of first
+            const leg2 = await BookingRoundLeg.create({ booking_id: booking.id, round_option_id: null, leg_index: 1, walk_ride: first.walk_ride || 'ride', price_cents: 0 }, { transaction: t });
+            // Duplicate assignments to reround tee time
+            const firstAssigns = await TeeTimeAssignment.findAll({ where: { booking_round_leg_id: first.id }, order: [['created_at','ASC']], transaction: t, lock: t.LOCK.UPDATE });
+            const rows = firstAssigns.map(a => ({ booking_round_leg_id: leg2.id, tee_time_id: reroundTt.id, customer_id: a.customer_id }));
+            await TeeTimeAssignment.bulkCreate(rows, { transaction: t });
+            await reroundTt.update({ assigned_count: reroundTt.assigned_count + rows.length }, { transaction: t });
+          }
         }
       });
     } catch (e) {
-      if (e && e.status) return res.status(e.status).json({ error: e.message });
-      return res.status(500).json({ error: 'Update failed' });
+      // eslint-disable-next-line no-console
+      console.error('Edit players/holes error:', e);
+      if (e && e.status) return res.status(e.status).json({ error: e.message || 'Update failed' });
+      return res.status(500).json({ error: e?.message || 'Update failed' });
     }
 
     // Event: booking.players_edited

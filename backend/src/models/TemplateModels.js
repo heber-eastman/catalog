@@ -12,6 +12,7 @@ module.exports = (sequelize, DataTypes) => {
     max_players_staff: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 4 },
     max_players_online: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 4 },
     archived: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    color: { type: DataTypes.STRING(16), allowNull: true },
     created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },
     updated_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },
   }, { tableName: 'TeeSheetTemplates', timestamps: true, createdAt: 'created_at', updatedAt: 'updated_at' });

@@ -31,6 +31,7 @@
     <div v-if="!isSplit && slotsFiltered.length" class="grid">
       <div class="row" v-for="slot in slotsFiltered" :key="slot.side_id + '-' + slot.start_time" :data-start="slot.start_time"
            @dragover.prevent="onDragOver($event)" @drop="onDrop($event, slot)">
+        <span class="tpl-bar" :style="{ background: templateColor(slot) }"></span>
         <div class="cell time" draggable="true" @dragstart="onRowDragStart($event, slot)">{{ formatSlotTime(slot) }}</div>
         <!-- booking-spanning chips -->
         <button
@@ -77,6 +78,7 @@
         <div class="grid mini" v-if="groupedBySide[s.id] && groupedBySide[s.id].length">
           <div class="row" v-for="slot in groupedBySide[s.id]" :key="slot.side_id + '-' + slot.start_time"
                @dragover.prevent="onDragOver($event)" @drop="onDrop($event, slot)">
+            <span class="tpl-bar" :style="{ background: templateColor(slot) }"></span>
             <div class="cell time" draggable="true" @dragstart="onRowDragStart($event, slot)">{{ formatSlotTime(slot) }}</div>
             <button
               v-for="seg in bookingSegments(slot)"
@@ -264,9 +266,10 @@
                     v-for="n in 4"
                     :key="'p-edit-top-'+n"
                     type="button"
-                    :class="['circle', { active: players === n }]"
+                    :class="['circle', { active: players === n, disabled: n > maxPlayersSelectableDrawer }]"
                     :aria-pressed="players === n"
-                    @click="players = n"
+                    :disabled="n > maxPlayersSelectableDrawer"
+                    @click="n <= maxPlayersSelectableDrawer ? (players = n, hasPlayerEdits=true) : null"
                   >{{ n }}</button>
                 </div>
               </div>
@@ -521,6 +524,32 @@ const canBook18InDrawer = computed(() => {
   if (!selectedSlot.value) return true;
   const cand = findReroundCandidate(selectedSlot.value, players.value);
   return !!cand;
+});
+
+// Max players allowed in drawer:
+// - When creating a new booking: up to remaining seats
+// - When editing an existing booking: current players + remaining (capped at 4 and capacity)
+const maxPlayersSelectableDrawer = computed(() => {
+  try {
+    const slot = selectedSlot.value;
+    if (!slot) return 4;
+    const remaining = Math.max(0, effectiveRemaining(slot));
+    const capacity = Math.max(0, Number(slot.capacity || 4));
+    const capLimit = Math.min(4, capacity);
+    if (selectedBookingId.value) {
+      const current = Math.max(1, Number(initialPlayersCount.value || players.value || 1));
+      return Math.min(capLimit, current + remaining);
+    }
+    return Math.min(capLimit, Math.max(1, remaining));
+  } catch { return 4; }
+});
+
+// Clamp players when remaining changes or slot changes
+watch([selectedSlot, maxPlayersSelectableDrawer], () => {
+  try {
+    if (players.value > maxPlayersSelectableDrawer.value) players.value = maxPlayersSelectableDrawer.value;
+    if (players.value < 1) players.value = 1;
+  } catch {}
 });
 
 function parseViewValue(v){
@@ -793,6 +822,12 @@ function formatSlotTime(slot){
     return `${hh.toString().padStart(1,'')}:${m} ${ampm}`;
   }
   return formatTime(slot.start_time);
+}
+
+function templateColor(slot){
+  const c = (slot && slot.template_color) || '';
+  if (typeof c === 'string' && c.trim()) return c;
+  return '#e5e7eb';
 }
 
 async function load(opts = {}) {
@@ -1185,11 +1220,14 @@ async function savePlayerEdits() {
     const payload = { players: desired };
     // Also include add/remove so backend can capacity-check before reconciliation
     if (delta > 0) payload.add = delta; else if (delta < 0) payload.remove = Math.abs(delta);
+    // Include holes change if toggled (backend will add/remove second leg accordingly)
+    if (Number(initialHoles.value) !== Number(holes.value)) payload.holes = Number(holes.value);
     await bookingsAPI.editPlayers(selectedBookingId.value, payload);
     // TODO: walk/ride and holes edits would require additional endpoints (not yet available)
     showToast('Saved');
     hasPlayerEdits.value = false;
     initialPlayersCount.value = players.value;
+    initialHoles.value = holes.value;
     await load();
   } catch (e) {
     // Show specific backend error when available and revert invalid change
@@ -1400,7 +1438,7 @@ onBeforeUnmount(() => {
 .controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; margin-bottom: 12px; position: sticky; top: 64px; z-index: 20; background: #fff; padding-top: 8px; padding-bottom: 8px; box-shadow: 0 1px 0 rgba(0,0,0,0.06); margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px; }
 .col-header { flex: 1 0 100%; order: 2; display: grid; grid-template-columns: 120px repeat(4, 1fr); background:#fafafa; height:36px; border-top:1px solid #eee; border-bottom:none; margin-left:-16px; margin-right:-16px; margin-top: 8px; }
 .col-header .cell{ padding:6px 8px; font-size:14px; font-weight:400; border-left:1px solid #eee; display:flex; align-items:center; }
-.col-header .cell.time{ border-left:none; }
+.col-header .cell.time{ border-left:none; padding-left: 16px; }
 .controls { --ctl-h: 38px; }
 .date-controls { display: flex; gap: 8px; align-items: center; }
 .date-controls .link { background: transparent; border: 1px solid transparent; color: #111827; height: var(--ctl-h); padding: 0 12px; display: inline-flex; align-items: center; cursor: pointer; border-radius: 8px; transition: background .15s, color .15s; }
@@ -1413,13 +1451,14 @@ onBeforeUnmount(() => {
 .hidden-date { position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; }
 .grid { border: none; border-radius: 0; overflow: hidden; --row-h: 44px; margin-left: -16px; margin-right: -16px; }
 .row { display: grid; grid-template-columns: 120px repeat(4, 1fr); border-top: 1px solid #f1f3f6; position: relative; }
+.row .tpl-bar { position: absolute; left: 0; top: 0; bottom: 0; width: 8px; z-index: 0; }
 /* Ensure first row renders its own top border (header has no bottom border) */
 .row::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 0.5px; background: #f1f3f6; }
 .row:not(.header) { height: var(--row-h); }
 .row.header { background: #fafafa; border-top: 1px solid #eee; border-bottom: 1px solid #eee; height: 36px; }
 .cell { padding: 6px 8px; border-left: 1px solid #eee; font-size: 16px; }
 .row.header .cell { font-size: 14px; font-weight: 400; }
-.cell.time { border-left: none; white-space: nowrap; font-size: 18px; display: flex; align-items: center; }
+.cell.time { border-left: none; white-space: nowrap; font-size: 18px; display: flex; align-items: center; padding-left: 16px; }
 .cell.seat { min-height: 36px; display: flex; align-items: center; }
 .split { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
 .split-col { display: flex; flex-direction: column; gap: 8px; }

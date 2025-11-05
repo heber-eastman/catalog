@@ -52,69 +52,71 @@
       </v-card>
     </div>
 
-    <v-dialog v-model="detailOpen" max-width="1200">
-      <v-card>
-        <v-card-title class="text-subtitle-1">Override Settings</v-card-title>
+    <!-- Side Drawer for Override Settings -->
+    <div v-if="detailOpen" class="drawer-backdrop" @click="detailOpen=false"></div>
+    <aside class="drawer" :class="{ open: detailOpen }" aria-label="Override Settings">
+      <div class="drawer-header">
+        <div class="drawer-title">Override Settings</div>
+        <button class="close" @click="detailOpen=false" aria-label="Close">✕</button>
+      </div>
+      <div class="drawer-body">
         <v-tabs v-model="activeTab" density="comfortable" class="mb-2">
           <v-tab value="draft">Draft</v-tab>
           <v-tab value="published">Published</v-tab>
         </v-tabs>
-        <v-card-text>
-          <div class="section">
-            <div class="section__header">Override Details</div>
-            <div class="section__grid details-grid">
-              <div class="field w-420"><v-text-field v-model="overrideName" label="Name" variant="outlined" density="comfortable" hide-details /></div>
-              <div class="field w-220"><v-text-field v-model="overrideDate" type="date" label="Date" variant="outlined" density="comfortable" hide-details /></div>
-              <div class="field w-64 color-field">
-                <input type="color" v-model="overrideColor" class="color-input" aria-label="Override color" title="Override color" />
-              </div>
+        <div class="section">
+          <div class="section__header">Override Details</div>
+          <div class="section__grid details-grid">
+            <div class="field w-420"><v-text-field v-model="overrideName" label="Name" variant="outlined" density="comfortable" hide-details /></div>
+            <div class="field w-220"><v-text-field v-model="overrideDate" type="date" label="Date" variant="outlined" density="comfortable" hide-details /></div>
+            <div class="field w-64 color-field">
+              <input type="color" v-model="overrideColor" class="color-input" aria-label="Override color" title="Override color" />
             </div>
           </div>
-          <div class="section">
-            <div class="section__header schedule">Schedule</div>
-            <div class="weekday-col">
-              <div v-if="activeTab==='published' && !publishedWindows.length" class="muted">No published version yet.</div>
-              <!-- Windows editor rows -->
-              <div v-for="w in (activeTab==='draft' ? currentWindows : publishedWindows)" :key="w.id" class="window-grid win-row" :data-id="w.id">
-                <div class="field w-64">
-                  <v-select class="icon-select" :items="startModeItems" v-model="w.start_mode" :disabled="activeTab==='published'" item-title="title" item-value="value" variant="outlined" density="comfortable" hide-details>
-                    <template #selection="{ item }"><v-icon :icon="item?.raw?.icon" size="18" /></template>
-                    <template #item="{ props, item }"><v-list-item v-bind="props" density="compact"><template #prepend><v-icon :icon="item?.raw?.icon" size="18" /></template></v-list-item></template>
-                  </v-select>
-                </div>
-                <div class="field w-160">
-                  <v-text-field v-if="w.start_mode === 'sunrise_offset'" v-model.number="w.start_offset_mins" :disabled="activeTab==='published'" type="number" label="Offset (mins)" variant="outlined" density="comfortable" hide-details />
-                  <v-text-field v-else v-model="w.start_time_local" :disabled="activeTab==='published'" type="time" label="Start time" variant="outlined" density="comfortable" hide-details />
-                </div>
-                <div class="field w-64">
-                  <v-select class="icon-select" :items="endModeItems" v-model="w.end_mode" :disabled="activeTab==='published'" item-title="title" item-value="value" variant="outlined" density="comfortable" hide-details>
-                    <template #selection="{ item }"><v-icon :icon="item?.raw?.icon" size="18" /></template>
-                    <template #item="{ props, item }"><v-list-item v-bind="props" density="compact"><template #prepend><v-icon :icon="item?.raw?.icon" size="18" /></template></v-list-item></template>
-                  </v-select>
-                </div>
-                <div class="field w-160">
-                  <v-text-field v-if="w.end_mode === 'sunset_offset'" v-model.number="w.end_offset_mins" :disabled="activeTab==='published'" type="number" label="Offset (mins)" variant="outlined" density="comfortable" hide-details />
-                  <v-text-field v-else v-model="w.end_time_local" :disabled="activeTab==='published'" type="time" label="End time" variant="outlined" density="comfortable" hide-details />
-                </div>
-                <div class="field w-240">
-                  <v-select :items="templateVersionOptions" item-title="label" item-value="id" v-model="w.template_version_id" :disabled="activeTab==='published'" label="Template Version" variant="outlined" density="comfortable" hide-details />
-                </div>
-                <div class="actions">
-                  <v-btn v-if="activeTab==='draft'" icon="fa:fal fa-trash-can" variant="text" @click="deleteWindow(w)" />
-                </div>
-              </div>
-              <div v-if="activeTab==='draft'" class="row"><v-btn variant="text" class="create-btn" prepend-icon="fa:fal fa-plus" :disabled="busy || !currentOverrideId" @click="addWindow(currentOverrideId)">Add window</v-btn></div>
-            </div>
         </div>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="detailOpen=false">Close</v-btn>
-          <v-btn v-if="activeTab==='draft'" variant="text" :disabled="busy || !currentOverrideId" @click="saveAll(currentOverrideId)">Save</v-btn>
-          <v-btn v-if="activeTab==='draft'" variant="flat" color="primary" :disabled="busy || !currentOverrideId" data-cy="override-publish-btn" @click="publish(currentOverrideId)">Publish</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+        <div class="section">
+          <div class="section__header schedule">Schedule</div>
+          <div class="weekday-col">
+            <div v-if="activeTab==='published' && !publishedWindows.length" class="muted">No published version yet.</div>
+            <!-- Windows editor rows -->
+            <div v-for="w in (activeTab==='draft' ? currentWindows : publishedWindows)" :key="w.id" class="window-grid win-row" :data-id="w.id">
+              <div class="field w-64">
+                <v-select class="icon-select" :items="startModeItems" v-model="w.start_mode" :disabled="activeTab==='published'" item-title="title" item-value="value" variant="outlined" density="comfortable" hide-details>
+                  <template #selection="{ item }"><v-icon :icon="item?.raw?.icon" size="18" /></template>
+                  <template #item="{ props, item }"><v-list-item v-bind="props" density="compact"><template #prepend><v-icon :icon="item?.raw?.icon" size="18" /></template></v-list-item></template>
+                </v-select>
+              </div>
+              <div class="field w-160">
+                <v-text-field v-if="w.start_mode === 'sunrise_offset'" v-model.number="w.start_offset_mins" :disabled="activeTab==='published'" type="number" label="Offset (mins)" variant="outlined" density="comfortable" hide-details />
+                <v-text-field v-else v-model="w.start_time_local" :disabled="activeTab==='published'" type="time" label="Start time" variant="outlined" density="comfortable" hide-details />
+              </div>
+              <div class="field w-64">
+                <v-select class="icon-select" :items="endModeItems" v-model="w.end_mode" :disabled="activeTab==='published'" item-title="title" item-value="value" variant="outlined" density="comfortable" hide-details>
+                  <template #selection="{ item }"><v-icon :icon="item?.raw?.icon" size="18" /></template>
+                  <template #item="{ props, item }"><v-list-item v-bind="props" density="compact"><template #prepend><v-icon :icon="item?.raw?.icon" size="18" /></template></v-list-item></template>
+                </v-select>
+              </div>
+              <div class="field w-160">
+                <v-text-field v-if="w.end_mode === 'sunset_offset'" v-model.number="w.end_offset_mins" :disabled="activeTab==='published'" type="number" label="Offset (mins)" variant="outlined" density="comfortable" hide-details />
+                <v-text-field v-else v-model="w.end_time_local" :disabled="activeTab==='published'" type="time" label="End time" variant="outlined" density="comfortable" hide-details />
+              </div>
+              <div class="field w-240">
+                <v-select :items="templateVersionOptions" item-title="label" item-value="id" v-model="w.template_version_id" :disabled="activeTab==='published'" label="Template Version" variant="outlined" density="comfortable" hide-details />
+              </div>
+              <div class="actions">
+                <v-btn v-if="activeTab==='draft'" icon="fa:fal fa-trash-can" variant="text" @click="deleteWindow(w)" />
+              </div>
+            </div>
+            <div v-if="activeTab==='draft'" class="row"><v-btn variant="text" class="create-btn" prepend-icon="fa:fal fa-plus" :disabled="busy || !currentOverrideId" @click="addWindow(currentOverrideId)">Add window</v-btn></div>
+          </div>
+        </div>
+      </div>
+      <div class="drawer-actions">
+        <v-spacer />
+        <v-btn v-if="activeTab==='draft'" variant="text" :disabled="busy || !currentOverrideId" @click="saveAll(currentOverrideId)">Save</v-btn>
+        <v-btn v-if="activeTab==='draft'" variant="flat" color="primary" :disabled="busy || !currentOverrideId" data-cy="override-publish-btn" @click="publish(currentOverrideId)">Publish</v-btn>
+      </div>
+    </aside>
 
     <v-snackbar v-model="showSnackbar" :color="snackbarColor" :timeout="2500">
       {{ snackbarMessage }}
@@ -623,6 +625,28 @@ watch(overrideDate, (v) => {
 </script>
 
 <style scoped>
+.drawer-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 9998; }
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: 96vw;
+  max-width: 1200px;
+  background: #fff;
+  border-left: 1px solid #e5e7eb;
+  transform: translateX(100%);
+  transition: transform .2s ease-in-out;
+  z-index: 9999;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+.drawer.open { transform: translateX(0); }
+.drawer-header { display: flex; align-items: center; justify-content: space-between; padding: 16px; border-bottom: 1px solid #e5e7eb; }
+.drawer-title { font-weight: 700; font-size: 18px; }
+.drawer-header .close { background: transparent; border: none; width: auto; height: auto; padding: 4px; font-size: 22px; line-height: 1; cursor: pointer; }
+.drawer-body { padding: 16px; overflow-y: auto; }
+.drawer-actions { display: flex; justify-content: flex-end; padding: 12px 16px; border-top: 1px solid #e5e7eb; gap: 8px; }
 .toolbar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
 .title{ font-weight:800; font-size:28px; }
 .create-btn{ color:#5EE3BB; font-weight:600; letter-spacing:0.04em; }

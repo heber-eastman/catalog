@@ -104,6 +104,7 @@ const v2TemplateSettingsSchema = Joi.object({
   interval_mins: Joi.number().integer().min(1).max(60).optional(),
   max_players_staff: Joi.number().integer().min(1).max(8).optional(),
   max_players_online: Joi.number().integer().min(1).max(8).optional(),
+  color: Joi.string().pattern(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/).allow(null),
   online_access: Joi.array()
     .items(Joi.object({ booking_class_id: Joi.string().min(1).required(), is_online_allowed: Joi.boolean().required() }))
     .optional(),
@@ -671,11 +672,25 @@ router.get('/tee-sheets/:id/v2/templates', requireAuth(['Admin', 'Manager', 'Sup
     // Fallback for local DBs that don't yet have all V2 columns
     try {
       const sequelize = require('../models').sequelize;
+      // Ensure optional columns exist to fetch friendly fields
+      try {
+        await sequelize.query(`
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'TeeSheetTemplates' AND column_name = 'name') THEN
+              ALTER TABLE "TeeSheetTemplates" ADD COLUMN name VARCHAR(120) NOT NULL DEFAULT 'Untitled Template';
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'TeeSheetTemplates' AND column_name = 'color') THEN
+              ALTER TABLE "TeeSheetTemplates" ADD COLUMN color VARCHAR(16);
+            END IF;
+          END $$;
+        `);
+      } catch (_) { /* ignore */ }
       const [rows] = await sequelize.query(
-        'SELECT id, tee_sheet_id, status, interval_mins, archived, created_at, updated_at FROM "TeeSheetTemplates" WHERE tee_sheet_id = :sid ORDER BY created_at ASC',
+        'SELECT id, tee_sheet_id, name, status, interval_mins, archived, color, created_at, updated_at FROM "TeeSheetTemplates" WHERE tee_sheet_id = :sid ORDER BY created_at ASC',
         { replacements: { sid: sheet.id } }
       );
-      const items = (rows || []).map(r => ({
+      let items = (rows || []).map(r => ({
         id: r.id,
         tee_sheet_id: r.tee_sheet_id,
         name: r.name || 'Untitled Template',
@@ -686,11 +701,27 @@ router.get('/tee-sheets/:id/v2/templates', requireAuth(['Admin', 'Manager', 'Sup
         max_players_staff: r.max_players_staff || 4,
         max_players_online: r.max_players_online || 4,
         archived: !!r.archived,
+        color: r.color || null,
         created_at: r.created_at,
         updated_at: r.updated_at,
         versions: [],
         published_version: null,
       }));
+      // Hydrate versions for these templates so UI can resolve labels
+      try {
+        const ids = items.map(it => it.id);
+        if (ids.length) {
+          const [verRows] = await sequelize.query(
+            'SELECT id, template_id, version_number, created_at FROM "TeeSheetTemplateVersions" WHERE template_id IN (:ids) ORDER BY version_number ASC',
+            { replacements: { ids } }
+          );
+          const byTemplate = {};
+          for (const v of (verRows || [])) {
+            (byTemplate[v.template_id] ||= []).push({ id: v.id, template_id: v.template_id, version_number: v.version_number, created_at: v.created_at });
+          }
+          items = items.map(it => ({ ...it, versions: byTemplate[it.id] || [] }));
+        }
+      } catch (_) { /* ignore, continue with empty versions */ }
       return res.json(items);
     } catch (e2) {
       // eslint-disable-next-line no-console
@@ -726,6 +757,7 @@ router.get('/tee-sheets/:id/v2/templates/:templateId/settings', requireAuth(['Ad
     interval_mins: tmpl.interval_mins,
     max_players_staff: tmpl.max_players_staff,
     max_players_online: tmpl.max_players_online,
+    color: tmpl.color || null,
     online_access: [],
   });
 });
@@ -766,6 +798,7 @@ router.put('/tee-sheets/:id/v2/templates/:templateId/settings', requireAuth(['Ad
     interval_mins: value.interval_mins ?? tmpl.interval_mins,
     max_players_staff: value.max_players_staff ?? tmpl.max_players_staff,
     max_players_online: value.max_players_online ?? tmpl.max_players_online,
+    color: Object.prototype.hasOwnProperty.call(value, 'color') ? value.color : tmpl.color,
   });
     } else {
       // If tmpl is a raw object (fallback path), skip ORM update
@@ -801,6 +834,9 @@ router.put('/tee-sheets/:id/v2/templates/:templateId/settings', requireAuth(['Ad
           IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'TeeSheetTemplates' AND column_name = 'max_players_online') THEN
             ALTER TABLE "TeeSheetTemplates" ADD COLUMN max_players_online INTEGER NOT NULL DEFAULT 4;
           END IF;
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'TeeSheetTemplates' AND column_name = 'color') THEN
+            ALTER TABLE "TeeSheetTemplates" ADD COLUMN color VARCHAR(16);
+          END IF;
         END $$;
       `);
 
@@ -811,6 +847,7 @@ router.put('/tee-sheets/:id/v2/templates/:templateId/settings', requireAuth(['Ad
       if (Object.prototype.hasOwnProperty.call(value, 'interval_mins')) { sets.push('interval_mins = :interval_mins'); params.interval_mins = value.interval_mins; }
       if (Object.prototype.hasOwnProperty.call(value, 'max_players_staff')) { sets.push('max_players_staff = :max_players_staff'); params.max_players_staff = value.max_players_staff; }
       if (Object.prototype.hasOwnProperty.call(value, 'max_players_online')) { sets.push('max_players_online = :max_players_online'); params.max_players_online = value.max_players_online; }
+      if (Object.prototype.hasOwnProperty.call(value, 'color')) { sets.push('color = :color'); params.color = value.color; }
 
       if (sets.length > 0) {
         const sql = `UPDATE "TeeSheetTemplates" SET ${sets.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = :tid AND tee_sheet_id = :sid`;
@@ -818,7 +855,7 @@ router.put('/tee-sheets/:id/v2/templates/:templateId/settings', requireAuth(['Ad
       }
 
       const [rows2] = await sequelize.query(
-        'SELECT name, interval_type, interval_mins, max_players_staff, max_players_online FROM "TeeSheetTemplates" WHERE id = :tid AND tee_sheet_id = :sid',
+        'SELECT name, interval_type, interval_mins, max_players_staff, max_players_online, color FROM "TeeSheetTemplates" WHERE id = :tid AND tee_sheet_id = :sid',
         { replacements: params }
       );
       const row = Array.isArray(rows2) && rows2.length > 0 ? rows2[0] : {};
@@ -828,6 +865,7 @@ router.put('/tee-sheets/:id/v2/templates/:templateId/settings', requireAuth(['Ad
         interval_mins: row.interval_mins ?? value.interval_mins ?? tmpl.interval_mins ?? 10,
         max_players_staff: row.max_players_staff ?? value.max_players_staff ?? 4,
         max_players_online: row.max_players_online ?? value.max_players_online ?? 4,
+        color: row.color ?? value.color ?? null,
         online_access: [],
       });
     } catch (e2) {
@@ -997,7 +1035,46 @@ router.delete('/tee-sheets/:id/v2/templates/:templateId', requireAuth(['Admin'])
   const tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: sheet.id } });
   if (!tmpl) return res.status(404).json({ error: 'Template not found' });
   try {
-    await tmpl.destroy();
+    // First, block deletion if template is referenced by any published season/override
+    const versionsAll = await TeeSheetTemplateVersion.findAll({ where: { template_id: tmpl.id }, attributes: ['id'] });
+    const vIdsAll = versionsAll.map(v => v.id);
+    if (vIdsAll.length) {
+      const [seasonRows] = await sequelize.query(
+        'SELECT s.id, s.name FROM "TeeSheetSeasons" s JOIN "TeeSheetSeasonWeekdayWindows" w ON w.season_version_id = s.published_version_id WHERE s.tee_sheet_id = :sheetId AND s.published_version_id IS NOT NULL AND w.template_version_id IN (:vids) GROUP BY s.id, s.name',
+        { replacements: { sheetId: sheet.id, vids: vIdsAll } }
+      );
+      const [overrideRows] = await sequelize.query(
+        'SELECT o.id, o.name, o.date FROM "TeeSheetOverrides" o JOIN "TeeSheetOverrideWindows" w ON w.override_version_id = o.published_version_id WHERE o.tee_sheet_id = :sheetId AND o.published_version_id IS NOT NULL AND w.template_version_id IN (:vids) GROUP BY o.id, o.name, o.date',
+        { replacements: { sheetId: sheet.id, vids: vIdsAll } }
+      );
+      if ((seasonRows && seasonRows.length) || (overrideRows && overrideRows.length)) {
+        const msg = 'Template is used in published seasons/overrides';
+        return res.status(409).json({ error: msg, in_use: { seasons: seasonRows || [], overrides: overrideRows || [] } });
+      }
+    }
+
+    await sequelize.transaction(async t => {
+      // Collect version ids for cascade
+      const versions = await TeeSheetTemplateVersion.findAll({ where: { template_id: tmpl.id }, attributes: ['id'], transaction: t });
+      const vIds = versions.map(v => v.id);
+      if (vIds.length) {
+        // Remove dependent records referencing these versions
+        await TemplateVersionBookingWindow.destroy({ where: { template_version_id: { [Op.in]: vIds } }, transaction: t });
+        await TeeSheetTemplateSidePrices.destroy({ where: { version_id: { [Op.in]: vIds } }, transaction: t });
+        await TeeSheetTemplateSideAccess.destroy({ where: { version_id: { [Op.in]: vIds } }, transaction: t });
+        await TeeSheetTemplateSide.destroy({ where: { version_id: { [Op.in]: vIds } }, transaction: t });
+        // Season/override windows that reference these versions
+        await TeeSheetSeasonWeekdayWindow.destroy({ where: { template_version_id: { [Op.in]: vIds } }, transaction: t });
+        await TeeSheetOverrideWindow.destroy({ where: { template_version_id: { [Op.in]: vIds } }, transaction: t });
+        // Finally delete versions
+        await TeeSheetTemplateVersion.destroy({ where: { template_id: tmpl.id }, transaction: t });
+      }
+      // Online access rows tied to template
+      await TeeSheetTemplateOnlineAccess.destroy({ where: { template_id: tmpl.id }, transaction: t });
+      // Clear published_version_id before delete to avoid FK constraints
+      await tmpl.update({ published_version_id: null }, { transaction: t });
+      await tmpl.destroy({ transaction: t });
+    });
     res.status(204).end();
   } catch (e) {
     res.status(400).json({ error: e.message || 'Delete failed' });

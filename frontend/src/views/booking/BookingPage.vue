@@ -199,6 +199,8 @@ const groupSize = ref(null) // 1..4
 const slots = ref([])
 const displayedSlots = computed(() => {
   let arr = Array.isArray(slots.value) ? slots.value : []
+  // Hide tee times with no remaining capacity
+  arr = arr.filter(s => Number(s?.remaining ?? 0) > 0)
   if (holes.value === 18) {
     arr = arr.filter(s => !!(s?.allows_18 || s?.can_start_18 || String(s?.holes_label || '').includes('18')))
   }

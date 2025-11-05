@@ -20,6 +20,8 @@ const {
   BookingRoundLeg,
   Booking,
   Customer,
+  TeeSheetTemplateVersion,
+  TeeSheetTemplate,
 } = require('../models');
 const { computeReroundStart, isClassAllowed, calcFeesForLeg } = require('../lib/teeRules');
 const { generateForDateV2 } = require('../services/teeSheetGenerator.v2');
@@ -202,10 +204,11 @@ router.get('/tee-times/available', optionalAuth(), async (req, res) => {
         // Expand season windows to concrete side windows using the compiler (snap/clamp and side fanout)
         const compiled = await compileWindowsForDate({ teeSheetId: sheetId, dateISO: date, sourceType: source, sourceId: null, windows });
         const versionIds = Array.from(new Set(compiled.map(w => w.template_version_id).filter(Boolean)));
-        const [accessList, priceList, sideCfgList] = await Promise.all([
+        const [accessList, priceList, sideCfgList, versions] = await Promise.all([
           TeeSheetTemplateSideAccess.findAll({ where: { version_id: { [Op.in]: versionIds } } }),
           TeeSheetTemplateSidePrices.findAll({ where: { version_id: { [Op.in]: versionIds } } }),
           TeeSheetTemplateSide.findAll({ where: { version_id: { [Op.in]: versionIds } } }),
+          TeeSheetTemplateVersion.findAll({ where: { id: { [Op.in]: versionIds } }, include: [{ model: TeeSheetTemplate, as: 'template' }] }),
         ]);
         const accessByVS = {};
         for (const a of accessList) {
@@ -229,7 +232,13 @@ router.get('/tee-times/available', optionalAuth(), async (req, res) => {
           const arr = windowsBySide[w.side_id] || (windowsBySide[w.side_id] = []);
           arr.push(w);
         }
-        v2InfoBySheet[sheetId] = { accessByVS, pricesByVS, sideCfgByVS, windowsBySide };
+        const colorByVersion = {};
+        const templateIdByVersion = {};
+        for (const v of versions) {
+          colorByVersion[v.id] = (v.template && v.template.color) || null;
+          templateIdByVersion[v.id] = v.template_id;
+        }
+        v2InfoBySheet[sheetId] = { accessByVS, pricesByVS, sideCfgByVS, windowsBySide, colorByVersion, templateIdByVersion };
       }
     } catch (_) {
       // Degrade gracefully when V2 tables are not present in test setups
@@ -592,6 +601,21 @@ router.get('/tee-times/available', optionalAuth(), async (req, res) => {
       // expose reround pairing denormalized fields so clients can book 18-hole starts
       rerounds_to_side_id: slot.rerounds_to_side_id || null,
       reround_tee_time_id: slot.reround_tee_time_id || null,
+      template_version_id: (v2 && (v2.windowsBySide[slot.side_id] || []).some(w => {
+        const l = DateTime.fromJSDate(slot.start_time, { zone });
+        return l >= w.start && l < w.end && w.template_version_id;
+      })) ? (v2.windowsBySide[slot.side_id].find(w => {
+        const l = DateTime.fromJSDate(slot.start_time, { zone });
+        return l >= w.start && l < w.end;
+      })?.template_version_id || null) : null,
+      template_color: (() => {
+        try {
+          const windows = v2 ? (v2.windowsBySide[slot.side_id] || []) : [];
+          const l = DateTime.fromJSDate(slot.start_time, { zone });
+          const match = windows.find(w => l >= w.start && l < w.end);
+          return (match && v2 && v2.colorByVersion && v2.colorByVersion[match.template_version_id]) || null;
+        } catch (_) { return null; }
+      })(),
     assignments: orderedAssigns,
       assignment_names: assignmentNames,
     });

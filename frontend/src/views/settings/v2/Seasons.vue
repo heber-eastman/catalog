@@ -353,7 +353,6 @@
       </div>
       <div class="drawer-actions">
         <v-spacer />
-        <v-btn variant="text" @click="detailOpen=false">Close</v-btn>
         <v-btn v-if="activeTab==='draft'" variant="text" :disabled="busy || !selectedSeason" @click="selectedSeason && saveAll(selectedSeason.id)">Save</v-btn>
         <v-btn v-if="activeTab==='draft'" variant="flat" color="primary" :disabled="busy" data-cy="season-publish-btn" @click="selectedSeason && publish(selectedSeason.id)">Publish</v-btn>
       </div>
@@ -703,6 +702,10 @@ async function createSeason() {
   } catch {}
   await load();
   notify('Season created');
+  try {
+    const created = (seasons.value || []).find(s => String(s.id) === String(season?.id)) || null;
+    if (created) await openDetail(created);
+  } catch {}
 }
 
 async function addVersion(seasonId) {
@@ -1232,7 +1235,7 @@ function formatHuman(iso){
 .drawer.open{ transform: translateX(0); }
 .drawer-header{ display:flex; align-items:center; justify-content:space-between; padding:12px 12px 8px; border-bottom:1px solid #e5e7eb; }
 .drawer-title{ font-weight:700; font-size:16px; }
-.drawer-header .close{ background:#f3f4f6; border:1px solid #e5e7eb; border-radius:10px; min-width:36px; height:36px; }
+.drawer-header .close{ background: transparent; border: none; min-width: auto; height: auto; padding: 4px; font-size: 22px; line-height: 1; cursor: pointer; }
 .drawer-body{ overflow:auto; padding: 8px 12px 12px; }
 .drawer-content{ padding-bottom: 8px; }
 .drawer-actions{ padding: 10px 12px; border-top:1px solid #e5e7eb; display:flex; align-items:center; gap:8px; }

@@ -14,6 +14,7 @@
         :key="t.id"
         variant="outlined"
         class="tpl-card"
+        :style="{ borderLeft: `12px solid ${colorForTemplate(t)}` }"
         @click="openDetail(t)"
         :data-cy="`template-card-${shortId(t.id)}`"
       >
@@ -38,154 +39,165 @@
           <span>Interval {{ t.interval_mins }} mins</span>
           <template v-if="t.versions && t.versions.length">
             <span class="sep">•</span>
-            <span v-for="v in t.versions" :key="v.id" class="ver">
-              v{{ v.version_number }}<span v-if="t.published_version && t.published_version.id === v.id" class="published" aria-label="Published"> • published</span>
-            </span>
+            <span v-for="v in t.versions" :key="v.id" class="ver">v{{ v.version_number }}</span>
           </template>
         </div>
       </v-card>
     </div>
 
-    <v-dialog v-model="detailOpen" max-width="920">
-      <v-card>
-        <v-card-title class="text-subtitle-1">Template Settings</v-card-title>
-        <v-card-text>
-          <v-tabs v-model="tab" bg-color="transparent">
-            <v-tab value="teetime">Tee Time Settings</v-tab>
-            <v-tab value="sides">Side Settings</v-tab>
-            <v-tab value="prices">Price Settings</v-tab>
-          </v-tabs>
-          <v-window v-model="tab" class="after-tabs">
-            <v-window-item value="teetime">
-              <div class="section">
-                <div class="section__header">Template Details</div>
-                <div class="section__grid single">
-                  <v-text-field v-model="form.name" label="Name" variant="outlined" density="comfortable" hide-details />
-                </div>
+    <!-- Side Drawer for Template Settings -->
+    <div v-if="detailOpen" class="drawer-backdrop" @click="detailOpen=false"></div>
+    <aside class="drawer" :class="{ open: detailOpen }" aria-label="Template Settings">
+      <div class="drawer-header">
+        <div class="drawer-title">Template Settings</div>
+        <button class="close" @click="detailOpen=false" aria-label="Close">✕</button>
+      </div>
+      <div class="drawer-body">
+        <v-tabs v-model="tab" bg-color="transparent">
+          <v-tab value="teetime">Tee Time Settings</v-tab>
+          <v-tab value="sides">Side Settings</v-tab>
+          <v-tab value="prices">Price Settings</v-tab>
+          <v-tab value="color">Color Settings</v-tab>
+        </v-tabs>
+        <v-window v-model="tab" class="after-tabs">
+          <v-window-item value="teetime">
+            <div class="section">
+              <div class="section__header">Template Details</div>
+              <div class="section__grid single">
+                <v-text-field v-model="form.name" label="Name" variant="outlined" density="compact" hide-details />
               </div>
+            </div>
 
-              <div class="section">
-                <div class="section__header">Intervals</div>
-                <div class="section__grid two-cols">
-                  <v-select :items="intervalTypes" v-model="form.interval_type" label="Type" variant="outlined" density="comfortable" hide-details />
-                  <v-text-field v-model.number="form.interval_mins" type="number" min="1" label="Minutes" variant="outlined" density="comfortable" hide-details />
-                </div>
+            <div class="section">
+              <div class="section__header">Intervals</div>
+              <div class="section__grid two-cols">
+                <v-select :items="intervalTypes" v-model="form.interval_type" label="Type" variant="outlined" density="compact" hide-details />
+                <v-text-field v-model.number="form.interval_mins" type="number" min="1" label="Minutes" variant="outlined" density="compact" hide-details />
               </div>
+            </div>
 
-              <div class="section">
-                <div class="section__header">Players Allowed</div>
-                <div class="section__grid single">
-                  <v-text-field v-model.number="form.max_players_staff" type="number" min="1" max="8" label="Max players (tee sheet)" variant="outlined" density="comfortable" hide-details />
-                  <div>
-                    <div class="mb-1" style="font-weight:600; font-size:12px; color:#6b778c;">Players Allowed (Online Booking)</div>
-                    <div class="circle-row" role="group" aria-label="Players allowed (online)">
-                      <button
-                        v-for="n in playerCounts"
-                        :key="'sel-'+n"
-                        type="button"
-                        :class="['circle', { active: (form.online_selected||[]).includes(n) }]"
-                        @click="toggleOnline(n)"
-                      >{{ n }}</button>
-                    </div>
+            <div class="section">
+              <div class="section__header">Players Allowed</div>
+              <div class="section__grid single">
+                <v-text-field v-model.number="form.max_players_staff" type="number" min="1" max="8" label="Max players (tee sheet)" variant="outlined" density="compact" hide-details />
+                <div>
+                  <div class="mb-1" style="font-weight:600; font-size:12px; color:#6b778c;">Players Allowed (Online Booking)</div>
+                  <div class="circle-row" role="group" aria-label="Players allowed (online)">
+                    <button
+                      v-for="n in playerCounts"
+                      :key="'sel-'+n"
+                      type="button"
+                      :class="['circle', { active: (form.online_selected||[]).includes(n) }]"
+                      @click="toggleOnline(n)"
+                    >{{ n }}</button>
                   </div>
                 </div>
               </div>
+            </div>
 
-              <div class="section">
-                <div class="section__header">Booking Class Settings</div>
-                <div class="muted" style="margin-bottom:8px; font-size:12px;">Check to enable online booking for the class. Set how many days in advance golfers in this class can book.</div>
-                <div class="class-grid rows">
-                  <div v-for="cls in courseClasses" :key="cls" class="class-row">
-                    <v-checkbox
-                      class="bc-check"
-                      v-model="classToggles[cls]"
-                      :label="cls.charAt(0).toUpperCase()+cls.slice(1)"
+            <div class="section">
+              <div class="section__header">Booking Class Settings</div>
+              <div class="muted" style="margin-bottom:8px; font-size:12px;">Check to enable online booking for the class. Set how many days in advance golfers in this class can book.</div>
+              <div class="class-grid rows">
+                <div v-for="cls in courseClasses" :key="cls" class="class-row">
+                  <v-checkbox
+                    class="bc-check"
+                    v-model="classToggles[cls]"
+                    :label="cls.charAt(0).toUpperCase()+cls.slice(1)"
+                    density="compact"
+                    color="primary"
+                    true-icon="fa:fal fa-square-check"
+                    false-icon="fa:fal fa-square"
+                    hide-details
+                  />
+                  <v-text-field
+                    v-model.number="windowDays[cls]"
+                    type="number"
+                    min="0"
+                    label="Booking Window (Days)"
+                    variant="outlined"
+                    density="compact"
+                    :rules="daysRules"
+                    class="days-input"
+                    :disabled="!classToggles[cls]"
+                    @blur="normalizeDays(cls)"
+                  />
+                </div>
+              </div>
+            </div>
+          </v-window-item>
+          <v-window-item value="sides">
+            <div class="section">
+              <div class="section__header">Side Settings</div>
+              <div v-if="sideBusy" class="muted">Loading side settings…</div>
+              <div v-else class="side-list side-columns">
+                <div v-for="s in sideSettings" :key="s.side_id" class="side-block">
+                  <div class="side-block__header">{{ s.name }}</div>
+                  <div class="side-fields">
+                    <div>
+                      <div class="mb-1" style="font-weight:600; font-size:12px; color:#6b778c;">Bookable holes</div>
+                      <div class="online-multi">
+                        <v-btn-toggle v-model="s.hole_selected" multiple density="compact" divided @update:modelValue="ensureContiguousHoles(s)">
+                          <v-btn v-for="n in (bookableOptions[s.side_id] || [])" :key="'holes-'+s.side_id+'-'+n" :value="n" variant="outlined">{{ n }}</v-btn>
+                        </v-btn-toggle>
+                      </div>
+                    </div>
+                    <v-text-field
+                      v-model.number="s.minutes_per_hole"
+                      type="number"
+                      min="1"
+                      max="30"
+                      label="Minutes per hole"
+                      variant="outlined"
                       density="compact"
-                      color="primary"
-                      true-icon="fa:fal fa-square-check"
-                      false-icon="fa:fal fa-square"
                       hide-details
                     />
-                    <v-text-field
-                      v-model.number="windowDays[cls]"
-                      type="number"
-                      min="0"
-                      label="Max days in advance"
+                    <v-select
+                      :items="cartPolicies"
+                      v-model="s.cart_policy"
+                      item-title="title"
+                      item-value="value"
+                      label="Carts"
                       variant="outlined"
-                      density="comfortable"
-                      :rules="daysRules"
-                      class="days-input"
-                      :disabled="!classToggles[cls]"
-                      @blur="normalizeDays(cls)"
+                      density="compact"
+                      hide-details
+                    />
+                    <v-select
+                      :items="rotateItemsFor(s)"
+                      v-model="s.rotates_to_side_id"
+                      item-title="name"
+                      item-value="id"
+                      label="Rotates to"
+                      variant="outlined"
+                      density="compact"
+                      :disabled="!requiresRotation(s)"
+                      hide-details
                     />
                   </div>
                 </div>
               </div>
-            </v-window-item>
-            <v-window-item value="sides">
-              <div class="section">
-                <div class="section__header">Side Settings</div>
-                <div v-if="sideBusy" class="muted">Loading side settings…</div>
-                <div v-else class="side-list side-columns">
-                  <div v-for="s in sideSettings" :key="s.side_id" class="side-block">
-                    <div class="side-block__header">{{ s.name }}</div>
-                    <div class="side-fields">
-                      <div>
-                        <div class="mb-1" style="font-weight:600; font-size:12px; color:#6b778c;">Bookable holes</div>
-                        <div class="online-multi">
-                          <v-btn-toggle v-model="s.hole_selected" multiple density="comfortable" divided @update:modelValue="ensureContiguousHoles(s)">
-                            <v-btn v-for="n in (bookableOptions[s.side_id] || [])" :key="'holes-'+s.side_id+'-'+n" :value="n" variant="outlined">{{ n }}</v-btn>
-                          </v-btn-toggle>
-                        </div>
-                      </div>
-                      <v-text-field
-                        v-model.number="s.minutes_per_hole"
-                        type="number"
-                        min="1"
-                        max="30"
-                        label="Minutes per hole"
-                        variant="outlined"
-                        density="comfortable"
-                        hide-details
-                      />
-                      <v-select
-                        :items="cartPolicies"
-                        v-model="s.cart_policy"
-                        item-title="title"
-                        item-value="value"
-                        label="Carts"
-                        variant="outlined"
-                        density="comfortable"
-                        hide-details
-                      />
-                      <v-select
-                        :items="rotateItemsFor(s)"
-                        v-model="s.rotates_to_side_id"
-                        item-title="name"
-                        item-value="id"
-                        label="Rotates to"
-                        variant="outlined"
-                        density="comfortable"
-                        :disabled="!requiresRotation(s)"
-                        hide-details
-                      />
-                    </div>
-                  </div>
+            </div>
+          </v-window-item>
+          <v-window-item value="prices">
+            <div class="muted">Price Settings coming soon.</div>
+          </v-window-item>
+          <v-window-item value="color">
+            <div class="section">
+              <div class="section__header">Template Color</div>
+              <div class="section__grid single">
+                <div class="field w-64 color-field">
+                  <input type="color" v-model="templateColor" class="color-input" aria-label="Template color" title="Template color" />
                 </div>
               </div>
-            </v-window-item>
-            <v-window-item value="prices">
-              <div class="muted">Price Settings coming soon.</div>
-            </v-window-item>
-          </v-window>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="detailOpen=false">Close</v-btn>
-          <v-btn variant="flat" color="primary" :disabled="saving" @click="saveSettings">Save</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+            </div>
+          </v-window-item>
+        </v-window>
+      </div>
+      <div class="drawer-actions">
+        <v-spacer />
+        <v-btn variant="flat" color="primary" :disabled="saving" @click="saveSettings">Save</v-btn>
+      </div>
+    </aside>
 
     <v-snackbar v-model="showSnackbar" :color="snackbarColor" :timeout="2500">
       {{ snackbarMessage }}
@@ -193,6 +205,31 @@
         <v-btn color="white" variant="text" @click="showSnackbar = false">Close</v-btn>
       </template>
     </v-snackbar>
+    <!-- In-use dialog -->
+    <v-dialog v-model="inUseOpen" max-width="640">
+      <v-card class="alert-card">
+        <div class="alert-header">Template is in use</div>
+        <v-card-text>
+          <div>This template is used in the following items. Please remove it from all seasons/overrides before deleting.</div>
+          <div v-if="inUseSeasons.length" class="mt-3">
+            <div class="section__header">Seasons</div>
+            <ul>
+              <li v-for="s in inUseSeasons" :key="s.id">{{ s.name || s.id }}</li>
+            </ul>
+          </div>
+          <div v-if="inUseOverrides.length" class="mt-3">
+            <div class="section__header">Overrides</div>
+            <ul>
+              <li v-for="o in inUseOverrides" :key="o.id">{{ o.name || o.id }}</li>
+            </ul>
+          </div>
+        </v-card-text>
+        <v-card-actions class="alert-actions">
+          <v-spacer />
+          <v-btn class="alert-btn" variant="flat" color="red" @click="inUseOpen=false">OK</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
   
 </template>
@@ -231,6 +268,12 @@ function normalizeDays(cls){
 }
 const saving = ref(false);
 const playerCounts = [1,2,3,4,5,6];
+const templateColor = ref('#9be7a8');
+
+function colorKey(id){ return id ? `template:color:${id}` : ''; }
+function loadColor(id){ try { return localStorage.getItem(colorKey(id)) || ''; } catch { return ''; } }
+function saveColor(id, val){ try { if (id) localStorage.setItem(colorKey(id), val || ''); } catch {} }
+function colorForTemplate(t){ return (t && t.color) || loadColor(t?.id) || '#e5e7eb'; }
 
 // Side Settings state
 const sideBusy = ref(false);
@@ -268,8 +311,14 @@ async function createTemplate() {
   try {
     busy.value = true;
     const teeSheetId = route.params.teeSheetId;
-    await settingsAPI.v2.createTemplate(teeSheetId, { interval_mins: 10 });
+    const { data } = await settingsAPI.v2.createTemplate(teeSheetId, { interval_mins: 10 });
     await load();
+    // Auto-open the newly created template in the side panel
+    try {
+      const createdId = data?.id;
+      const tpl = (templates.value || []).find(t => String(t.id) === String(createdId)) || (templates.value || [])[templates.value.length - 1];
+      if (tpl) await openDetail(tpl);
+    } catch {}
     notify('Template created');
   } catch (e) {
     notify('Failed to create template', 'error');
@@ -293,21 +342,7 @@ async function createVersion(templateId) {
   }
 }
 
-async function publish(t) {
-  try {
-    busy.value = true;
-    const teeSheetId = route.params.teeSheetId;
-    const latest = (t.versions || []).slice().sort((a,b)=> (a.version_number||0)-(b.version_number||0)).pop();
-    if (!latest) { notify('No versions to publish', 'error'); return; }
-    await settingsAPI.v2.publishTemplate(teeSheetId, t.id, { version_id: latest.id, apply_now: false });
-    await load();
-    notify('Template published');
-  } catch (e) {
-    notify('Failed to publish template', 'error');
-  } finally {
-    busy.value = false;
-  }
-}
+// Publishing removed: templates are considered available once referenced by seasons/overrides.
 
 async function archive(t) {
   try { const teeSheetId = route.params.teeSheetId; await settingsAPI.v2.archiveTemplate(teeSheetId, t.id); await load(); notify('Template archived'); } catch { notify('Failed to archive', 'error'); }
@@ -315,8 +350,28 @@ async function archive(t) {
 async function unarchive(t) {
   try { const teeSheetId = route.params.teeSheetId; await settingsAPI.v2.unarchiveTemplate(teeSheetId, t.id); await load(); notify('Template unarchived'); } catch { notify('Failed to unarchive', 'error'); }
 }
+// In-use dialog state
+const inUseOpen = ref(false);
+const inUseSeasons = ref([]);
+const inUseOverrides = ref([]);
+
 async function remove(t) {
-  try { const teeSheetId = route.params.teeSheetId; await settingsAPI.v2.deleteTemplate(teeSheetId, t.id); await load(); notify('Template deleted'); } catch (e) { notify(e?.response?.data?.error || 'Delete failed', 'error'); }
+  try {
+    const teeSheetId = route.params.teeSheetId;
+    await settingsAPI.v2.deleteTemplate(teeSheetId, t.id);
+    await load();
+    notify('Template deleted');
+  } catch (e) {
+    const status = e?.response?.status;
+    const data = e?.response?.data || {};
+    if (status === 409 && data?.in_use) {
+      inUseSeasons.value = Array.isArray(data.in_use.seasons) ? data.in_use.seasons : [];
+      inUseOverrides.value = Array.isArray(data.in_use.overrides) ? data.in_use.overrides : [];
+      inUseOpen.value = true;
+    } else {
+      notify(data?.error || 'Delete failed', 'error');
+    }
+  }
 }
 
 function shortId(id){ return (id || '').slice(0,6); }
@@ -337,6 +392,8 @@ async function openDetail(t){
   const online = t.online_access || [];
   for (const r of online) { map[r.booking_class_id?.toLowerCase?.() || r.booking_class_id] = !!r.is_online_allowed; }
   Object.assign(classToggles, map);
+  // Color
+  templateColor.value = t?.color || loadColor(t?.id) || '#9be7a8';
   detailOpen.value = true;
   // Load side settings for this template
   await loadSideSettings().catch(()=>{});
@@ -365,6 +422,7 @@ async function saveSettings(){
       interval_mins: form.interval_mins,
       max_players_staff: form.max_players_staff,
       max_players_online: form.max_players_online,
+      color: templateColor.value,
       online_access: Object.keys(classToggles).map(k => ({ booking_class_id: k, is_online_allowed: !!classToggles[k] })),
     };
     const onlineSel = Array.isArray(form.online_selected) ? form.online_selected.slice().sort((a,b)=>a-b) : [];
@@ -400,6 +458,7 @@ async function saveSettings(){
     await load();
     notify('Settings saved');
     detailOpen.value = false;
+    saveColor(selected.value?.id, templateColor.value);
   } catch (e) {
     notify('Failed to save settings', 'error');
   } finally {
@@ -589,6 +648,19 @@ onMounted(load);
 </script>
 
 <style scoped>
+.drawer-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 9998; }
+.drawer { position: fixed; top: 0; right: 0; height: 100vh; width: 92vw; max-width: 920px; background: #fff; border-left: 1px solid #e5e7eb; transform: translateX(100%); transition: transform .2s ease-in-out; z-index: 9999; display: grid; grid-template-rows: auto 1fr auto; }
+.drawer.open { transform: translateX(0); }
+.drawer-header { display: flex; align-items: center; justify-content: space-between; padding: 16px; border-bottom: 1px solid #e5e7eb; }
+.head-actions{ display:flex; align-items:center; gap:8px; }
+.drawer-title { font-weight: 700; font-size: 18px; }
+.drawer-header .close { background: transparent; border: none; width: auto; height: auto; padding: 4px; font-size: 22px; line-height: 1; cursor: pointer; }
+.drawer-body { padding: 16px; overflow-y: auto; }
+.drawer-actions { display: flex; justify-content: flex-end; padding: 12px 16px; border-top: 1px solid #e5e7eb; gap: 8px; }
+.alert-card { border: none; overflow: hidden; border-radius: 8px; }
+.alert-header { background:#dc2626; color:#fff; padding:12px 16px; font-weight:700; font-size:16px; border-radius: 0; }
+.alert-actions { border-top: 1px solid #f3f4f6; }
+.alert-btn { background:#ef4444 !important; color:#fff !important; }
 .toolbar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
 .title{ font-weight:800; font-size:28px; }
 .create-btn{ color:#5EE3BB; font-weight:600; letter-spacing:0.04em; }
@@ -597,6 +669,7 @@ onMounted(load);
 .tpl-card{ padding:10px 12px; cursor:pointer; width:100%; position:relative; border:1px solid #e5e7eb; border-radius:8px; }
 .card-menu{ position:absolute; right:12px; top:10px; }
 .tpl-card__header{ display:flex; align-items:center; justify-content:space-between; }
+/* color-bar no longer used; border-left is colored via inline style */
 .tpl-card__title{ font-weight:700; font-size:18px; }
 .tpl-card__row{ color:#6b778c; margin-top:6px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .ver{ background:#f1f5f9; border-radius:12px; padding:2px 8px; font-size:12px; }
@@ -608,7 +681,8 @@ onMounted(load);
 .section{ margin-top:16px; }
 .section__header{ font-weight:700; font-size:21px; color:#2b2f36; margin-bottom:10px; letter-spacing:0.02em; }
 .section__grid{ display:grid; column-gap:16px; row-gap:16px; }
-.section__grid.two-cols{ grid-template-columns: repeat(2, minmax(160px,1fr)); }
+.section__grid.single{ grid-template-columns: minmax(240px, 440px); max-width: 440px; }
+.section__grid.two-cols{ grid-template-columns: repeat(2, minmax(160px, 220px)); max-width: 460px; }
 .detail-grid{ display:grid; grid-template-columns: repeat(4, minmax(160px,1fr)); column-gap:16px; row-gap:16px; padding-top:6px; }
 .mt-3{ margin-top:16px; }
 .mb-1{ margin-bottom:8px; }
@@ -620,7 +694,7 @@ onMounted(load);
 .class-grid.rows .bc-check :deep(.v-selection-control){ align-items: flex-start; gap: 10px; }
 .class-grid.rows .bc-check :deep(.v-selection-control__input){ margin-top: 16px; }
 .class-grid.rows .bc-check :deep(.v-label){ padding-top: 8px; margin-left: 6px; }
-.days-input{ width:220px; }
+.days-input{ width:200px; }
 /* Reduce Vuetify checkbox vertical margins inside list */
 :deep(.class-grid .v-input){ margin-top: 0 !important; margin-bottom: 0 !important; }
 :deep(.class-grid .v-selection-control){ min-height: 28px; }
@@ -637,6 +711,16 @@ onMounted(load);
 .circle-row .circle:active{ transform: scale(0.98); }
 .circle-row .circle.active{ background:#ccf9ff; color:#111827; border-color:#99e6f5; }
 .side-fields{ display:flex; flex-direction:column; gap:12px; }
+/* Color input swatch identical to seasons/overrides */
+.color-input{ width:56px; height:56px; padding:0; border:1px solid #e0e0e0; border-radius:8px; background:#fff; display:block; }
+.color-input::-webkit-color-swatch-wrapper{ padding:2px; border-radius:8px; }
+.color-input::-webkit-color-swatch{ border:none; border-radius:8px; }
+.color-input::-moz-color-swatch{ border:none; border-radius:8px; }
+/* Make compact inputs truly smaller: reduce input and label font sizes inside drawer */
+.drawer-body :deep(.v-field .v-field-label){ font-size: 13px !important; }
+.drawer-body :deep(.v-field .v-field__input){ font-size: 16px !important; }
+.drawer-body :deep(.v-field .v-field__input input){ font-size: 16px !important; }
+.drawer-body :deep(.v-select .v-select__selection-text){ font-size: 16px !important; }
 </style>
 
 
