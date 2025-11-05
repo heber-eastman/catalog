@@ -972,6 +972,24 @@ router.post('/tee-sheets/:id/v2/templates/:templateId/publish', requireAuth(['Ad
   const ver = await TeeSheetTemplateVersion.findOne({ where: { id: value.version_id, template_id: tmpl.id } });
   if (!ver) return res.status(404).json({ error: 'Version not found' });
   try {
+    // Prevalidate coverage and prices: require coverage for all sides and a public price per side
+    const sides = await TeeSheetSide.findAll({ where: { tee_sheet_id: sheet.id } });
+    const sideIds = new Set(sides.map(s => String(s.id)));
+    const covered = await TeeSheetTemplateSide.findAll({ where: { version_id: ver.id } });
+    const coveredIds = new Set(covered.map(c => String(c.side_id)));
+    for (const id of sideIds) {
+      if (!coveredIds.has(id)) {
+        return res.status(400).json({ error: 'Template publish requires side coverage for all sides' });
+      }
+    }
+    const prices = await TeeSheetTemplateSidePrices.findAll({ where: { version_id: ver.id } });
+    const hasPublicPriceBySide = new Set(prices.filter(p => p.booking_class_id === 'public').map(p => String(p.side_id)));
+    for (const id of sideIds) {
+      if (!hasPublicPriceBySide.has(id)) {
+        return res.status(400).json({ error: 'Template publish requires public prices on all covered sides' });
+      }
+    }
+
     if (typeof tmpl.save === 'function') {
       tmpl.published_version_id = ver.id;
       tmpl.status = 'published';

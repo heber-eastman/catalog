@@ -57,7 +57,20 @@ async function prevalidateSeasonVersion({ teeSheetId, seasonVersionId }) {
         violations.push({ date: dateISO, code: 'missing_template_version', windowId: w.id });
         continue;
       }
-      const tmpl = await TeeSheetTemplate.findByPk(tv.template_id);
+      let tmpl = null;
+      try {
+        tmpl = await TeeSheetTemplate.findByPk(tv.template_id);
+      } catch (e) {
+        const code = e && (e.parent?.code || e.original?.code);
+        if (String(code) === '42P01' || String(code) === '42703') {
+          try {
+            const [rows] = await require('../models').sequelize.query('SELECT id FROM "TeeSheetTemplates" WHERE id = :id LIMIT 1', { replacements: { id: tv.template_id } });
+            tmpl = (Array.isArray(rows) && rows.length > 0) ? { id: rows[0].id } : null;
+          } catch (_) {}
+        } else {
+          throw e;
+        }
+      }
       if (!tmpl) {
         violations.push({ date: dateISO, code: 'missing_template_for_version', windowId: w.id });
         continue;
