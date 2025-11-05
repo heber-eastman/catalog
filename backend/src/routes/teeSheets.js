@@ -956,7 +956,18 @@ router.post('/tee-sheets/:id/v2/templates/:templateId/publish', requireAuth(['Ad
   if (error) return res.status(400).json({ error: error.message });
   const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
-  const tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: sheet.id } });
+  let tmpl = null;
+  try {
+    tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: sheet.id } });
+  } catch (e) {
+    const code = e && (e.parent?.code || e.original?.code);
+    if (String(code) === '42703' || String(code) === '42P01') {
+      const [rows] = await sequelize.query('SELECT id FROM "TeeSheetTemplates" WHERE id = :tid AND tee_sheet_id = :sid', { replacements: { tid: req.params.templateId, sid: sheet.id } });
+      if (Array.isArray(rows) && rows.length > 0) tmpl = { id: rows[0].id };
+    } else {
+      throw e;
+    }
+  }
   if (!tmpl) return res.status(404).json({ error: 'Template not found' });
   const ver = await TeeSheetTemplateVersion.findOne({ where: { id: value.version_id, template_id: tmpl.id } });
   if (!ver) return res.status(404).json({ error: 'Version not found' });
@@ -989,7 +1000,18 @@ router.post('/tee-sheets/:id/v2/templates/:templateId/rollback', requireAuth(['A
   if (error) return res.status(400).json({ error: error.message });
   const sheet = await TeeSheet.findOne({ where: { id: req.params.id, course_id: req.courseId } });
   if (!sheet) return res.status(404).json({ error: 'Tee sheet not found' });
-  const tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: sheet.id } });
+  let tmpl = null;
+  try {
+    tmpl = await TeeSheetTemplate.findOne({ where: { id: req.params.templateId, tee_sheet_id: sheet.id } });
+  } catch (e) {
+    const code = e && (e.parent?.code || e.original?.code);
+    if (String(code) === '42703' || String(code) === '42P01') {
+      const [rows] = await sequelize.query('SELECT id FROM "TeeSheetTemplates" WHERE id = :tid AND tee_sheet_id = :sid', { replacements: { tid: req.params.templateId, sid: sheet.id } });
+      if (Array.isArray(rows) && rows.length > 0) tmpl = { id: rows[0].id };
+    } else {
+      throw e;
+    }
+  }
   if (!tmpl) return res.status(404).json({ error: 'Template not found' });
   const ver = await TeeSheetTemplateVersion.findOne({ where: { id: value.version_id, template_id: tmpl.id } });
   if (!ver) return res.status(404).json({ error: 'Version not found' });
