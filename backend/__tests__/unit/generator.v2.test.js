@@ -11,6 +11,11 @@ describe('generator v2', () => {
     try { await sequelize.sync(); } catch (_) {}
     // Ensure migrations applied if running in isolation (CI guard)
     try {
+      // Ensure V2 core schema exists
+      const SequelizeLib = require('sequelize');
+      const qi = sequelize.getQueryInterface();
+      try { await require('../../migrations/20250908090000-create-templates-seasons-overrides').up(qi, SequelizeLib); } catch (_) {}
+      try { await require('../../migrations/20250918150000-add-allowed-hole-totals').up(qi, SequelizeLib); } catch (_) {}
       const [rows] = await sequelize.query(`SELECT to_regclass('public."TeeSheets"') AS teesheets, to_regclass('public."TeeSheetTemplates"') AS templates`);
       const hasSheets = !!rows?.[0]?.teesheets;
       const hasV2 = !!rows?.[0]?.templates;
@@ -18,8 +23,6 @@ describe('generator v2', () => {
         execSync('npx sequelize-cli db:migrate', { stdio: 'inherit', cwd: path.join(__dirname, '../..') });
       }
       // Apply incremental migrations needed for overrides/seasons
-      const SequelizeLib = require('sequelize');
-      const qi = sequelize.getQueryInterface();
       try { await require('../../migrations/20251008090500-add-name-to-overrides').up(qi, SequelizeLib); } catch (_) {}
       try { await require('../../migrations/20251010114500-add-draft-version-to-overrides').up(qi, SequelizeLib); } catch (_) {}
       try { await require('../../migrations/20251010090000-add-position-to-override-windows').up(qi, SequelizeLib); } catch (_) {}

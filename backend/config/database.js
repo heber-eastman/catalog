@@ -68,7 +68,7 @@ const config = {
     ? {
         url: process.env.DATABASE_URL,
         dialect: 'postgres',
-        logging: false,
+        logging: console.log,
         define: {
           underscored: true,
           timestamps: true,
@@ -87,7 +87,7 @@ const config = {
         host: process.env.DB_HOST || '127.0.0.1',
         port: process.env.DB_PORT || 5432,
         dialect: 'postgres',
-        logging: false,
+        logging: console.log,
         define: {
           underscored: true,
           timestamps: true,

@@ -24,6 +24,8 @@ describe('Events and Reminders', () => {
     await require('../../migrations/20250626000001-create-events').up(qi, SequelizeLib);
     // Ensure assignment optional customer_id exists in this isolated DB
     try { await require('../../migrations/20251003090000-add-customer-to-assignment').up(qi, SequelizeLib); } catch (e) {}
+    // Ensure tee time denormalized fields exist for tests using the current models
+    try { await require('../../migrations/20251031180000-add-teetime-reround-fields').up(qi, SequelizeLib); } catch (e) {}
   });
 
   test('reminder selects upcoming bookings and sends emails', async () => {

@@ -43,6 +43,8 @@ module.exports = {
         EXCEPTION WHEN duplicate_column THEN NULL; END;
       END $$;
     `);
+    // Ensure color column exists on templates
+    try { await queryInterface.sequelize.query('ALTER TABLE "TeeSheetTemplates" ADD COLUMN IF NOT EXISTS "color" VARCHAR(16) NULL;'); } catch (e) {}
 
     // TeeSheetTemplateVersions
     try { await queryInterface.createTable('TeeSheetTemplateVersions', {

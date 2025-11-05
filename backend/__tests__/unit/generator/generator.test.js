@@ -20,6 +20,8 @@ describe('teeSheetGenerator', () => {
     await addGeoTz.up(qi, SequelizeLib);
     await customerMigration.up(qi, SequelizeLib);
     await teeSchemaMigration.up(qi, SequelizeLib);
+    // Ensure TeeTimes denormalized columns exist for current model mapping
+    try { await require('../../../migrations/20251031180000-add-teetime-reround-fields').up(qi, SequelizeLib); } catch (_) {}
   });
 
   afterAll(async () => {

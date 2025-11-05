@@ -36,6 +36,8 @@ describe('POST /api/v1/bookings', () => {
     await teeSchemaMigration.up(qi, SequelizeLib);
     // Ensure TeeTimeAssignments has customer_id for tests
     await addCustomerToAssignment.up(qi, SequelizeLib);
+    // Ensure tee time denormalized fields exist for current models
+    try { await require('../../migrations/20251031180000-add-teetime-reround-fields').up(qi, SequelizeLib); } catch (_) {}
     // Ensure course geo/timezone columns exist
     try { await require('../../migrations/20250625010000-add-course-geo-tz').up(qi, SequelizeLib); } catch (_) {}
 

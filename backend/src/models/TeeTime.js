@@ -12,10 +12,10 @@ module.exports = (sequelize, DataTypes) => {
       assigned_count: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
       is_blocked: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
       blocked_reason: { type: DataTypes.STRING, allowNull: true },
-      can_start_18: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+      can_start_18: { type: DataTypes.BOOLEAN, allowNull: true },
       rerounds_to_side_id: { type: DataTypes.UUID, allowNull: true },
       reround_tee_time_id: { type: DataTypes.UUID, allowNull: true },
-      holes_label: { type: DataTypes.STRING(8), allowNull: false, defaultValue: '9' },
+      holes_label: { type: DataTypes.STRING(8), allowNull: true },
       created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },
       updated_at: { type: DataTypes.DATE, allowNull: false, defaultValue: sequelize.literal('CURRENT_TIMESTAMP') },
     },
@@ -27,6 +27,8 @@ module.exports = (sequelize, DataTypes) => {
       indexes: [{ unique: true, fields: ['tee_sheet_id', 'side_id', 'start_time'] }],
     }
   );
+
+  
 
   TeeTime.associate = models => {
     TeeTime.belongsTo(models.TeeSheet, { foreignKey: 'tee_sheet_id', as: 'tee_sheet' });

@@ -25,6 +25,8 @@ describe('Calendar assignment and closures', () => {
     await customerMigration.up(qi, SequelizeLib);
     await teeSchemaMigration.up(qi, SequelizeLib);
     try { await require('../../migrations/20250625010000-add-course-geo-tz').up(qi, SequelizeLib); } catch (_) {}
+    // Ensure TeeTimes denormalized columns exist for model compatibility
+    try { await require('../../migrations/20251031180000-add-teetime-reround-fields').up(qi, SequelizeLib); } catch (_) {}
     try { await require('../../migrations/20251003090000-add-customer-to-assignment').up(qi, SequelizeLib); } catch (e) {}
 
     const course = await models.GolfCourseInstance.create({

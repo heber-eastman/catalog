@@ -30,6 +30,8 @@ describe('Holds & Idempotency', () => {
     await customerMigration.up(qi, SequelizeLib);
     await teeSchemaMigration.up(qi, SequelizeLib);
     await v2Migration.up(qi, SequelizeLib);
+    // Ensure tee time denormalized fields exist for current models
+    try { await require('../../migrations/20251031180000-add-teetime-reround-fields').up(qi, SequelizeLib); } catch (_) {}
     try { await require('../../migrations/20250625010000-add-course-geo-tz').up(qi, SequelizeLib); } catch (_) {}
 
     const course = await models.GolfCourseInstance.create({ name: 'Redis Course', subdomain: 'redis', status: 'Active' });

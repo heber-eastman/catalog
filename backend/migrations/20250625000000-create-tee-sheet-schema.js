@@ -9,6 +9,8 @@ module.exports = {
       course_id: { type: Sequelize.UUID, allowNull: false, references: { model: 'GolfCourseInstances', key: 'id' }, onDelete: 'CASCADE', onUpdate: 'CASCADE' },
       name: { type: Sequelize.STRING, allowNull: false },
       description: { type: Sequelize.TEXT },
+      // Added for booking window daily release time (HH:MM)
+      daily_release_local: { type: Sequelize.STRING(8), allowNull: true },
       is_active: { type: Sequelize.BOOLEAN, allowNull: false, defaultValue: true },
       created_at: { allowNull: false, type: Sequelize.DATE, defaultValue: Sequelize.literal('CURRENT_TIMESTAMP') },
       updated_at: { allowNull: false, type: Sequelize.DATE, defaultValue: Sequelize.literal('CURRENT_TIMESTAMP') },

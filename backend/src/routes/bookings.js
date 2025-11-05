@@ -192,12 +192,12 @@ router.post(
       // Legacy DayTemplate/Timeframe path
       const template = await findTemplateForDate(teeSheetId, date);
       if (!template) {
-        // Dev-friendly fallback: if no calendar assignment but tee times exist and are not blocked, allow booking
+        // Only allow fallback in explicit development mode; never in test or production
+        const isDev = (process.env.NODE_ENV || '').toLowerCase() === 'development';
         const allUnblocked = teeTimes.every(tt => !tt.is_blocked);
-        if (!allUnblocked || (process.env.NODE_ENV || '').toLowerCase() === 'production') {
+        if (!(isDev && allUnblocked)) {
           return res.status(400).json({ error: 'Window not open' });
         }
-        // Push zero-priced legs without timeframe
         for (const tt of teeTimes) {
           legsComputed.push({ tt, timeframe: null, legPrice: 0 });
         }
@@ -205,8 +205,9 @@ router.post(
       for (const tt of teeTimes) {
         const timeframe = await findTimeframeForSlot(teeSheetId, tt.side_id, template.day_template_id, tt.start_time);
         if (!timeframe) {
-          // Dev-friendly fallback: permit booking without timeframe when not in production
-          if ((process.env.NODE_ENV || '').toLowerCase() !== 'production' && !tt.is_blocked) {
+          // Only allow fallback in explicit development mode; never in test or production
+          const isDev = (process.env.NODE_ENV || '').toLowerCase() === 'development';
+          if (isDev && !tt.is_blocked) {
             legsComputed.push({ tt, timeframe: null, legPrice: 0 });
             continue;
           }
