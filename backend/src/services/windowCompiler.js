@@ -79,9 +79,35 @@ async function compileWindowsForDate({ teeSheetId, dateISO, sourceType, sourceId
 
     // Use the exact window start time (minute precision) as the first slot start
     const tvId = w.template_version_id;
-    const tv = await TeeSheetTemplateVersion.findByPk(tvId);
-    const template = tv ? await tv.getTemplate?.() : null;
-    const interval = template?.interval_mins || 10;
+    let tv = null;
+    try {
+      tv = await TeeSheetTemplateVersion.findByPk(tvId);
+    } catch (e) {
+      const code = e && (e.parent?.code || e.original?.code);
+      if (String(code) !== '42P01' && String(code) !== '42703') throw e;
+    }
+    let interval = 10;
+    if (tv) {
+      try {
+        const template = await tv.getTemplate?.();
+        if (template && typeof template.interval_mins === 'number') interval = template.interval_mins;
+      } catch (_) {
+        // fallback to raw if association not wired
+        try {
+          const [rows] = await require('../models').sequelize.query('SELECT t.interval_mins FROM "TeeSheetTemplates" t WHERE t.id = :tid', { replacements: { tid: tv.template_id } });
+          if (Array.isArray(rows) && rows.length && typeof rows[0].interval_mins === 'number') interval = rows[0].interval_mins;
+        } catch (_) {}
+      }
+    } else {
+      // As a last resort, attempt raw join from version id → template interval
+      try {
+        const [rows] = await require('../models').sequelize.query(
+          'SELECT t.interval_mins FROM "TeeSheetTemplateVersions" v JOIN "TeeSheetTemplates" t ON t.id = v.template_id WHERE v.id = :vid',
+          { replacements: { vid: tvId } }
+        );
+        if (Array.isArray(rows) && rows.length && typeof rows[0].interval_mins === 'number') interval = rows[0].interval_mins;
+      } catch (_) {}
+    }
     const snappedStart = start.startOf('minute');
 
     // Expand season windows to all sides in the template version. Override windows may already carry side_id.
