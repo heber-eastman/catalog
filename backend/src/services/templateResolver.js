@@ -41,6 +41,18 @@ async function resolveEffectiveWindows({ teeSheetId, dateISO }) {
     const code = e && (e.parent?.code || e.original?.code);
     if (String(code) !== '42P01' && String(code) !== '42703') throw e;
   }
+  // Raw fallback when ORM model mapping is incompatible in isolated DBs
+  if (!override) {
+    try {
+      const [rows] = await sequelize.query(
+        'SELECT id, published_version_id FROM "TeeSheetOverrides" WHERE tee_sheet_id = :sid AND status = :status AND date = :date LIMIT 1',
+        { replacements: { sid: teeSheetId, status: 'published', date: dateLocal.toISODate() } }
+      );
+      if (Array.isArray(rows) && rows.length > 0) {
+        override = { id: rows[0].id, published_version_id: rows[0].published_version_id };
+      }
+    } catch (_) {}
+  }
   if (override && override.published_version_id) {
     // Side-agnostic: list all windows ordered by start_time
     let windows = [];

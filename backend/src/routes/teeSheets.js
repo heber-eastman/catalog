@@ -972,9 +972,16 @@ router.post('/tee-sheets/:id/v2/templates/:templateId/publish', requireAuth(['Ad
   const ver = await TeeSheetTemplateVersion.findOne({ where: { id: value.version_id, template_id: tmpl.id } });
   if (!ver) return res.status(404).json({ error: 'Version not found' });
   try {
-    tmpl.published_version_id = ver.id;
-    tmpl.status = 'published';
-    await tmpl.save();
+    if (typeof tmpl.save === 'function') {
+      tmpl.published_version_id = ver.id;
+      tmpl.status = 'published';
+      await tmpl.save();
+    } else {
+      // Fallback when findOne returned a POJO from raw SQL
+      await sequelize.query('UPDATE "TeeSheetTemplates" SET published_version_id = :vid, status = :status WHERE id = :id', {
+        replacements: { vid: ver.id, status: 'published', id: req.params.templateId },
+      });
+    }
     if (value.apply_now) {
       const today = DateTime.now().toISODate();
       await regenerateApplyNow({ teeSheetId: sheet.id, startDateISO: value.start_date || today, endDateISO: value.end_date || today });
