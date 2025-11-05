@@ -979,15 +979,27 @@ router.post('/tee-sheets/:id/v2/templates/:templateId/publish', requireAuth(['Ad
       const today = DateTime.now().toISODate();
       await regenerateApplyNow({ teeSheetId: sheet.id, startDateISO: value.start_date || today, endDateISO: value.end_date || today });
     }
-    const reloaded = await TeeSheetTemplate.findByPk(tmpl.id, {
-      // include name now that column exists
-      include: [
-        { model: TeeSheetTemplateVersion, as: 'versions' },
-        { model: TeeSheetTemplateVersion, as: 'published_version' },
-        // online_access temporarily disabled
-      ],
-    });
-    res.json(reloaded);
+    try {
+      const reloaded = await TeeSheetTemplate.findByPk(tmpl.id, {
+        // include name now that column exists
+        include: [
+          { model: TeeSheetTemplateVersion, as: 'versions' },
+          { model: TeeSheetTemplateVersion, as: 'published_version' },
+        ],
+      });
+      res.json(reloaded);
+    } catch (e2) {
+      const [rows] = await sequelize.query('SELECT id, tee_sheet_id, status, interval_mins, archived, created_at, updated_at FROM "TeeSheetTemplates" WHERE id = :id', { replacements: { id: tmpl.id } });
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      res.json({
+        id: tmpl.id,
+        tee_sheet_id: sheet.id,
+        status: 'published',
+        interval_mins: row?.interval_mins || null,
+        archived: !!row?.archived,
+        published_version_id: ver.id,
+      });
+    }
   } catch (e) {
     const status = e.status || 400;
     res.status(status).json({ error: e.message || 'Publish failed' });
